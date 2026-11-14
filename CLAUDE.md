@@ -8,6 +8,8 @@ Test levels L0 to L3 and test cases: read before writing a test or proposing tes
 
 ## Agent skills
 
+Project skills live in `.agents/skills/`. Codex and GitHub Copilot read that folder directly; `scripts/setup-skills.sh` links it into `.claude/skills/` for Claude Code. Add a skill with `npx skills add <owner>/<repo> -a claude-code codex github-copilot`, which also records its source in `skills-lock.json`.
+
 ### Issue tracker
 
 Issues live in GitHub Issues for sravioli/strata (via `gh`). See `docs/agents/issue-tracker.md`.
