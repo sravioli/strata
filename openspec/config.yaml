@@ -1,17 +1,17 @@
 schema: spec-driven
 
 context: |
-  Every change belongs to one GitHub issue in sravioli/strata.
-  design.md is the tech design the owner decides on. Nothing is implemented
-  before the owner accepts it. See docs/agents/decision-workflow.md.
+  Every change belongs to one GitHub issue in sravioli/strata and implements
+  a tech design the owner has already accepted (docs/tech-design/).
+  See docs/agents/decision-workflow.md and docs/agents/testing.md.
 
 rules:
   proposal:
     - 'Begin with the line "Issue: #N", naming the GitHub issue this change belongs to'
   design:
-    - List the options considered, the recommended one, its trade-offs, and how it will be validated
-    - Mark every question the owner still has to answer as open
-    - For core logic, give each theorem as a plain-English statement beside its Lean statement
+    - One line only, pointing at the accepted tech design in docs/tech-design/
+  specs:
+    - Carry every test case from the tech design as a scenario, with its TC id in the scenario name
 
 # Project context (optional)
 # Add only constraints that should guide OpenSpec artifacts and workflows.
