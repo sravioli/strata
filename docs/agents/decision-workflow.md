@@ -20,6 +20,10 @@ Every change to what Strata does, or to how it is built, passes through a **tech
 
 The pull request that finishes an issue's work says `Closes #<issue>`. An issue that is only a decision has nothing to implement, so it skips step 5 and its design pull request closes it.
 
+## Writing
+
+Write every tech design, ADR and OpenSpec artifact with the `asd-ste100` skill. The aim is simple, clear text that keeps every detail.
+
 ## Research and prototype issues
 
 Issues labelled `wayfinder:research` or `wayfinder:prototype` answer a question for a later tech design, so they skip steps 2 to 5. Post the findings as a comment on the issue and link the branch. The branch stays unmerged; code from it reaches `main` only through a tech design.

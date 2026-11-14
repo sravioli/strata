@@ -4,6 +4,7 @@ context: |
   Every change belongs to one GitHub issue in sravioli/strata and implements
   a tech design the owner has already accepted (docs/tech-design/).
   See docs/agents/decision-workflow.md and docs/agents/testing.md.
+  Write every artifact with the asd-ste100 skill: simple, clear text that keeps every detail.
 
 rules:
   proposal:
