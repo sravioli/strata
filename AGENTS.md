@@ -37,7 +37,7 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | `codebase-design`, `api-and-interface-design` | You shape a module boundary, a seam or a public interface. |
 | `doubt-driven-development` | A decision is high stakes or irreversible: auth, security, migrations, data loss. |
 | `source-driven-development` | You check an approach against the official docs before you settle it: Postgres, Lean, Aeneas, any library. |
-| `constraint-driven-development` | The quality bar (quality, performance, security) needs a written contract, or an agent lowers it. |
+| `constraint-driven-development` | The repo needs a written bar that applies to every change (coverage floor, no skipped tests, no silenced checks). It goes in `CONSTRAINTS.md`; per-feature scenarios stay in `docs/agents/testing.md`. |
 | `asd-ste100` | You write a tech design, ADR or OpenSpec artifact. Required. |
 
 ### Implement
