@@ -7,7 +7,7 @@
 
 ## Problem description
 
-Strata keeps the documents of many organisations in one system. An account must read and change only the data of its own tenant. The number of tenants is not known. The total is approximately 50,000 accounts.
+Strata is a backend service that keeps the documents of many organisations in one system. It has no user interface. An account must read and change only the data of its own tenant. The number of tenants is not known. The goal is approximately 50,000 accounts. This number is an estimate, not a measurement.
 
 Goals:
 
@@ -19,7 +19,9 @@ Goals:
 Non-goals:
 
 - Authorization inside a tenant. Issue [#4](https://github.com/sravioli/strata/issues/4) owns that decision.
-- The identity provider, the session mechanism and the storage of passwords. Milestone M1 owns those decisions.
+- The identity provider and the storage of passwords. Milestone M1 owns those decisions.
+- The signing key, the lifetime and the renewal of an access token. Milestone M1 owns those decisions.
+- A user interface. A later frontend for demonstrations is a client of the API.
 - Dedicated infrastructure for one tenant.
 - The layout of the vector index. Milestone M2 owns that decision.
 - The removal of a tenant and its data.
@@ -31,27 +33,29 @@ The owner made two decisions on 2026-11-14:
 - A **tenant** is an organisation. It is a group of several people.
 - An **account** belongs to exactly one tenant. A person who works with two organisations has one account in each.
 
-The owner made four decisions on 2026-11-15:
+The owner made six decisions on 2026-11-15:
 
-- At login, the user gives the name of the tenant, then a username and a password. Thus a username is unique in one tenant only.
+- At login, the client sends the name of the tenant, a username and a password. Thus a username is unique in one tenant only.
+- Strata is a backend only. A client authenticates each request with a JSON Web Token (JWT).
+- The total of approximately 50,000 accounts is an estimate and a goal.
 - When a tenant is not active, the API rejects all of its requests. Strata keeps its data.
 - In v1, an operator creates tenants and accounts with a command. There is no self-service sign-up.
 - Strata must not reveal the names of tenants.
-
-The draft `docs/adr/draft/ADR-0002-multi-tenant-isolation.md` proposed a pooled model. This design keeps that direction and makes it specific.
 
 References:
 
 - PostgreSQL documentation, "Row Security Policies": https://www.postgresql.org/docs/current/ddl-rowsecurity.html
 - PostgreSQL documentation, "Configuration Settings Functions" (`set_config`, `current_setting`): https://www.postgresql.org/docs/current/functions-admin.html
 - PgBouncer documentation, "Features" (pooling modes): https://www.pgbouncer.org/features.html
+- RFC 7519, "JSON Web Token (JWT)": https://www.rfc-editor.org/rfc/rfc7519
+- RFC 8725, "JSON Web Token Best Current Practices": https://www.rfc-editor.org/rfc/rfc8725
 
 Terms used in this design:
 
 - **Tenant-owned table**: a table whose rows each belong to one tenant.
 - **Global table**: a table whose rows belong to no tenant.
 - **Tenant context**: the tenant that a database transaction acts for.
-- **Session**: the state that connects a request to the account that logged in.
+- **Access token**: a signed JWT that a client sends with each request. It names one tenant and one account.
 - **Runtime role**: a database role that the API or a worker uses.
 - **Owner role**: the database role that owns the tables and applies migrations.
 - **Operator role**: the database role that an operator uses for tasks that span tenants.
@@ -61,7 +65,7 @@ Terms used in this design:
 | ID | Requirement |
 |---|---|
 | R1 | A transaction reads and changes tenant-owned rows of one tenant only. |
-| R2 | After login, the tenant of a request comes from the session only. It never comes from request input. |
+| R2 | After login, the tenant of a request comes from the verified access token only. It never comes from other request input. |
 | R3 | A transaction with no tenant context gets no tenant-owned rows. |
 | R4 | A query that omits the tenant filter because of a programming error exposes no rows of other tenants. |
 | R5 | A new tenant costs one row. The design creates no schema, table, partition, index or role for a tenant. |
@@ -72,7 +76,7 @@ Terms used in this design:
 
 Quantities:
 
-- Accounts: approximately 50,000.
+- Accounts: approximately 50,000. This is an estimate and a goal.
 - Tenants: not known. The design must hold from 1 tenant to 50,000 tenants.
 - Tenant size: not known. The design must hold when one tenant owns most of the data.
 
@@ -82,7 +86,7 @@ Quantities:
 
 Two tables carry the model:
 
-- `tenants(tenant_id, name, status, created_at)`. The `name` is unique. It is the name that a user gives at login.
+- `tenants(tenant_id, name, status, created_at)`. The `name` is unique. It is the name that a client sends at login.
 - `accounts(tenant_id, account_id, username, status, created_at)` is tenant-owned. The pair `(tenant_id, username)` is unique.
 
 Three rules apply to every tenant-owned table:
@@ -176,7 +180,7 @@ No database function runs with the rights of the owner role.
 5. The API reads the account with that `(tenant_id, username)`.
 6. The API verifies the password. Milestone M1 decides how.
 7. The API rejects the login if the tenant or the account is not active.
-8. The API creates a session that binds the `tenant_id` and the `account_id`.
+8. The API issues an access token that carries the `tenant_id` and the `account_id`.
 
 The API gives the same response in each of these cases:
 
@@ -187,22 +191,26 @@ The API gives the same response in each of these cases:
 
 The API verifies a password hash in each case. Thus the response time does not show which case occurred.
 
-### Session binding
+### Access token
 
-The session is the only source of the tenant after login. Milestone M1 decides the mechanism. Each mechanism must obey these rules:
+The access token is the only source of the tenant after login. These rules apply:
 
-- The session binds one `tenant_id` and one `account_id`. A client cannot change them.
-- The API verifies the session before it runs a query on a tenant-owned table.
-- The API rejects a session that fails verification or whose time limit passed.
+- Strata signs the token. The token carries one `tenant_id`, one `account_id` and an expiry time.
+- A client cannot change the token, because a change breaks the signature.
+- The API verifies the signature and the expiry time before it runs a query on a tenant-owned table.
+- The API accepts one signing algorithm only. It rejects a token that names a different algorithm or no algorithm.
+- The API rejects a token that fails verification or whose expiry time passed.
+
+A token stays valid until its expiry time. Strata cannot cancel it earlier. Thus the API reads the status of the account and of the tenant on each request.
 
 ### Request flow
 
-1. The API verifies the session and gets the tenant and the account from it.
+1. The API verifies the access token and gets the tenant and the account from it.
 2. The API opens a tenant transaction for that tenant.
 3. The API reads the status of the account and of the tenant. It rejects the request if one of them is not active.
 4. The API runs its queries in that transaction.
 
-The request carries no tenant identifier that the API reads.
+The API reads no tenant identifier from a different part of the request.
 
 When a request names a row of a different tenant, the query finds no row. The API gives the same response as for an identifier that does not exist.
 
@@ -210,7 +218,7 @@ When a request names a row of a different tenant, the query finds no row. The AP
 
 The tenant context applies to one transaction. A pooler in transaction mode gives a connection to one transaction at a time. Thus a later transaction on the same connection does not get the earlier tenant context.
 
-The code sets `app.tenant_id` and `app.login_tenant` only with the third argument of `set_config` set to `true`. A value that applies to the session stays on the connection for the next client.
+The code sets `app.tenant_id` and `app.login_tenant` only with the third argument of `set_config` set to `true`. A value that applies to the database session stays on the connection for the next client.
 
 ### Isolation tiers
 
@@ -218,7 +226,12 @@ This design has one tier: all tenants share one deployment. A tenant that needs 
 
 ## Alternatives considered
 
-**One schema or one database for each tenant.** The boundary is strong. But each migration runs one time for each tenant, and each tenant needs its own connections. The tenant count is not known, so this fails R5.
+**One schema or one database for each tenant.** The boundary is strong. This fails R5, and the tenant count is not known. The costs increase with each tenant:
+
+- Each migration runs one time for each tenant. A migration that stops after some tenants leaves tenants on different versions.
+- PostgreSQL keeps a catalog entry for each table and each index. With 50,000 tenants, the catalog holds millions of entries.
+- A database for each tenant needs its own connections.
+- A new tenant needs statements that create tables. Thus a process that runs while Strata serves requests needs the rights of the owner role.
 
 **Shared schema with application filters only.** This is the simplest model. One query with no tenant filter exposes all tenants. This fails R4.
 
@@ -253,9 +266,9 @@ N/A. This design is database behaviour: SQL, row-level security policies and dat
 
 | The client changes | How the design stops it |
 |---|---|
-| A tenant identifier in a header, a query parameter, a path or a body | The API reads no tenant identifier from the request. |
+| A tenant identifier in a header, a query parameter, a path or a body | The API reads the tenant from the access token only. |
 | The identifier of a row, to the identifier of a row of a different tenant | The filter and the policy find no row. |
-| The session | The API verifies the session and rejects a session that a client changed. |
+| The access token | The API verifies the signature and rejects a token that a client changed. |
 | The tenant name at login | The password check fails, because the account is not in that tenant. |
 | The `tenant_id` of a row in a write | The policy and the composite foreign keys reject the write. |
 
@@ -309,25 +322,27 @@ L3: none. The tenant context adds one statement to each transaction. Later desig
 | TC-3-05 | L1 | Given a pooler in transaction mode with one server connection. When a transaction of A ends and a transaction of B starts on that connection. Then the transaction of B reads only rows of B. | (not decided) | pending |
 | TC-3-06 | L1 | For each table in the schema. Then the table is in the list of global tables, or it has forced row-level security and exactly one policy. The text of that policy is equal to the text in this design for a tenant-owned table or for `tenants`. A tenant-owned table also has a `tenant_id` column. | (not decided) | pending |
 | TC-3-07 | L1 | For each runtime role. Then the role is not a superuser and cannot bypass row-level security. The role cannot create roles or objects in the schema. The role owns no table, cannot truncate a table and is a member of no other role. | (not decided) | pending |
-| TC-3-08 | L1 | Given an account of tenant A. When the client logs in with the name of A, the username and the password. Then the API creates a session that binds A and the account. | (not decided) | pending |
+| TC-3-08 | L1 | Given an account of tenant A. When the client logs in with the name of A, the username and the password. Then the API issues an access token that carries A and the account. | (not decided) | pending |
 | TC-3-09 | L1 | Given a tenant that is not active. When one of its accounts sends a request. Then the API rejects the request and runs no further query. | (not decided) | pending |
 | TC-3-10 | L2 | Given tenants A and B each own a document that contains a word no other document contains. When an account of A searches for the word of B through the public API. Then the response contains no result and no count that reveals the document of B. | (not decided) | pending |
-| TC-3-11 | L1 | Given a session of an account of A. When a request carries the `tenant_id` of B in a header, in a query parameter, in the path or in the body. Then the API acts for A in each case. | (not decided) | pending |
-| TC-3-12 | L1 | Given a session of an account of A and a row of B. When the account reads, changes or removes the row by its identifier. Then each response is equal to the response for an identifier that does not exist. The row of B does not change. | (not decided) | pending |
-| TC-3-13 | L1 | Given a session of an account of A. When a client changes the tenant in the session, breaks its signature or uses it after it expired. Then the API rejects the request and runs no query on a tenant-owned table. | (not decided) | pending |
+| TC-3-11 | L1 | Given an access token of an account of A. When a request carries the `tenant_id` of B in a header, in a query parameter, in the path or in the body. Then the API acts for A in each case. | (not decided) | pending |
+| TC-3-12 | L1 | Given an access token of an account of A and a row of B. When the account reads, changes or removes the row by its identifier. Then each response is equal to the response for an identifier that does not exist. The row of B does not change. | (not decided) | pending |
+| TC-3-13 | L1 | Given an access token of an account of A. When a client changes the tenant in the token, breaks its signature, names a different algorithm or uses it after its expiry time. Then the API rejects the request and runs no query on a tenant-owned table. | (not decided) | pending |
 | TC-3-14 | L1 | Given an account of A. When a client logs in with the name of B and the username and password of that account. Then the API rejects the login. The responses for a tenant name that is not known, a username that is not known and an incorrect password are equal. | (not decided) | pending |
 | TC-3-15 | L1 | Given the tenant context of A and a row of A. When a transaction updates the `tenant_id` of the row to B. Then PostgreSQL rejects the update. | (not decided) | pending |
-| TC-3-16 | L1 | Given a session of an account of A. When a string parameter of a request contains SQL text that sets the tenant context to B. Then the API uses the text as data. The tenant context stays A. | (not decided) | pending |
+| TC-3-16 | L1 | Given an access token of an account of A. When a string parameter of a request contains SQL text that sets the tenant context to B. Then the API uses the text as data. The tenant context stays A. | (not decided) | pending |
 | TC-3-17 | L1 | Given a job of tenant A whose content names a document of B. When a worker runs the job. Then the worker finds no document and reads no row of B. | (not decided) | pending |
 | TC-3-18 | L1 | For each route of the API. Then a test calls the route with identifiers of a different tenant. The build fails if a route has no such test. | (not decided) | pending |
 | TC-3-19 | L2 | Given tenants A and B each own data. When an account of A calls each endpoint of the public API with identifiers of B. Then no response contains data of B or a count that reveals data of B. | (not decided) | pending |
 | TC-3-20 | L1 | Given tenants A and B. When a runtime role selects all rows of `tenants` in the tenant context of A. Then the result contains only the row of A. When the role selects with no tenant context and no login name. Then the result is empty. When the role selects with the login name of B. Then the result contains only the row of B. | (not decided) | pending |
 
-Test cases TC-3-08, TC-3-13 and TC-3-14 stay `pending` until milestone M1 decides the session mechanism.
-
 ## Unresolved questions
 
-None. The owner answered the three questions of the earlier draft on 2026-11-15. The answers are in "Background and references".
+The owner must answer this question before this design can be accepted:
+
+1. Does Strata issue the access token, or does an external identity provider issue it? This design assumes that Strata issues it at the login step. If an external provider issues it, the login flow moves to that provider. The token must then carry a `tenant_id` that Strata can trust.
+
+The owner answered the three questions of the earlier draft on 2026-11-15. The answers are in "Background and references".
 
 Implementation resolves these points:
 
