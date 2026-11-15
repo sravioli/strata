@@ -54,7 +54,6 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | `performance-optimization` | A speed or capacity requirement exists, or you suspect a regression. |
 | `deprecation-and-migration` | You remove or replace an old system, API or feature, or move users or data to a new one. |
 | `frontend-ui-engineering` | You build or change a user interface. |
-| `browser-testing-with-devtools` | Code runs in a browser and you must inspect the DOM, console or network. |
 | `dba`, `postgres` | You touch a relational database: schema, query, migration. |
 | `security-and-hardening` | Code handles untrusted input, auth, secrets, storage or a new dependency. |
 | `observability-and-instrumentation` | Code that runs in production needs logs, metrics, traces or alerts. |

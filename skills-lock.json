@@ -13,12 +13,6 @@
       "skillPath": "SKILL.md",
       "computedHash": "22084b8ab3b74751465bfefacd79f98a5d83ee0b3b482e453143e8ed6ea878c3"
     },
-    "browser-testing-with-devtools": {
-      "source": "addyosmani/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/browser-testing-with-devtools/SKILL.md",
-      "computedHash": "4e76269b455e079e76f29e11fdd80c61a7dd6ef0ab12e26432ea1b782c0a245e"
-    },
     "caveman": {
       "source": "JuliusBrussee/caveman",
       "sourceType": "github",
