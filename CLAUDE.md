@@ -1,6 +1,6 @@
 ## Decision workflow
 
-Tech design first: before implementing anything or settling a decision, write a tech design in `docs/tech-design/` tied to a GitHub issue, and wait for the owner to decide. Everything is a draft until then. See `docs/agents/decision-workflow.md`.
+Tech design first: before implementing anything or settling a decision, write a tech design in `docs/tech-design/` tied to a GitHub issue, and wait for the owner to decide. Everything is a draft until then. Repo chores (skills setup, CI config) are exempt. See `docs/agents/decision-workflow.md`.
 
 ## Testing
 
