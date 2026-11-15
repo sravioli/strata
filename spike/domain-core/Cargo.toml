@@ -1,0 +1,11 @@
+[package]
+name = "domain-core"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "domain_core"
+
+# Standalone crate: not part of any workspace yet.
+[workspace]

@@ -1,0 +1,11 @@
+[package]
+name = "probes"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "probes"
+
+# Standalone crate: not part of any workspace yet.
+[workspace]
