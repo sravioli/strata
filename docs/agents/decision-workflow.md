@@ -28,6 +28,10 @@ Write every tech design, ADR and OpenSpec artifact with the `asd-ste100` skill. 
 
 Issues labelled `wayfinder:research` or `wayfinder:prototype` answer a question for a later tech design, so they skip steps 2 to 5. Post the findings as a comment on the issue and link the branch. The branch stays unmerged; code from it reaches `main` only through a tech design.
 
+## Repo chores
+
+Repo chores need no tech design: the setup of agent skills, and CI configuration. They still arrive through a pull request that the owner merges.
+
 ## The owner and Lean
 
 Agents write the Lean. The owner reads the plain-English statement of each theorem in the design's Proof obligations table and approves that; CI checks the proof. A theorem whose statement the owner has not approved is a draft.
