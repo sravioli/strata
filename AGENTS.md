@@ -36,6 +36,8 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | `domain-modeling` | You add or change a term in `GLOSSARY.md`, or write or edit an ADR. |
 | `codebase-design`, `api-and-interface-design` | You shape a module boundary, a seam or a public interface. |
 | `doubt-driven-development` | A decision is high stakes or irreversible: auth, security, migrations, data loss. |
+| `source-driven-development` | You check an approach against the official docs before you settle it: Postgres, Lean, Aeneas, any library. |
+| `constraint-driven-development` | The quality bar (quality, performance, security) needs a written contract, or an agent lowers it. |
 | `asd-ste100` | You write a tech design, ADR or OpenSpec artifact. Required. |
 
 ### Implement
@@ -49,6 +51,10 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | `tdd` | You build a feature or fix a bug test-first. Read `docs/agents/testing.md` first. |
 | `ponytail` | You write any code: it keeps the change to the smallest that solves the task. |
 | `rust-router` | You write, review or debug Rust: it routes to the ownership, error, concurrency, `unsafe` and domain skills of `rust-skills`. |
+| `performance-optimization` | A speed or capacity requirement exists, or you suspect a regression. |
+| `deprecation-and-migration` | You remove or replace an old system, API or feature, or move users or data to a new one. |
+| `frontend-ui-engineering` | You build or change a user interface. |
+| `browser-testing-with-devtools` | Code runs in a browser and you must inspect the DOM, console or network. |
 | `dba`, `postgres` | You touch a relational database: schema, query, migration. |
 | `security-and-hardening` | Code handles untrusted input, auth, secrets, storage or a new dependency. |
 | `observability-and-instrumentation` | Code that runs in production needs logs, metrics, traces or alerts. |
@@ -66,6 +72,7 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | Skill | Use when |
 |---|---|
 | `code-review` | Before you open a pull request, or when asked to review a branch. |
+| `shipping-and-launch` | You prepare a production deploy. |
 | `ponytail-review`, `ponytail-audit` | You want a plain-English quality review of a change or of the whole repo. |
 | `pr` | You write a pull request body. |
 | `humanizer` | You write prose for people (README, pull request text) and it reads like AI. |
