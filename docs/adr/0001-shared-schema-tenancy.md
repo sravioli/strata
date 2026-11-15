@@ -21,7 +21,7 @@ Strata keeps the documents of many organisations in one system, and the number o
 
 ## Decision Outcome
 
-Chosen option: "Shared schema with forced row-level security", because no other option costs one row for a new tenant and has more than one layer of enforcement.
+Chosen option: "Shared schema with forced row-level security", because it alone costs one row for each tenant and has more than one layer of enforcement.
 
 The decision has these parts:
 
