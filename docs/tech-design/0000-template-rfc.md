@@ -45,11 +45,11 @@ Return to the examples from the previous section and show how the detailed desig
 
 ## Proof obligations
 
-What will be proved in Lean. One row per theorem. The owner approves the plain-English statement; CI checks the proof.
+What will be proved in Lean. One row per theorem, with the requirement or the part of the design that it covers. The owner approves the plain-English statement; CI checks the proof.
 
-| Theorem | Plain-English statement | Lean statement | Rust function it is about |
-|---|---|---|---|
-| | | | |
+| Theorem | Requirement it covers | Plain-English statement | Lean statement | Rust function it is about |
+|---|---|---|---|---|
+| | | | | |
 
 State any assumption a proof rests on (for example, that a database transaction is atomic).
 

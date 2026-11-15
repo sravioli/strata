@@ -5,8 +5,8 @@ queues, sandboxing, deployment, capacity. For what Strata does, use
 
 Adapted from the OpenBMC design template (github.com/openbmc/docs,
 designs/design-template.md, CC BY 4.0). Changed for Strata: header fields,
-Impacts split into three parts, Testing replaced by Test cases, Unresolved
-questions added.
+Proof obligations added, Impacts split into three parts, Testing replaced by
+Test cases, Unresolved questions added.
 
 Copy to NNNN-slug.md, where NNNN is the issue number. Write "N/A" with a
 reason in any section that does not apply.
@@ -38,6 +38,10 @@ reason in any section that does not apply.
 ## Alternatives considered
 
 (2 paragraphs) The designs leaned away from, why each was considered and why it was rejected.
+
+## Proof obligations
+
+What Lean proves in this design, in the table of `0000-template-rfc.md`. A system design usually has none. Then write "N/A", the reason, and which test levels cover the behaviour instead. This makes explicit what is tested and not proved.
 
 ## Impacts
 
