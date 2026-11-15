@@ -1,0 +1,27 @@
+{
+  "enabledPlugins": {
+    "mattpocock-skills@mattpocock": true,
+    "ponytail@ponytail": true,
+    "rust-skills@rust-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "mattpocock": {
+      "source": {
+        "source": "github",
+        "repo": "mattpocock/skills"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    },
+    "rust-skills": {
+      "source": {
+        "source": "github",
+        "repo": "actionbook/rust-skills"
+      }
+    }
+  }
+}
