@@ -232,6 +232,10 @@ This design has one tier: all tenants share one deployment. A tenant that needs 
 
 **A global `tenants` table.** This is simpler than a policy on `tenants`. But a programming error can then list the names of all tenants. This fails R9.
 
+## Proof obligations
+
+N/A. This design is database behaviour: SQL, row-level security policies and database roles. A Lean proof about a model does not show that PostgreSQL enforces a policy. The L1 and L2 test cases of this design cover that behaviour.
+
 ## Impacts
 
 ### Infrastructure
