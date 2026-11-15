@@ -1,0 +1,172 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Decides which jobs run. A job runs only when files it checks change; actionlint covers edits to this file.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.f.outputs.config }}
+      prose: ${{ steps.f.outputs.prose }}
+      rust: ${{ steps.f.outputs.rust }}
+      deny: ${{ steps.f.outputs.deny }}
+      sql: ${{ steps.f.outputs.sql }}
+      lean: ${{ steps.f.outputs.lean }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dorny/paths-filter@v4.0.3
+        id: f
+        with:
+          filters: |
+            config:
+              - '**/*.{md,yaml,yml,toml,sh}'
+              - '.github/**'
+            prose:
+              - 'docs/tech-design/**'
+              - 'docs/adr/**'
+              - '.agents/skills/asd-ste100/scripts/**'
+              - '.github/workflows/ci.yml'
+            rust:
+              - '**/*.rs'
+              - '**/Cargo.toml'
+              - '**/Cargo.lock'
+              - 'rust-toolchain*'
+            deny:
+              - '**/Cargo.toml'
+              - '**/Cargo.lock'
+              - 'deny.toml'
+            sql:
+              - '**/*.sql'
+            lean:
+              - '**/*.lean'
+              - '**/lakefile.*'
+              - '**/lean-toolchain'
+              - '**/lake-manifest.json'
+
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      # The cocogitto action installs cog 6.5.0, which rejects `pre` in cog.toml. Install the version used locally.
+      - run: |
+          curl -fsSL https://github.com/cocogitto/cocogitto/releases/download/7.0.0/cocogitto-7.0.0-x86_64-unknown-linux-musl.tar.gz | tar xz
+          find . -name cog -type f -exec install -m755 {} /usr/local/bin/cog \;
+      - run: cog check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - run: |
+          curl -fsSL https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz | tar xz betterleaks
+          ./betterleaks git .
+
+  config:
+    needs: changes
+    if: needs.changes.outputs.config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DavidAnson/markdownlint-cli2-action@v25.0.0
+      - uses: ibiqlik/action-yamllint@v3.1.1
+        with:
+          file_or_dir: .
+          config_file: .yamllint.yaml
+      - uses: raven-actions/actionlint@v2.2.0
+      - run: pipx install taplo-cli || pip install taplo
+      - run: taplo fmt --check
+      - run: git ls-files 'scripts/*.sh' | xargs -r shellcheck
+
+  prose:
+    needs: changes
+    if: needs.changes.outputs.prose == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # Templates (0000-*) stay out: they hold placeholder text.
+      - run: git ls-files 'docs/tech-design/*.md' 'docs/adr/*.md' | grep -v '/0000-' | xargs -r python3 .agents/skills/asd-ste100/scripts/ste-lint.py
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2.9.3
+      - run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
+
+  deny:
+    needs: changes
+    if: needs.changes.outputs.deny == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@v2.1.1
+
+  lean:
+    needs: changes
+    if: needs.changes.outputs.lean == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - id: pkg
+        run: echo "dir=$(git ls-files '*lakefile.toml' '*lakefile.lean' | head -1 | xargs -r dirname)" >> "$GITHUB_OUTPUT"
+      - uses: leanprover/lean-action@v1.7.1
+        with:
+          lake-package-directory: ${{ steps.pkg.outputs.dir }}
+
+  sql:
+    needs: changes
+    if: needs.changes.outputs.sql == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # Real validation: every .sql file must apply, in path order, to an empty Postgres.
+      - run: |
+          files=$(git ls-files '*.sql' | sort)
+          pipx install sqlfluff
+          echo "$files" | xargs sqlfluff lint --dialect postgres
+          for f in $files; do psql -v ON_ERROR_STOP=1 -q -f "$f"; done
+
+  # Make only this job a required check. A skipped job counts as passed.
+  ci-ok:
+    if: always()
+    needs: [changes, commits, secrets, config, prose, rust, deny, lean, sql]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = false ]
