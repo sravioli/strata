@@ -1,4 +1,4 @@
-- Issue: #3
+- Issue: [#3](https://github.com/sravioli/strata/issues/3)
 - Status: draft
 - Start date: 2026-11-14
 - Decided by: (not decided)
@@ -18,7 +18,7 @@ Goals:
 
 Non-goals:
 
-- Authorization inside a tenant. Issue #4 owns that decision.
+- Authorization inside a tenant. Issue [#4](https://github.com/sravioli/strata/issues/4) owns that decision.
 - The identity provider, the session mechanism and the storage of passwords. Milestone M1 owns those decisions.
 - Dedicated infrastructure for one tenant.
 - The layout of the vector index. Milestone M2 owns that decision.
@@ -163,7 +163,7 @@ The operator command does these tasks:
 
 A global table has no row-level security. A global table must not hold tenant content. It can hold identifiers and state.
 
-This design has no global table. The job queue of issue #5 is an example of a global table. A worker claims a job, reads its `tenant_id`, then opens a tenant transaction for that tenant.
+This design has no global table. The job queue of issue [#5](https://github.com/sravioli/strata/issues/5) is an example of a global table. A worker claims a job, reads its `tenant_id`, then opens a tenant transaction for that tenant.
 
 No database function runs with the rights of the owner role.
 
@@ -263,7 +263,7 @@ N/A. This design is database behaviour: SQL, row-level security policies and dat
 
 - The API and the workers can set any tenant context. An attacker who controls one of these processes reaches all tenants.
 - An attacker who injects SQL can call `set_config` and reaches all tenants. Thus all queries must use bound parameters. The code builds no SQL text from request input.
-- A parser reads hostile files. Issue #7 keeps parsers in a process that has no database credentials.
+- A parser reads hostile files. Issue [#7](https://github.com/sravioli/strata/issues/7) keeps parsers in a process that has no database credentials.
 
 **Cases where row-level security does not apply.** The design closes each one:
 
