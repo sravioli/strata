@@ -1,7 +1,7 @@
 - Issue: [#7](https://github.com/sravioli/strata/issues/7)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-18
-- Decided by: (not decided)
+- Decided by: sravioli, 2026-11-19
 
 # Extraction sandbox: hostile files go to a process that can reach nothing
 
@@ -239,17 +239,17 @@ L0: unit tests cover the reader of each format, the check of the output, and the
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-7-01 | L1 | Given an extraction process. When it tries to open a network connection. Then the attempt fails. | (not decided) | pending |
-| TC-7-02 | L1 | Given an extraction process. When it reads its environment and tries to read the files of the worker. Then it finds no variable of the worker and no secret. | (not decided) | pending |
-| TC-7-03 | L1 | Given a DOCX file that expands to more than 500 MB. When the worker extracts it. Then the revision is `Failed` with `ArchiveTooLarge`, the job is `Done`, and the worker continues with other jobs. | (not decided) | pending |
-| TC-7-04 | L1 | Given a file that makes the parser run without end. When the worker extracts it. Then the process stops at the time limit, and the revision is `Failed` with `ExtractionTimeout`. | (not decided) | pending |
-| TC-7-05 | L1 | Given a file that makes the parser use more than 1 GB. When the worker extracts it. Then the process stops, and the revision is `Failed` with `ExtractionMemory`. | (not decided) | pending |
-| TC-7-06 | L1 | Given an extraction process that writes more than 50 MB. When the worker reads the output. Then the worker stops the process, and the revision is `Failed` with `ExtractionOutputTooLarge`. | (not decided) | pending |
-| TC-7-07 | L1 | Given a file with the name `report.pdf` and the bytes of a ZIP archive. When the worker extracts it. Then the process detects the format from the bytes, not from the name. | (not decided) | pending |
-| TC-7-08 | L1 | Given a scanned PDF with no text. When the worker extracts it. Then the revision is not `Failed`, and it holds the class `NoText`. | (not decided) | pending |
-| TC-7-09 | L1 | Given one PDF, DOCX, PPTX, XLSX and CSV file with known text. When the worker extracts each one. Then the output holds that text. | (not decided) | pending |
-| TC-7-10 | L1 | Given a worker that stops while an extraction runs. When the lease expires. Then a different worker claims the job and extracts the file. The first extraction process stops at its time limit at the latest, and nothing writes its output. | (not decided) | pending |
-| TC-7-11 | L1 | Given two uploads of the same PDF, one with `pdf_parser` set to `fast` and one with no `pdf_parser`. When the worker extracts each one. Then PDFium extracts the first one, Poppler extracts the second one, and each revision holds its value of `pdf_parser`. | (not decided) | pending |
+| TC-7-01 | L1 | Given an extraction process. When it tries to open a network connection. Then the attempt fails. | sravioli, 2026-11-19 | pending |
+| TC-7-02 | L1 | Given an extraction process. When it reads its environment and tries to read the files of the worker. Then it finds no variable of the worker and no secret. | sravioli, 2026-11-19 | pending |
+| TC-7-03 | L1 | Given a DOCX file that expands to more than 500 MB. When the worker extracts it. Then the revision is `Failed` with `ArchiveTooLarge`, the job is `Done`, and the worker continues with other jobs. | sravioli, 2026-11-19 | pending |
+| TC-7-04 | L1 | Given a file that makes the parser run without end. When the worker extracts it. Then the process stops at the time limit, and the revision is `Failed` with `ExtractionTimeout`. | sravioli, 2026-11-19 | pending |
+| TC-7-05 | L1 | Given a file that makes the parser use more than 1 GB. When the worker extracts it. Then the process stops, and the revision is `Failed` with `ExtractionMemory`. | sravioli, 2026-11-19 | pending |
+| TC-7-06 | L1 | Given an extraction process that writes more than 50 MB. When the worker reads the output. Then the worker stops the process, and the revision is `Failed` with `ExtractionOutputTooLarge`. | sravioli, 2026-11-19 | pending |
+| TC-7-07 | L1 | Given a file with the name `report.pdf` and the bytes of a ZIP archive. When the worker extracts it. Then the process detects the format from the bytes, not from the name. | sravioli, 2026-11-19 | pending |
+| TC-7-08 | L1 | Given a scanned PDF with no text. When the worker extracts it. Then the revision is not `Failed`, and it holds the class `NoText`. | sravioli, 2026-11-19 | pending |
+| TC-7-09 | L1 | Given one PDF, DOCX, PPTX, XLSX and CSV file with known text. When the worker extracts each one. Then the output holds that text. | sravioli, 2026-11-19 | pending |
+| TC-7-10 | L1 | Given a worker that stops while an extraction runs. When the lease expires. Then a different worker claims the job and extracts the file. The first extraction process stops at its time limit at the latest, and nothing writes its output. | sravioli, 2026-11-19 | pending |
+| TC-7-11 | L1 | Given two uploads of the same PDF, one with `pdf_parser` set to `fast` and one with no `pdf_parser`. When the worker extracts each one. Then PDFium extracts the first one, Poppler extracts the second one, and each revision holds its value of `pdf_parser`. | sravioli, 2026-11-19 | pending |
 
 ## Unresolved questions
 
