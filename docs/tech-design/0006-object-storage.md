@@ -65,8 +65,21 @@ References:
 Quantities:
 
 - 10,000 uploads each hour at the ceiling, which is approximately 3 each second (ADR 0003).
-- 5,000,000 documents in the test corpus. The average size of a file is not known. At 1 MB on average, the corpus is approximately 5 TB, before replication.
-- Proposal: a maximum file size of 100 MB.
+- 5,000,000 documents in the test corpus (ADR 0003).
+- The average size of a file is not measured. This design assumes 2 MB. Then the corpus is approximately 10 TB, before replication.
+- The maximum file size is 100 MB (owner, 2026-11-18).
+
+The assumption of 2 MB comes from estimates of usual sizes, not from a measurement:
+
+| Kind of file | Usual size (estimate) |
+|---|---|
+| PDF | 0.2 MB to 5 MB. Text reports are at the low end, scans and files with many images at the high end. |
+| DOCX | 50 KB to 1 MB, more with embedded images |
+| PPTX | 1 MB to 20 MB, mostly images |
+| XLSX | 20 KB to 5 MB |
+| CSV | 10 KB to more than 50 MB |
+
+A sample of real files from a product, for example "alpha", replaces this assumption when it is available.
 
 ## Proposed design
 
@@ -74,7 +87,7 @@ Quantities:
 
 Strata uses the traits `ObjectStore` and `Signer` of the crate `object_store`. It does not write its own storage interface. The configuration selects the backend.
 
-The first backend is a free and open-source server that uses the S3 API, through the `AmazonS3` type of the crate. This design proposes Garage (see "Alternatives considered" and "Unresolved questions"). Each server and cloud service with an S3 API can replace it with a change of configuration. Azure Blob Storage stays possible through the `MicrosoftAzure` type, with a user delegation SAS.
+The first backend is a free and open-source server that uses the S3 API, through the `AmazonS3` type of the crate. The first server is Garage. The owner accepted it, with its licence AGPLv3, on 2026-11-18. Each server and cloud service with an S3 API can replace it with a change of configuration. Azure Blob Storage stays possible through the `MicrosoftAzure` type, with a user delegation SAS.
 
 A backend must implement `Signer`. Thus local disk and memory are not backends for the API. Development and tests use the same server as production, in a container.
 
@@ -94,7 +107,7 @@ client               API                       storage          database
   |<------------------| 202 Accepted              |                 |
 ```
 
-1. **Start.** The client sends the file name, the content type and the size. The API calls `authorize` for `UploadDocument`. It checks the bound on `Waiting` jobs (ADR 0004). It creates the revision in the state `AwaitingUpload` and returns a signed PUT URL for the key of that revision. The URL expires after 15 minutes.
+1. **Start.** The client sends the file name, the content type and the size. The API calls `authorize` for `UploadDocument`. It checks the bound on `Waiting` jobs (ADR 0004). It creates the revision in the state `AwaitingUpload` and returns a signed PUT URL for the key of that revision. The URL expires after 15 minutes. The time limits the start of the PUT, not its length. The storage checks the expiry when the request arrives, and a transfer that starts in time continues to its end. Thus a slow transfer of 100 MB does not fail.
 2. **Send.** The client sends the bytes to the storage with the URL. The URL permits a PUT of one key only.
 3. **Finish.** The client tells the API that the upload is complete. The API reads the size of the object from the storage. If the object does not exist, the API answers with an error and changes nothing. If the size is above the maximum, the API removes the object and rejects the upload. Otherwise one transaction sets the revision to `Uploaded` and creates its `ProcessDocument` job (O6).
 
@@ -133,7 +146,7 @@ The API and the worker get the storage credentials from the secret store of the 
 
 **MinIO.** For years it was the usual self-hosted server with an S3 API. But its community edition has had no binary releases since October 2025, and its repository is archived. Strata would have to build it and fix its security problems.
 
-**SeaweedFS instead of Garage.** Its licence is Apache 2.0, which permits more than AGPLv3, and it is made for very many files. But it has more parts to operate, and its presigned URLs need careful configuration behind a reverse proxy. If the owner does not accept AGPLv3 for a server, SeaweedFS is the next choice.
+**SeaweedFS instead of Garage.** Its licence is probably Apache 2.0, which permits more than AGPLv3, and it is made for very many files. But it has more parts to operate, and its presigned URLs need careful configuration behind a reverse proxy. The owner accepted AGPLv3 for Garage, so SeaweedFS stays the next choice if Garage fails the implementation checks.
 
 **Local disk or a shared file system.** This is the simplest for one server. But `LocalFileSystem` cannot sign URLs, so the bytes must pass through the API. Also, each copy of the API needs the same shared file system (ADR 0003, S1).
 
@@ -191,17 +204,20 @@ L0: unit tests cover the key of each file and the rules of step 3.
 
 ## Unresolved questions
 
+The owner answered on 2026-11-18:
+
+- Garage is the first server. Its licence, AGPLv3, is accepted. Strata uses Garage as a separate server and does not change it.
+- The maximum file size is 100 MB.
+
 The owner must answer these questions before this design can be accepted:
 
-1. Do you accept Garage as the first server? Its licence is AGPLv3. Strata uses it as a separate server and does not change it. In the usual reading of AGPLv3, the licence then asks nothing of the code of Strata. This is not legal advice. If the owner wants a licence that permits more, the choice is SeaweedFS (Apache 2.0).
-2. Do you accept a maximum file size of 100 MB?
-3. Do you accept these times for the signed URLs: 15 minutes for an upload, 5 minutes for a download?
-4. What is the average size of a file? It sets the size of the storage for C5. M3 needs it.
+1. Do you accept these times for the signed URLs: 15 minutes to start an upload, 5 minutes to start a download? The time does not limit the length of a transfer.
+2. Do you accept 2 MB as the assumed average size of a file, until a sample of real files replaces it?
 
 Implementation resolves these points:
 
 - A check that the Garage S3 API accepts the signed URLs of `object_store`, before the first L1 test.
-- The licence of SeaweedFS, if the owner chooses it.
+- A check that Garage, like Amazon S3, checks the expiry of a signed URL only when the request arrives.
 
 These questions belong to later designs:
 
