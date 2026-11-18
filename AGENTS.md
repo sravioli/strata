@@ -54,7 +54,7 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | `performance-optimization` | A speed or capacity requirement exists, or you suspect a regression. |
 | `deprecation-and-migration` | You remove or replace an old system, API or feature, or move users or data to a new one. |
 | `frontend-ui-engineering` | You build or change a user interface. |
-| `dba`, `postgres` | You touch a relational database: schema, query, migration. |
+| `postgres` | You touch a relational database: schema, query, migration. |
 | `security-and-hardening` | Code handles untrusted input, auth, secrets, storage or a new dependency. |
 | `observability-and-instrumentation` | Code that runs in production needs logs, metrics, traces or alerts. |
 | `ci-cd-and-automation` | You change a pipeline or a quality gate. |
@@ -81,7 +81,6 @@ The repo docs outrank a skill. A skill never lets you skip the decision workflow
 | Skill | Use when |
 |---|---|
 | `writing-for-agents` | You edit `AGENTS.md`, `CLAUDE.md` or a skill. |
-| `context-engineering` | Output quality drops, or you set up context for a new session. |
 | `caveman` | The owner asks for short, blunt replies ("caveman mode", "say less"). |
 | `wizard` | A step needs a human to act, for example credentials, a third-party dashboard or a cutover. |
 
