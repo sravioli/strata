@@ -43,3 +43,7 @@ _Avoid_: Dead letter, failed job
 **Signed URL**:
 A URL that gives access to one file, for one operation, for a short time. A client gets it from the API after the API permits the action.
 _Avoid_: Link, token, presigned link
+
+**Extraction process**:
+A separate process in a sandbox that reads one file of a revision and returns its text and structure. It has no credentials and no network.
+_Avoid_: Parser, extractor service, converter
