@@ -7,7 +7,7 @@
 
 ## Problem description
 
-Strata must serve approximately 50,000 accounts, and the peak load is not known. This design sets a design ceiling: the worst-case load that the system must be able to reach. It also sets the rules that the code must obey so that more copies of each process give more capacity. The L3 test cases use the ceiling as their target numbers.
+Strata must serve approximately 50,000 registered accounts across all tenants. They are not all active at the same time, and the peak load is not known. This design sets a design ceiling: the peak load that the system must be able to reach, derived from the 50,000 accounts. It also sets the rules that the code must obey so that more copies of each process give more capacity. The L3 test cases use the ceiling as their target numbers.
 
 Goals:
 
@@ -28,6 +28,8 @@ The owner stated the position on 2026-11-14 and on 2026-11-15 (map [#1](https://
 - The peak concurrency is not known. Thus the design must be able to reach the worst case.
 - Sizing is a deployment concern. It must change the code only where that is necessary.
 
+On 2026-11-18 the owner made the position more precise. The 50,000 accounts are the registered accounts, not the accounts that are active at the same time. The ceiling must be a reasonable peak derived from that number.
+
 The tenancy design ([#3](https://github.com/sravioli/strata/issues/3), ADR 0001) already requires a model that holds from 1 tenant to 50,000 tenants, and a connection pooler in transaction mode. The v1 authorization design ([#4](https://github.com/sravioli/strata/issues/4), ADR 0002) reads the status of the account and of the tenant on each request. Test case TC-4-04 requires that the next request after a change of status gets the new status.
 
 The handoff package has a draft ADR on pooling and read replicas (`docs/adr/draft/ADR-0008-database-pooling-and-read-scaling.md`). It is a draft, and issue [#10](https://github.com/sravioli/strata/issues/10) decides its future. This design uses two of its points: a bound on each pool, and replicas only for reads that can accept lag.
@@ -43,14 +45,15 @@ References:
 
 | ID | Quantity | Ceiling | Source |
 |---|---|---|---|
-| C1 | Accounts that send requests in the same period | 50,000, which is all accounts | Owner, 2026-11-15 |
-| C2 | Searches | 10,000 each second. This is one search for each account each 5 seconds. | Issue [#2](https://github.com/sravioli/strata/issues/2) |
+| C0 | Registered accounts, across all tenants | 50,000 | Owner, 2026-11-18 |
+| C1 | Accounts that are active at the same time, at the peak | Proposal: 10,000, which is 20 % of C0 | Owner decides |
+| C2 | Searches | Proposal: 1,000 each second. This is one search for each active account each 10 seconds. | Owner decides |
 | C3 | Tenants | Each target holds for 1 tenant and for 50,000 tenants, with the same total data | Tenancy design |
-| C4 | Uploads | Proposal: 50,000 each hour, which is approximately 14 each second. This is one upload for each account each hour. | Owner decides |
-| C5 | Documents in the test corpus | Proposal: 5,000,000 documents, which is 100 for each account. One tenant can hold half of all documents. | Owner decides |
-| C6 | Search latency at C2 | Proposal: 95 % of searches in 500 ms or less, and 99 % in 1 s or less | Owner decides |
+| C4 | Uploads | Proposal: 10,000 each hour, which is approximately 3 each second. This is one upload for each active account each hour. | Owner decides |
+| C5 | Documents in the test corpus | 5,000,000 documents, which is 100 for each registered account. One tenant can hold half of all documents. | Owner, 2026-11-18 |
+| C6 | Search latency at C2 | 95 % of searches in 500 ms or less, and 99 % in 1 s or less | Owner, 2026-11-18 |
 
-The ceiling is for one deployment of Strata. A search here is one request to the search route. It can contain a lexical search, a vector search and the fusion of the two.
+C1 keeps a margin: a tool for organisations usually has a smaller part of its accounts active at the same time. C2 keeps a margin too: a person usually searches less than one time each minute. The ceiling is for one deployment of Strata. A search here is one request to the search route. It can contain a lexical search, a vector search and the fusion of the two.
 
 ### The rules for the code
 
@@ -74,7 +77,7 @@ A copy can keep a cache in its memory only when two conditions are true:
 - The loss of the cache changes no result.
 - The data in the cache cannot become incorrect, or each copy gets the invalidation.
 
-A status cache in the memory of each copy does not meet the second condition without a message to each copy. Thus this design proposes no status cache in v1. The status read is two reads by primary key on the primary. ADR 0002 permits a cache that a change of status clears. This proposal narrows ADR 0002, and the owner decides it (see "Unresolved questions"). A shared cache, for example in one cache service, can meet the two conditions. M3 can add it if the primary needs it.
+A status cache in the memory of each copy does not meet the second condition without a message to each copy. Thus v1 has no status cache. The status read is two reads by primary key on the primary. ADR 0002 permits a cache that a change of status clears. The owner accepted this narrower rule on 2026-11-18. A shared cache, for example in one cache service, can meet the two conditions. M3 can add it if the primary needs it.
 
 ### Reads on the primary
 
@@ -90,7 +93,7 @@ A replica also shows a removed document for some time. After `DeleteDocument`, a
 
 ### Load on the primary
 
-The status read goes to the primary on each request. At C2 that is approximately 20,000 reads by primary key each second for searches only, and more for the other routes. Thus replicas take the load of the search queries, but the count of requests still sets a load on the primary. This load is small for each request, and the primary must be sized for it. A shared status cache is the next step if a measurement shows that it is necessary.
+The status read goes to the primary on each request. At C2 that is approximately 2,000 reads by primary key each second for searches only, and more for the other routes. Thus replicas take the load of the search queries, but the count of requests still sets a load on the primary. This load is small for each request, and the primary must be sized for it. A shared status cache is the next step if a measurement shows that it is necessary.
 
 This design does not decide if v1 uses replicas. It makes sure that the code can use them when M3 decides it.
 
@@ -112,11 +115,11 @@ This rule comes from the tenancy design, and this design adds the targets. Each 
 ### What is not decided here
 
 - Instance sizes, replica counts and the number of copies of each process.
-- A limit on the load of one tenant. See "Unresolved questions".
+- No limit on the load of one tenant. The owner decided on 2026-11-18 that Strata adds copies behind a load balancer to serve more load. It does not limit one tenant.
 
 ## Alternatives considered
 
-**Design for a forecast, not for the worst case.** For example, 10 % of the accounts active at the same time. This needs less hardware in tests. But the owner does not know the peak, and production is the first place that shows a forecast that is too low. A ceiling with stateless processes costs little in the code. The hardware for the real load is a deployment decision.
+**All 50,000 accounts active at the same time.** The first proposal in issue [#2](https://github.com/sravioli/strata/issues/2) used this ceiling, with 10,000 searches each second. It needs ten times the hardware in tests, for a load that the owner does not expect. The owner rejected it on 2026-11-18. This design uses a peak that it derives from the registered accounts, with a margin. Stateless processes keep the cost of a higher ceiling small: a deployment adds copies.
 
 **Sticky sessions and state in memory.** A copy keeps the data of its sessions, for example the status of the account. This removes some database reads. But a copy then cannot stop without the loss of sessions, and a new copy does not take load at once. It also makes the status cache of ADR 0002 incorrect between copies.
 
@@ -141,7 +144,7 @@ N/A. This design sets numbers and rules for the system, not a function with a ru
 ### Security and tenant isolation
 
 - A rejection response contains no data of a tenant, and it is the same for each tenant.
-- One tenant can use all capacity and cause rejections for other tenants. This design does not prevent that. See "Unresolved questions".
+- One tenant can use all capacity and cause rejections for other tenants. The owner accepted this risk on 2026-11-18. More copies behind the load balancer are the response, not a limit for each tenant.
 - A bound on the size of a request body limits the effect of a large upload from a client.
 - New input that is not trusted: none.
 
@@ -161,10 +164,10 @@ L0: unit tests cover the response when a request reaches a bound, and the choice
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-2-01 | L3 | Given the corpus of C5 and 50,000 accounts. When the accounts send 10,000 searches each second for 30 minutes. Then the latency meets C6, and less than 0.1 % of the requests fail. | (not decided) | pending |
+| TC-2-01 | L3 | Given the corpus of C5 and 50,000 accounts. When 10,000 of the accounts send 1,000 searches each second for 30 minutes. Then the latency meets C6, and less than 0.1 % of the requests fail. | (not decided) | pending |
 | TC-2-02 | L3 | Given the corpus of C5, first in 1 tenant, then in 50,000 tenants. When the load of TC-2-01 runs on each. Then the latency at the 95th percentile of the two runs differs by 10 % or less. | (not decided) | pending |
-| TC-2-03 | L3 | Given the system at the load of TC-2-01. When the load increases to 20,000 searches each second for 10 minutes. Then each request that the API does not process gets 503 with `Retry-After`, no process stops, and the memory of each process stays below its limit. When the load goes back to 10,000 each second. Then the latency meets C6 again in 1 minute or less. | (not decided) | pending |
-| TC-2-04 | L3 | Given 50,000 accounts and the upload rate of C4 for 1 hour. Then the count of waiting jobs stays below its bound. Then 95 % of the documents become searchable in 5 minutes or less after the upload (proposal, owner decides). | (not decided) | pending |
+| TC-2-03 | L3 | Given the system at the load of TC-2-01. When the load increases to 2,000 searches each second for 10 minutes. Then each request that the API does not process gets 503 with `Retry-After`, no process stops, and the memory of each process stays below its limit. When the load goes back to 1,000 each second. Then the latency meets C6 again in 1 minute or less. | (not decided) | pending |
+| TC-2-04 | L3 | Given 10,000 active accounts and the upload rate of C4 for 1 hour. Then the count of waiting jobs stays below its bound. Then 95 % of the documents become searchable in 5 minutes or less after the upload (owner, 2026-11-18). A shorter time is better. | (not decided) | pending |
 | TC-2-05 | L2 | Given two copies of the API. When one account sends requests that a load balancer sends to the two copies in turn. Then each request gets the same result as with one copy. When one copy stops. Then the other copy serves each new request. | (not decided) | pending |
 | TC-2-06 | L1 | Given a database pool that is full, and a request that waits for a connection. When the wait reaches its time limit. Then the API answers 503 with `Retry-After`, and it does not wait longer. | (not decided) | pending |
 | TC-2-07 | L1 | Given a read replica that is behind the primary. When an operator sets an account to not active, and the account sends a request. Then the API rejects the request. | (not decided) | pending |
@@ -173,15 +176,18 @@ TC-2-01 to TC-2-04 stay `pending` until M3 gives a deployed test environment. TC
 
 ## Unresolved questions
 
+The owner answered the first questions of this design on 2026-11-18:
+
+- The 50,000 accounts are the registered accounts, not the accounts active at the same time (C0).
+- The corpus of C5, the latency of C6 and the target of TC-2-04 are correct. For TC-2-04, a shorter time is better.
+- v1 has no status cache.
+- Strata does not limit the load of one tenant. It adds copies behind a load balancer.
+
 The owner must answer these questions before this design can be accepted:
 
-1. Are C1 and C2 correct as the ceiling? Issue [#2](https://github.com/sravioli/strata/issues/2) said "50,000 open sessions". With access tokens and stateless processes, Strata has no session. This design replaces "sessions" with "accounts that send requests in the same period".
-2. Is the upload rate of C4 correct?
-3. Is the corpus of C5 correct?
-4. Are the latency targets of C6 correct?
-5. Is the target of TC-2-04 correct: 95 % of documents searchable in 5 minutes or less?
-6. Does v1 have no status cache? This narrows ADR 0002, which permits a cache that a change of status clears. See "Stateless processes".
-7. Must Strata limit the load of one tenant, so that one tenant cannot cause rejections for the other tenants? If yes, is the limit a decision of v1 or of M3?
+1. Is C1 correct: 10,000 accounts active at the same time at the peak?
+2. Is C2 correct: 1,000 searches each second?
+3. Is C4 correct: 10,000 uploads each hour?
 
 Implementation resolves these points:
 
