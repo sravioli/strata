@@ -37,18 +37,6 @@
       "skillPath": "skills/constraint-driven-development/SKILL.md",
       "computedHash": "f8175e0c95e406c04bd0ffd6303d8495ff95a5aee0a46eb3cf5674ace87a6298"
     },
-    "context-engineering": {
-      "source": "addyosmani/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/context-engineering/SKILL.md",
-      "computedHash": "0b9e3d177ec4e42d9b39c76ef8ee751f88cce40e3879c785a1a8c6eeabc6119d"
-    },
-    "dba": {
-      "source": "u1pns/skill-dba",
-      "sourceType": "github",
-      "skillPath": "SKILL.md",
-      "computedHash": "7429e9d9462e2e64d11175ba2a6053d0f245a32cd3232ef32b0e42f790c53ab7"
-    },
     "deprecation-and-migration": {
       "source": "addyosmani/agent-skills",
       "sourceType": "github",
