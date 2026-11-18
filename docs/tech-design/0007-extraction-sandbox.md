@@ -18,7 +18,7 @@ Goals:
 Non-goals:
 
 - Chunking, embedding and indexing of the text (M2).
-- OCR of scanned PDFs. See "Unresolved questions".
+- OCR of scanned PDFs. The owner decided that OCR is not in v1, but a later version must add it.
 - The corpus of hostile files for tests. The map puts it in M1.
 
 ## Background and references
@@ -45,6 +45,9 @@ References:
 - Landlock: https://docs.kernel.org/userspace-api/landlock.html
 - seccomp: https://docs.kernel.org/userspace-api/seccomp_filter.html
 - PDFium: https://pdfium.googlesource.com/pdfium/
+- Poppler: https://poppler.freedesktop.org/
+- The crate `poppler` (GPL): https://lib.rs/crates/poppler
+- A third-party comparison of `pdftotext` and PDFium: https://invoice2data.readthedocs.io/latest/backend-benchmark.html
 - `pdfium-render`: https://github.com/ajrcarey/pdfium-render
 - `calamine`: https://github.com/tafia/calamine
 
@@ -126,7 +129,7 @@ Proposed limits:
 
 | Format | Parser | Notes |
 |---|---|---|
-| PDF | PDFium, through the crate `pdfium-render` | PDFium is the PDF engine of Chromium, in C++. Its licence is BSD-style. Poppler is GPL, so this design does not use it. |
+| PDF | PDFium, through the crate `pdfium-render`, until the benchmark decides (see "PDFium and Poppler") | PDFium is the PDF engine of Chromium, in C++. Its licence is BSD-style. |
 | DOCX, PPTX | The crates `zip` and `quick-xml`, with a small reader in `strata-extract` | Only the text and the headings, slides and tables. |
 | XLSX | The crate `calamine` | One block of text for each sheet. |
 | CSV | The crate `csv` | One block of text for each file. |
@@ -134,6 +137,27 @@ Proposed limits:
 The reader of archives counts the expanded bytes and stops at the limit, before the control group must stop the process.
 
 Legacy formats (DOC, PPT, XLS) are not in v1. A revision in a format that is not supported becomes `Failed` with the class `UnsupportedFormat`.
+
+### PDFium and Poppler
+
+Both are free and open-source software. They differ in these points:
+
+| Point | PDFium | Poppler |
+|---|---|---|
+| Licence | BSD-style | GPL. The crate `poppler` says that a program that links it must also be GPL. |
+| Use from Rust | The crate `pdfium-render` links the library. | The crates `poppler` and `pdftotext` link the library. Or the sandbox runs the program `pdftotext` of Poppler, and `strata-extract` does not link Poppler. |
+| Speed | Faster in the comparison in "Background and references": about 4 ms for each file, against about 21 ms. | Slower. |
+| Text quality | Lower in that comparison on invoices with a layout: the right result for 73 of 170 files. | Higher in that comparison: the right result for 146 of 170 files. |
+| Origin | The PDF engine of Chromium. Google runs fuzz tests on it. | The PDF library of many Linux desktops. Based on the code of xpdf. |
+
+The comparison is one third-party test on invoices, with templates. It is not sufficient for a decision. Thus the choice comes from a benchmark in the implementation, before the parser for PDF is final:
+
+- Corpus: PDF files of the types that the products of Strata hold, for example reports, slides and invoices, with a known text for each file.
+- Measurements: the similarity of the text to the known text, the time for each page, and the peak memory. Also the count of crashes and limits reached.
+- Each parser runs inside the sandbox with the same limits.
+- The result goes into this design or into a new design, and the owner decides.
+
+If Poppler wins, the sandbox runs the program `pdftotext`, and `strata-extract` does not link Poppler. Before that, the owner must check the effect of the GPL on the distribution of the worker image. The sandbox (E1 to E3) does not change with the parser.
 
 ### Output format
 
@@ -168,7 +192,7 @@ A PDF with no text, for example a scan, gives an empty list of blocks. The revis
 
 **Apache Tika as a separate service.** Tika reads more than a thousand formats, and its licence is Apache 2.0. But it is a Java service with network access, it needs its own sandbox, and it is much larger than five formats need.
 
-**Poppler for PDF.** Poppler gives good text. But its licence is GPL. PDFium gives good text with a BSD-style licence.
+**Poppler for PDF.** Poppler is free and open-source software, and it can give better text than PDFium. Its licence is GPL. A benchmark decides between the two. See "PDFium and Poppler".
 
 ## Proof obligations
 
@@ -222,16 +246,17 @@ L0: unit tests cover the reader of each format, the check of the output, and the
 
 ## Unresolved questions
 
-The owner must answer these questions before this design can be accepted:
+The owner answered these questions on 2026-11-19:
 
-1. Is OCR of scanned PDFs out of v1? This design says yes. A scanned PDF gets the class `NoText`, and a later design can add OCR.
-2. Do you accept nsjail as the sandbox tool?
-3. Do you accept PDFium for PDF?
-4. Do you accept the limits in the table? They are 1 GB of memory, 60 seconds of CPU, 120 seconds in total, 50 MB of output, and 500 MB for an expanded archive.
-5. Do you accept that legacy formats (DOC, PPT, XLS) are not in v1?
+1. OCR of scanned PDFs is not in v1. A later version must add it. A scanned PDF gets the class `NoText`, so that the OCR step can find it.
+2. The sandbox tool is nsjail.
+3. PDFium is the parser for PDF until a benchmark against Poppler decides. See "PDFium and Poppler".
+4. The limits in the table stay. They are 1 GB of memory, 60 seconds of CPU and 120 seconds in total. Also 50 MB of output, and 500 MB for an expanded archive.
+5. Legacy formats (DOC, PPT, XLS) are not in v1.
 
 Implementation resolves these points:
 
+- The benchmark of PDFium and Poppler.
 - A check of the licences of PDFium, `pdfium-render`, `calamine`, `zip`, `quick-xml` and `csv`.
 - A check that nsjail runs inside the container of the worker on the development system and in CI.
 - The list of system calls for seccomp.
@@ -239,7 +264,7 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- OCR, and where it runs (M2).
+- OCR, and where it runs (M2). A later version must add it.
 - The corpus of hostile files (M1).
 - A separate container or virtual machine for extraction, if the risk of a kernel fault becomes too high.
 - The platform that permits user namespaces (M3).
