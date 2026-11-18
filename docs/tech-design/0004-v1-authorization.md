@@ -1,7 +1,7 @@
 - Issue: [#4](https://github.com/sravioli/strata/issues/4)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-15
-- Decided by: (not decided)
+- Decided by: sravioli, 2026-11-18
 
 # V1 authorization: tenant-wide now, scoped later
 
@@ -203,16 +203,16 @@ L0: unit tests cover each row of the decision rule, for each principal kind and 
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-4-01 | L1 | Given accounts Anna and Bruno of one tenant, and a document that Anna uploaded. When Bruno searches for the document and reads it. Then Bruno finds it and reads it. | (not decided) | pending |
-| TC-4-02 | L1 | Given accounts Anna and Bruno of one tenant, and a document that Anna uploaded. When Bruno removes the document. Then the API removes it. | (not decided) | pending |
-| TC-4-03 | L1 | Given an account that is not active in an active tenant. When the account sends a request for each account action. Then the API rejects each request and runs no query on documents. | (not decided) | pending |
-| TC-4-04 | L1 | Given an active account with an access token that is not expired. When an operator sets the account to not active, and the account sends a request. Then the API rejects the request. | (not decided) | pending |
-| TC-4-05 | L1 | Given documents in tenants A and B. When lexical search, vector search and the fusion of the two each run with the scope of tenant A. Then each result is a document of A, and each count is a count of documents of A. | (not decided) | pending |
-| TC-4-06 | L1 | Given the scope "Nothing". When each retrieval function runs with it. Then each result is empty and the function runs no query. | (not decided) | pending |
-| TC-4-07 | L1 | Given a job of tenant A. When the worker processes a document of A. Then the decision is "allow". When the content of the job names a document of B. Then the decision is "deny". | (not decided) | pending |
-| TC-4-08 | L1 | For each route of the API. Then the route gets its database handle only from a decision or a scope. The build fails if a route opens a tenant transaction in a different way. | (not decided) | pending |
-| TC-4-09 | L2 | Given two active accounts of one tenant and one account of a different tenant. When each account uploads a document and then searches through the public API. Then the two accounts of one tenant see the same two documents. The third account sees only its own document. | (not decided) | pending |
-| TC-4-10 | L1 | Given a job of tenant A that runs. When an operator sets A to not active. Then the job continues to its end. When a worker claims the next job of A. Then the decision is "deny" and the worker does not start the job. | (not decided) | pending |
+| TC-4-01 | L1 | Given accounts Anna and Bruno of one tenant, and a document that Anna uploaded. When Bruno searches for the document and reads it. Then Bruno finds it and reads it. | sravioli, 2026-11-18 | pending |
+| TC-4-02 | L1 | Given accounts Anna and Bruno of one tenant, and a document that Anna uploaded. When Bruno removes the document. Then the API removes it. | sravioli, 2026-11-18 | pending |
+| TC-4-03 | L1 | Given an account that is not active in an active tenant. When the account sends a request for each account action. Then the API rejects each request and runs no query on documents. | sravioli, 2026-11-18 | pending |
+| TC-4-04 | L1 | Given an active account with an access token that is not expired. When an operator sets the account to not active, and the account sends a request. Then the API rejects the request. | sravioli, 2026-11-18 | pending |
+| TC-4-05 | L1 | Given documents in tenants A and B. When lexical search, vector search and the fusion of the two each run with the scope of tenant A. Then each result is a document of A, and each count is a count of documents of A. | sravioli, 2026-11-18 | pending |
+| TC-4-06 | L1 | Given the scope "Nothing". When each retrieval function runs with it. Then each result is empty and the function runs no query. | sravioli, 2026-11-18 | pending |
+| TC-4-07 | L1 | Given a job of tenant A. When the worker processes a document of A. Then the decision is "allow". When the content of the job names a document of B. Then the decision is "deny". | sravioli, 2026-11-18 | pending |
+| TC-4-08 | L1 | For each route of the API. Then the route gets its database handle only from a decision or a scope. The build fails if a route opens a tenant transaction in a different way. | sravioli, 2026-11-18 | pending |
+| TC-4-09 | L2 | Given two active accounts of one tenant and one account of a different tenant. When each account uploads a document and then searches through the public API. Then the two accounts of one tenant see the same two documents. The third account sees only its own document. | sravioli, 2026-11-18 | pending |
+| TC-4-10 | L1 | Given a job of tenant A that runs. When an operator sets A to not active. Then the job continues to its end. When a worker claims the next job of A. Then the decision is "deny" and the worker does not start the job. | sravioli, 2026-11-18 | pending |
 
 Test cases TC-4-05 and TC-4-06 stay `pending` for vector search and fusion until milestone M2 adds them.
 
