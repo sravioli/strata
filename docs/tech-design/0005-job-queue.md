@@ -24,7 +24,7 @@ Non-goals:
 
 ## Background and references
 
-The handoff package proposed four mechanisms: a transactional outbox, a dispatcher, Azure Service Bus, and an inbox table to remove duplicate messages (`docs/adr/draft/ADR-0004-reliable-ingestion-and-idempotency.md`). All four exist because the queue is outside the database. The owner said that Service Bus is not a constraint, and that Strata can support more than one bus (map [#1](https://github.com/sravioli/strata/issues/1)).
+Issue [#5](https://github.com/sravioli/strata/issues/5) lists an earlier proposal with four mechanisms: a transactional outbox, a dispatcher, Azure Service Bus, and an inbox table to remove duplicate messages. All four exist because the queue is outside the database. The owner said that Service Bus is not a constraint, and that Strata can support more than one bus (map [#1](https://github.com/sravioli/strata/issues/1)).
 
 The tenancy design ([#3](https://github.com/sravioli/strata/issues/3), ADR 0001) names the job queue as a global table. A global table has no row-level security and must not hold tenant content. It can hold identifiers and state. A worker claims a job, reads its `tenant_id`, then opens a tenant transaction for that tenant.
 
@@ -163,7 +163,7 @@ A pure function in the core crate, `job_step(job, event, now)`, gives the next s
 
 ## Alternatives considered
 
-**An outbox and Azure Service Bus, as in the handoff.** The bus gives ready-made dead-letter tools and a signal for autoscaling. But the job then exists in two places, and Strata needs an outbox, a dispatcher and an inbox to keep the two in agreement. Each mechanism is more code to test, and the only Rust crate for Service Bus is not official and had no release since October 2024. With the job in PostgreSQL, a bus can come later as a signal only.
+**An outbox and Azure Service Bus, as in the earlier proposal.** The bus gives ready-made dead-letter tools and a signal for autoscaling. But the job then exists in two places, and Strata needs an outbox, a dispatcher and an inbox to keep the two in agreement. Each mechanism is more code to test, and the only Rust crate for Service Bus is not official and had no release since October 2024. With the job in PostgreSQL, a bus can come later as a signal only.
 
 **A job of a tenant that is not active waits in a `Held` state.** The operator command that sets the tenant to active then releases the jobs, with no step by hand. But it adds a state and a rule to the operator command. The owner chose `Parked` on 2026-11-18, so that an operator decides about each job.
 
