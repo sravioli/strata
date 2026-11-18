@@ -129,7 +129,7 @@ Proposed limits:
 
 | Format | Parser | Notes |
 |---|---|---|
-| PDF | Two parsers: the program `pdftotext` of Poppler (`accurate`), and PDFium through the crate `pdfium-render` (`fast`). A setting of the tenant selects one. | See "Two parsers for PDF". |
+| PDF | Two parsers: the program `pdftotext` of Poppler (`accurate`), and PDFium through the crate `pdfium-render` (`fast`). The tenant selects one for each upload. | See "Two parsers for PDF". |
 | DOCX, PPTX | The crates `zip` and `quick-xml`, with a small reader in `strata-extract` | Only the text and the headings, slides and tables. |
 | XLSX | The crate `calamine` | One block of text for each sheet. |
 | CSV | The crate `csv` | One block of text for each file. |
@@ -152,9 +152,9 @@ Both are free and open-source software. They differ in these points:
 
 The comparison is one third-party test on invoices, with templates. It shows a choice between speed and text quality, and 21 ms for each file is also fast. Thus Strata supports both parsers:
 
-- Each tenant has the setting `pdf_parser`, with the value `accurate` (Poppler) or `fast` (PDFium). The default is `accurate`.
-- The worker reads the setting when it starts the extraction, and gives the selected parser to the extraction process.
-- A revision records the parser that extracted it. A change of the setting applies to new revisions only. A later design can add a new extraction of old revisions.
+- The start of an upload (ADR 0005) has the field `pdf_parser`, with the value `accurate` (Poppler) or `fast` (PDFium). If the tenant does not send the field, the value is `accurate`. Strata ignores the field for formats that are not PDF.
+- The revision holds the value. The worker reads it when it starts the extraction, and gives the selected parser to the extraction process.
+- A new extraction of an old revision with a different parser is not in v1. The tenant uploads a new revision.
 - Both parsers run in the same sandbox, with the same limits. The sandbox (E1 to E3) does not change with the parser.
 - `strata-extract` links PDFium. For Poppler, the sandbox runs the program `pdftotext`, and `strata-extract` does not link Poppler. Before the first release, the owner must check the effect of the GPL on the distribution of the worker image.
 
@@ -197,7 +197,7 @@ A PDF with no text, for example a scan, gives an empty list of blocks. The revis
 
 **Apache Tika as a separate service.** Tika reads more than a thousand formats, and its licence is Apache 2.0. But it is a Java service with network access, it needs its own sandbox, and it is much larger than five formats need.
 
-**One parser for PDF.** One parser is less code and one less dependency. But PDFium is faster and Poppler gives better text, and different products need different results. Thus the tenant selects. See "Two parsers for PDF".
+**One parser for PDF.** One parser is less code and one less dependency. But PDFium is faster and Poppler gives better text, and different products need different results. Thus the tenant selects for each upload. See "Two parsers for PDF".
 
 ## Proof obligations
 
@@ -223,8 +223,8 @@ N/A. The sandbox and the parsers are outside the proved core: they are native co
 
 ### Data and migration
 
-- A revision holds the class of a failed extraction, the class `NoText` for a file with no text, and the parser that extracted a PDF.
-- A tenant holds the setting `pdf_parser`. A migration adds it with the default `accurate`.
+- A revision holds the class of a failed extraction, the class `NoText` for a file with no text, and the value of `pdf_parser`.
+- The start of an upload (ADR 0005) gets the optional field `pdf_parser`. A client that does not send it gets `accurate`, so existing clients do not change.
 - No other change. The text and its blocks go to tables that the design for indexing (M2) defines.
 
 ### Developer
@@ -249,7 +249,7 @@ L0: unit tests cover the reader of each format, the check of the output, and the
 | TC-7-08 | L1 | Given a scanned PDF with no text. When the worker extracts it. Then the revision is not `Failed`, and it holds the class `NoText`. | (not decided) | pending |
 | TC-7-09 | L1 | Given one PDF, DOCX, PPTX, XLSX and CSV file with known text. When the worker extracts each one. Then the output holds that text. | (not decided) | pending |
 | TC-7-10 | L1 | Given a worker that stops while an extraction runs. When the lease expires. Then a different worker claims the job and extracts the file. The first extraction process stops at its time limit at the latest, and nothing writes its output. | (not decided) | pending |
-| TC-7-11 | L1 | Given a tenant with `pdf_parser` set to `fast`, and a different tenant with the default. When the worker extracts the same PDF for each tenant. Then PDFium extracts the first one, Poppler extracts the second one, and each revision records its parser. | (not decided) | pending |
+| TC-7-11 | L1 | Given two uploads of the same PDF, one with `pdf_parser` set to `fast` and one with no `pdf_parser`. When the worker extracts each one. Then PDFium extracts the first one, Poppler extracts the second one, and each revision holds its value of `pdf_parser`. | (not decided) | pending |
 
 ## Unresolved questions
 
@@ -261,9 +261,7 @@ The owner answered these questions on 2026-11-19:
 4. The limits in the table stay. They are 1 GB of memory, 60 seconds of CPU and 120 seconds in total. Also 50 MB of output, and 500 MB for an expanded archive.
 5. Legacy formats (DOC, PPT, XLS) are not in v1.
 
-One question is still open:
-
-1. Does the tenant select the parser, as this design proposes? Or does the product select it for each upload? A selection for each upload adds a field to the start of an upload (ADR 0005).
+The owner also decided on 2026-11-19 that the tenant selects the parser for each upload, with the field `pdf_parser`.
 
 Implementation resolves these points:
 
