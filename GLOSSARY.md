@@ -23,3 +23,11 @@ _Avoid_: Permission, operation, verb
 **Authorized scope**:
 The set of documents and other data that a principal can reach with one action. A search reads only inside this set.
 _Avoid_: Filter, visibility, access list
+
+**Design ceiling**:
+The peak load that one deployment of Strata must be able to serve. It is a test target, not a forecast.
+_Avoid_: Capacity, limit, forecast
+
+**Concurrent account**:
+An account that sends requests in the peak period. It is not the same as an active account: "active" is the status of an account.
+_Avoid_: Active user, online user, session
