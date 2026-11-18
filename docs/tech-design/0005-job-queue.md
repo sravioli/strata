@@ -87,7 +87,7 @@ A job that ends with success becomes `Done` in the transaction that writes its r
 
 ### Life of a job
 
-```
+```text
             upload commits
                   |
                   v
