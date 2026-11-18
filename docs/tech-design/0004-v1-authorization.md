@@ -40,6 +40,7 @@ Anna and Bruno have accounts in the tenant Acme. Carla has an account in the ten
 - Carla requests the document of Anna by its identifier. The decision function gives "deny". The API answers as for an identifier that does not exist.
 - An operator sets the account of Bruno to not active. The access token of Bruno is not expired. The next request of Bruno gets "deny".
 - A job processes the document of Anna. The job is a principal of the tenant Acme. It can process documents of Acme only.
+- A job of Acme runs. An operator sets Acme to not active. The job that runs continues to its end. The next job of Acme that a worker claims gets "deny".
 
 ### How to think about it
 
@@ -58,7 +59,7 @@ The data functions accept no call that skips step 2. The Rust type system enforc
 | Principal | Source | Content |
 |---|---|---|
 | Account | The verified access token, and the status that the API reads on each request | `tenant_id`, `account_id`, account status, tenant status |
-| Job | A job that a worker claimed | `tenant_id` |
+| Job | A job that a worker claimed, and the tenant status that the worker reads when it claims the job | `tenant_id`, tenant status |
 
 A client cannot supply a principal. The tenancy design gives the rules for the access token and for the tenant of a job.
 
@@ -87,7 +88,7 @@ Part 1, the rule permits the action for the principal:
 | Principal | Condition |
 |---|---|
 | Account | The account is active, the tenant is active, and the action is an account action. |
-| Job | The action is `ProcessDocument`. |
+| Job | The tenant is active, and the action is `ProcessDocument`. |
 
 Part 2, the resource belongs to the tenant of the principal.
 
@@ -126,6 +127,8 @@ Rule 3 is important for vector search. A filter after the query can return fewer
 
 The reason for a "deny" goes to the log only.
 
+A worker that gets "deny" for a job does not start the job. The job queue design ([#5](https://github.com/sravioli/strata/issues/5)) decides if the job waits in the queue or fails.
+
 ### Order of the checks in a request
 
 1. The API verifies the access token.
@@ -135,6 +138,8 @@ The reason for a "deny" goes to the log only.
 5. The API opens the tenant transaction with the result and runs the queries.
 
 Step 2 reads two rows by their primary key. The tenancy design permits that read: it uses the tenant of the verified token.
+
+Step 2 can use a cache. If it uses a cache, the operator command that changes a status must remove the old status from the cache. Then the next request after the change gets the new status, and test case TC-4-04 passes with no delay.
 
 ### How M4 changes this design
 
@@ -156,17 +161,18 @@ Each theorem is about the Rust functions `authorize` and `authorized_scope` in t
 | `allow_account_active` | The v1 rule | If the decision is "allow" for an account, the account is active and its tenant is active. | `authorize (.account t c aa ta) a r = true → aa = true ∧ ta = true` | `authorize` |
 | `active_account_allowed` | Tenant-wide visibility in v1 | An active account of an active tenant gets "allow" for each account action on each resource of its tenant. | `a.forAccount = true → r.tenant = t → authorize (.account t c true true) a r = true` | `authorize` |
 | `account_never_processes` | Separation of accounts and jobs | An account never gets "allow" for `ProcessDocument`. | `authorize (.account t c aa ta) .processDocument r = false` | `authorize` |
-| `job_only_processes` | Separation of accounts and jobs | If the decision is "allow" for a job, the action is `ProcessDocument` and the resource belongs to the tenant of the job. | `authorize (.job t) a r = true → a = .processDocument ∧ r.tenant = t` | `authorize` |
+| `job_only_processes` | Separation of accounts and jobs | If the decision is "allow" for a job, the action is `ProcessDocument` and the resource belongs to the tenant of the job. | `authorize (.job t ta) a r = true → a = .processDocument ∧ r.tenant = t` | `authorize` |
+| `allow_job_active` | A tenant that is not active starts no new job | If the decision is "allow" for a job, the tenant of the job is active. | `authorize (.job t ta) a r = true → ta = true` | `authorize` |
 | `scope_agrees` | Scope and decision are one rule | A resource is in the authorized scope exactly when the decision for that resource is "allow". | `(authorizedScope p a).contains r = authorize p a r` | `authorized_scope`, `authorize` |
 | `scope_one_tenant` | Tenant boundary | Each resource in an authorized scope belongs to the tenant of the principal. | `(authorizedScope p a).contains r = true → r.tenant = p.tenant` | `authorized_scope` |
 | `authorize_total` | No failure | The two functions give a result for each input and never stop with an error. | Part of the proof that the Rust code agrees with the model | `authorize`, `authorized_scope` |
 
-A draft Lean model of the rule proves the first seven statements. The model is not in the repository. Implementation writes the model again in the repository and proves the statements on the Rust code.
+A draft Lean model of the rule proves the first seven statements. The model has no tenant status for a job yet. It must get that status before it proves `allow_job_active`. The model is not in the repository. Implementation writes the model again in the repository and proves the statements on the Rust code.
 
 Assumptions:
 
 - The principal is correct. The proofs do not show that the API builds the principal from a verified token. Test cases cover that.
-- The status in the principal is the status at the time of the read. A change of status after the read applies to the next request.
+- The status in the principal is the status at the time of the read. A change of status after the read applies to the next request. For a job, it applies to the next job that a worker claims.
 - The proofs do not show that a retrieval function obeys its scope. Test cases cover that.
 - Issue [#9](https://github.com/sravioli/strata/issues/9) decides the proof route. If the route is a model with differential tests, the statements stay the same and a differential test compares the Rust code with the model.
 - `active_account_allowed` is true for v1 only. M4 replaces it.
@@ -206,6 +212,7 @@ L0: unit tests cover each row of the decision rule, for each principal kind and 
 | TC-4-07 | L1 | Given a job of tenant A. When the worker processes a document of A. Then the decision is "allow". When the content of the job names a document of B. Then the decision is "deny". | (not decided) | pending |
 | TC-4-08 | L1 | For each route of the API. Then the route gets its database handle only from a decision or a scope. The build fails if a route opens a tenant transaction in a different way. | (not decided) | pending |
 | TC-4-09 | L2 | Given two active accounts of one tenant and one account of a different tenant. When each account uploads a document and then searches through the public API. Then the two accounts of one tenant see the same two documents. The third account sees only its own document. | (not decided) | pending |
+| TC-4-10 | L1 | Given a job of tenant A that runs. When an operator sets A to not active. Then the job continues to its end. When a worker claims the next job of A. Then the decision is "deny" and the worker does not start the job. | (not decided) | pending |
 
 Test cases TC-4-05 and TC-4-06 stay `pending` for vector search and fusion until milestone M2 adds them.
 
@@ -213,7 +220,7 @@ Test cases TC-4-05 and TC-4-06 stay `pending` for vector search and fusion until
 
 - In v1 the decision function is small. The design adds types and one call to each route for a rule that one line can express.
 - A scope argument on each retrieval function is more text in each signature.
-- The status read on each request costs one more query, or two.
+- The status read on each request costs one more query, or two. A worker also reads the tenant status for each job.
 
 ## Rationale and alternatives
 
@@ -237,22 +244,23 @@ If Strata does not do this, v1 works the same for a client. The cost comes in M4
 
 ## Unresolved questions
 
-The owner must answer these questions before this design can be accepted:
+The owner answered the three questions of this design on 2026-11-18:
 
-1. Can each active account do each account action in v1, with `UploadDocument` and `DeleteDocument` included? This design assumes yes. The alternative is a read-only kind of account.
-2. Does a job of a tenant that is not active continue? This design assumes yes, because Strata keeps the data of that tenant. The alternative is that the worker defers the job.
-3. Is the list of five actions correct for v1?
+1. Each active account can do each account action in v1, with `UploadDocument` and `DeleteDocument` included. A later design can make this rule smaller.
+2. A job that runs when its tenant becomes not active continues to its end. A worker does not start a new job of a tenant that is not active.
+3. The list of five actions is correct for v1.
 
 Implementation resolves these points:
 
 - The Rust types for the principal, the decision and the scope.
-- If the status read uses a cache. A cache delays the effect of test case TC-4-04.
+- If the status read uses a cache. If it does, a change of status removes the old status from the cache (see "Order of the checks in a request").
 
 These questions belong to later designs:
 
 - The scope unit: a collection of documents or one document. Milestone M4 decides.
 - Roles inside a tenant.
 - Authorization for an operation that a later design adds.
+- If a job that gets "deny" waits in the queue or fails. Issue [#5](https://github.com/sravioli/strata/issues/5) decides.
 
 ## Future possibilities
 
