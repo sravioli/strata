@@ -32,7 +32,7 @@ On 2026-11-18 the owner made the position more precise. The 50,000 accounts are 
 
 The tenancy design ([#3](https://github.com/sravioli/strata/issues/3), ADR 0001) already requires a model that holds from 1 tenant to 50,000 tenants, and a connection pooler in transaction mode. The v1 authorization design ([#4](https://github.com/sravioli/strata/issues/4), ADR 0002) reads the status of the account and of the tenant on each request. Test case TC-4-04 requires that the next request after a change of status gets the new status.
 
-The handoff package has a draft ADR on pooling and read replicas (`docs/adr/draft/ADR-0008-database-pooling-and-read-scaling.md`). It is a draft, and issue [#10](https://github.com/sravioli/strata/issues/10) decides its future. This design uses two of its points: a bound on each pool, and replicas only for reads that can accept lag.
+This design also uses two common rules: a bound on each pool, and read replicas only for reads that can accept lag.
 
 References:
 
