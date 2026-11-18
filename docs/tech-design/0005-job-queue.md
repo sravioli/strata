@@ -1,7 +1,7 @@
 - Issue: [#5](https://github.com/sravioli/strata/issues/5)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-18
-- Decided by: (not decided)
+- Decided by: sravioli, 2026-11-18
 
 # Job queue: PostgreSQL owns the work, buses are optional
 
@@ -231,17 +231,17 @@ L0: unit tests cover each row of `job_step` for each state and each event.
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-5-01 | L1 | Given an upload. When its transaction commits. Then one `Waiting` job exists for the revision. When its transaction rolls back. Then no job exists. | (not decided) | pending |
-| TC-5-02 | L1 | Given one `Waiting` job and two workers. When the two workers claim at the same time. Then one worker gets the job, and the other gets no job. | (not decided) | pending |
-| TC-5-03 | L1 | Given a `Running` job whose worker stops. When the lease expires. Then a second worker claims the job and ends it. The index holds the revision one time. When the first worker tries to write its result. Then the write fails. | (not decided) | pending |
-| TC-5-04 | L1 | Given a job that fails at each run. When it fails for the maximum count of attempts. Then the job is `Parked`, `last_error` holds an error class, and no worker claims it. | (not decided) | pending |
-| TC-5-05 | L1 | Given a `Waiting` job of a tenant that is not active. When a worker claims it. Then the job is `Parked` with `TenantNotActive`, and `attempts` does not change. When the operator sets the tenant to active and requeues the parked jobs of the tenant. Then the job is `Waiting`, and a worker runs it. | (not decided) | pending |
-| TC-5-06 | L1 | Given a count of `Waiting` jobs at the bound. When a client uploads a document. Then the API answers 503 with `Retry-After`, and no revision and no job exist for the upload. | (not decided) | pending |
-| TC-5-07 | L1 | Given a `Parked` job. When the operator requeues it. Then the job is `Waiting` with `attempts` at zero, and a worker runs it. | (not decided) | pending |
-| TC-5-08 | L1 | Given the database role of the API. When it tries to read rows of `jobs`. Then the database refuses the read. | (not decided) | pending |
-| TC-5-09 | L1 | Given a job that ends with success. When a worker runs the same job a second time. Then the state of the revision and of its index does not change. | (not decided) | pending |
-| TC-5-10 | L1 | Given a `Done` job that ended 23 hours ago and one that ended 25 hours ago. When the cleanup task runs. Then the first job stays and the second job is removed. | (not decided) | pending |
-| TC-5-11 | L1 | Given a worker that waits for work, and a source of messages that loses some messages and repeats others. When clients upload documents. Then each job runs, and the result is the same as with no messages. | (not decided) | pending |
+| TC-5-01 | L1 | Given an upload. When its transaction commits. Then one `Waiting` job exists for the revision. When its transaction rolls back. Then no job exists. | sravioli, 2026-11-18 | pending |
+| TC-5-02 | L1 | Given one `Waiting` job and two workers. When the two workers claim at the same time. Then one worker gets the job, and the other gets no job. | sravioli, 2026-11-18 | pending |
+| TC-5-03 | L1 | Given a `Running` job whose worker stops. When the lease expires. Then a second worker claims the job and ends it. The index holds the revision one time. When the first worker tries to write its result. Then the write fails. | sravioli, 2026-11-18 | pending |
+| TC-5-04 | L1 | Given a job that fails at each run. When it fails for the maximum count of attempts. Then the job is `Parked`, `last_error` holds an error class, and no worker claims it. | sravioli, 2026-11-18 | pending |
+| TC-5-05 | L1 | Given a `Waiting` job of a tenant that is not active. When a worker claims it. Then the job is `Parked` with `TenantNotActive`, and `attempts` does not change. When the operator sets the tenant to active and requeues the parked jobs of the tenant. Then the job is `Waiting`, and a worker runs it. | sravioli, 2026-11-18 | pending |
+| TC-5-06 | L1 | Given a count of `Waiting` jobs at the bound. When a client uploads a document. Then the API answers 503 with `Retry-After`, and no revision and no job exist for the upload. | sravioli, 2026-11-18 | pending |
+| TC-5-07 | L1 | Given a `Parked` job. When the operator requeues it. Then the job is `Waiting` with `attempts` at zero, and a worker runs it. | sravioli, 2026-11-18 | pending |
+| TC-5-08 | L1 | Given the database role of the API. When it tries to read rows of `jobs`. Then the database refuses the read. | sravioli, 2026-11-18 | pending |
+| TC-5-09 | L1 | Given a job that ends with success. When a worker runs the same job a second time. Then the state of the revision and of its index does not change. | sravioli, 2026-11-18 | pending |
+| TC-5-10 | L1 | Given a `Done` job that ended 23 hours ago and one that ended 25 hours ago. When the cleanup task runs. Then the first job stays and the second job is removed. | sravioli, 2026-11-18 | pending |
+| TC-5-11 | L1 | Given a worker that waits for work, and a source of messages that loses some messages and repeats others. When clients upload documents. Then each job runs, and the result is the same as with no messages. | sravioli, 2026-11-18 | pending |
 
 The L3 target for the queue is TC-2-04 of ADR 0003.
 

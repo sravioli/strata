@@ -31,3 +31,11 @@ _Avoid_: Capacity, limit, forecast
 **Concurrent account**:
 An account that sends requests in the peak period. It is not the same as an active account: "active" is the status of an account.
 _Avoid_: Active user, online user, session
+
+**Job**:
+One unit of work that a worker does later for one tenant, for example the processing of an uploaded revision.
+_Avoid_: Task, message, event
+
+**Parked job**:
+A job that stopped and waits for an operator. A job becomes parked after its last failed attempt, or when its tenant is not active.
+_Avoid_: Dead letter, failed job
