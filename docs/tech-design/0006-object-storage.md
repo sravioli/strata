@@ -1,7 +1,7 @@
 - Issue: [#6](https://github.com/sravioli/strata/issues/6)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-18
-- Decided by: (not decided)
+- Decided by: sravioli, 2026-11-18
 
 # Object storage: the S3 API, with a free and open-source server first
 
@@ -66,15 +66,15 @@ Quantities:
 
 - 10,000 uploads each hour at the ceiling, which is approximately 3 each second (ADR 0003).
 - 5,000,000 documents in the test corpus (ADR 0003).
-- The average size of a file is not measured. This design assumes 2 MB. Then the corpus is approximately 10 TB, before replication.
+- The average size of a file is not measured. This design assumes 5 MB (owner, 2026-11-18). Then the corpus is approximately 25 TB, before replication.
 - The maximum file size is 100 MB (owner, 2026-11-18).
 
-The assumption of 2 MB comes from estimates of usual sizes, not from a measurement:
+The assumption of 5 MB comes from estimates of usual sizes, not from a measurement:
 
 | Kind of file | Usual size (estimate) |
 |---|---|
 | PDF | 0.2 MB to 5 MB. Text reports are at the low end, scans and files with many images at the high end. |
-| DOCX | 50 KB to 1 MB, more with embedded images |
+| DOCX | 50 KB to 8 MB. Embedded images make a file large. |
 | PPTX | 1 MB to 20 MB, mostly images |
 | XLSX | 20 KB to 5 MB |
 | CSV | 10 KB to more than 50 MB |
@@ -192,15 +192,15 @@ L0: unit tests cover the key of each file and the rules of step 3.
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-6-01 | L1 | Given a signed PUT URL for one key. When a client uses it to write a different key. Then the storage refuses the write. | (not decided) | pending |
-| TC-6-02 | L1 | Given a signed PUT URL. When a client uses it after it expires. Then the storage refuses the write. | (not decided) | pending |
-| TC-6-03 | L1 | Given an upload of a file above the maximum size. When the client finishes the upload. Then the API rejects it, the object is removed, and no job exists. | (not decided) | pending |
-| TC-6-04 | L1 | Given an upload that the client started but did not send. When the client finishes the upload. Then the API answers with an error, and no job exists. | (not decided) | pending |
-| TC-6-05 | L1 | Given an upload that the client finished. When the client finishes it a second time. Then the API gives the same answer, and one job exists. | (not decided) | pending |
-| TC-6-06 | L1 | Given a document of tenant A. When an account of tenant B asks for its download URL. Then the API answers as for a document that does not exist. | (not decided) | pending |
-| TC-6-07 | L1 | Given a document with files. When an account removes the document. Then a search does not find it, and after the `RemoveFiles` job no file of the document is in the storage. | (not decided) | pending |
-| TC-6-08 | L1 | Given an upload that started 25 hours ago and did not finish. When the cleanup task runs. Then the revision and its object are removed. | (not decided) | pending |
-| TC-6-09 | L2 | Given a deployed Strata with its storage server. When an account uploads a document through the public API and then downloads it. Then the bytes are the same, and the document becomes searchable. | (not decided) | pending |
+| TC-6-01 | L1 | Given a signed PUT URL for one key. When a client uses it to write a different key. Then the storage refuses the write. | sravioli, 2026-11-18 | pending |
+| TC-6-02 | L1 | Given a signed PUT URL. When a client uses it after it expires. Then the storage refuses the write. | sravioli, 2026-11-18 | pending |
+| TC-6-03 | L1 | Given an upload of a file above the maximum size. When the client finishes the upload. Then the API rejects it, the object is removed, and no job exists. | sravioli, 2026-11-18 | pending |
+| TC-6-04 | L1 | Given an upload that the client started but did not send. When the client finishes the upload. Then the API answers with an error, and no job exists. | sravioli, 2026-11-18 | pending |
+| TC-6-05 | L1 | Given an upload that the client finished. When the client finishes it a second time. Then the API gives the same answer, and one job exists. | sravioli, 2026-11-18 | pending |
+| TC-6-06 | L1 | Given a document of tenant A. When an account of tenant B asks for its download URL. Then the API answers as for a document that does not exist. | sravioli, 2026-11-18 | pending |
+| TC-6-07 | L1 | Given a document with files. When an account removes the document. Then a search does not find it, and after the `RemoveFiles` job no file of the document is in the storage. | sravioli, 2026-11-18 | pending |
+| TC-6-08 | L1 | Given an upload that started 25 hours ago and did not finish. When the cleanup task runs. Then the revision and its object are removed. | sravioli, 2026-11-18 | pending |
+| TC-6-09 | L2 | Given a deployed Strata with its storage server. When an account uploads a document through the public API and then downloads it. Then the bytes are the same, and the document becomes searchable. | sravioli, 2026-11-18 | pending |
 
 ## Unresolved questions
 
@@ -208,11 +208,8 @@ The owner answered on 2026-11-18:
 
 - Garage is the first server. Its licence, AGPLv3, is accepted. Strata uses Garage as a separate server and does not change it.
 - The maximum file size is 100 MB.
-
-The owner must answer these questions before this design can be accepted:
-
-1. Do you accept these times for the signed URLs: 15 minutes to start an upload, 5 minutes to start a download? The time does not limit the length of a transfer.
-2. Do you accept 2 MB as the assumed average size of a file, until a sample of real files replaces it?
+- A signed URL for an upload expires after 15 minutes, and one for a download after 5 minutes. The time limits the start of a transfer, not its length.
+- The assumed average size of a file is 5 MB, until a sample of real files replaces it.
 
 Implementation resolves these points:
 
