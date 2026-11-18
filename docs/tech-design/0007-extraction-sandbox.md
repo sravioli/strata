@@ -129,7 +129,7 @@ Proposed limits:
 
 | Format | Parser | Notes |
 |---|---|---|
-| PDF | PDFium, through the crate `pdfium-render`, until the benchmark decides (see "PDFium and Poppler") | PDFium is the PDF engine of Chromium, in C++. Its licence is BSD-style. |
+| PDF | Two parsers: the program `pdftotext` of Poppler (`accurate`), and PDFium through the crate `pdfium-render` (`fast`). A setting of the tenant selects one. | See "Two parsers for PDF". |
 | DOCX, PPTX | The crates `zip` and `quick-xml`, with a small reader in `strata-extract` | Only the text and the headings, slides and tables. |
 | XLSX | The crate `calamine` | One block of text for each sheet. |
 | CSV | The crate `csv` | One block of text for each file. |
@@ -138,7 +138,7 @@ The reader of archives counts the expanded bytes and stops at the limit, before 
 
 Legacy formats (DOC, PPT, XLS) are not in v1. A revision in a format that is not supported becomes `Failed` with the class `UnsupportedFormat`.
 
-### PDFium and Poppler
+### Two parsers for PDF
 
 Both are free and open-source software. They differ in these points:
 
@@ -150,14 +150,19 @@ Both are free and open-source software. They differ in these points:
 | Text quality | Lower in that comparison on invoices with a layout: the right result for 73 of 170 files. | Higher in that comparison: the right result for 146 of 170 files. |
 | Origin | The PDF engine of Chromium. Google runs fuzz tests on it. | The PDF library of many Linux desktops. Based on the code of xpdf. |
 
-The comparison is one third-party test on invoices, with templates. It is not sufficient for a decision. Thus the choice comes from a benchmark in the implementation, before the parser for PDF is final:
+The comparison is one third-party test on invoices, with templates. It shows a choice between speed and text quality, and 21 ms for each file is also fast. Thus Strata supports both parsers:
+
+- Each tenant has the setting `pdf_parser`, with the value `accurate` (Poppler) or `fast` (PDFium). The default is `accurate`.
+- The worker reads the setting when it starts the extraction, and gives the selected parser to the extraction process.
+- A revision records the parser that extracted it. A change of the setting applies to new revisions only. A later design can add a new extraction of old revisions.
+- Both parsers run in the same sandbox, with the same limits. The sandbox (E1 to E3) does not change with the parser.
+- `strata-extract` links PDFium. For Poppler, the sandbox runs the program `pdftotext`, and `strata-extract` does not link Poppler. Before the first release, the owner must check the effect of the GPL on the distribution of the worker image.
+
+A benchmark in the implementation measures both parsers, and the owner uses the result to check the default:
 
 - Corpus: PDF files of the types that the products of Strata hold, for example reports, slides and invoices, with a known text for each file.
 - Measurements: the similarity of the text to the known text, the time for each page, and the peak memory. Also the count of crashes and limits reached.
 - Each parser runs inside the sandbox with the same limits.
-- The result goes into this design or into a new design, and the owner decides.
-
-If Poppler wins, the sandbox runs the program `pdftotext`, and `strata-extract` does not link Poppler. Before that, the owner must check the effect of the GPL on the distribution of the worker image. The sandbox (E1 to E3) does not change with the parser.
 
 ### Output format
 
@@ -192,7 +197,7 @@ A PDF with no text, for example a scan, gives an empty list of blocks. The revis
 
 **Apache Tika as a separate service.** Tika reads more than a thousand formats, and its licence is Apache 2.0. But it is a Java service with network access, it needs its own sandbox, and it is much larger than five formats need.
 
-**Poppler for PDF.** Poppler is free and open-source software, and it can give better text than PDFium. Its licence is GPL. A benchmark decides between the two. See "PDFium and Poppler".
+**One parser for PDF.** One parser is less code and one less dependency. But PDFium is faster and Poppler gives better text, and different products need different results. Thus the tenant selects. See "Two parsers for PDF".
 
 ## Proof obligations
 
@@ -202,7 +207,7 @@ N/A. The sandbox and the parsers are outside the proved core: they are native co
 
 ### Infrastructure
 
-- The worker image holds `strata-extract`, PDFium and nsjail.
+- The worker image holds `strata-extract`, PDFium, the program `pdftotext` of Poppler, and nsjail.
 - The sandbox needs user namespaces. In a container, the platform must permit them, or the worker must run with the rights that nsjail needs. M3 decides the platform. See "Unresolved questions".
 - Metrics: extractions for each format and each result class.
 - Metrics: the time and the peak memory of each extraction, and the count of processes that a limit stopped.
@@ -218,7 +223,8 @@ N/A. The sandbox and the parsers are outside the proved core: they are native co
 
 ### Data and migration
 
-- A revision holds the class of a failed extraction, and the class `NoText` for a file with no text.
+- A revision holds the class of a failed extraction, the class `NoText` for a file with no text, and the parser that extracted a PDF.
+- A tenant holds the setting `pdf_parser`. A migration adds it with the default `accurate`.
 - No other change. The text and its blocks go to tables that the design for indexing (M2) defines.
 
 ### Developer
@@ -243,6 +249,7 @@ L0: unit tests cover the reader of each format, the check of the output, and the
 | TC-7-08 | L1 | Given a scanned PDF with no text. When the worker extracts it. Then the revision is not `Failed`, and it holds the class `NoText`. | (not decided) | pending |
 | TC-7-09 | L1 | Given one PDF, DOCX, PPTX, XLSX and CSV file with known text. When the worker extracts each one. Then the output holds that text. | (not decided) | pending |
 | TC-7-10 | L1 | Given a worker that stops while an extraction runs. When the lease expires. Then a different worker claims the job and extracts the file. The first extraction process stops at its time limit at the latest, and nothing writes its output. | (not decided) | pending |
+| TC-7-11 | L1 | Given a tenant with `pdf_parser` set to `fast`, and a different tenant with the default. When the worker extracts the same PDF for each tenant. Then PDFium extracts the first one, Poppler extracts the second one, and each revision records its parser. | (not decided) | pending |
 
 ## Unresolved questions
 
@@ -250,13 +257,18 @@ The owner answered these questions on 2026-11-19:
 
 1. OCR of scanned PDFs is not in v1. A later version must add it. A scanned PDF gets the class `NoText`, so that the OCR step can find it.
 2. The sandbox tool is nsjail.
-3. PDFium is the parser for PDF until a benchmark against Poppler decides. See "PDFium and Poppler".
+3. Strata supports both PDFium and Poppler. The owner decided this on 2026-11-19, because each has an advantage. See "Two parsers for PDF".
 4. The limits in the table stay. They are 1 GB of memory, 60 seconds of CPU and 120 seconds in total. Also 50 MB of output, and 500 MB for an expanded archive.
 5. Legacy formats (DOC, PPT, XLS) are not in v1.
 
+One question is still open:
+
+1. Does the tenant select the parser, as this design proposes? Or does the product select it for each upload? A selection for each upload adds a field to the start of an upload (ADR 0005).
+
 Implementation resolves these points:
 
-- The benchmark of PDFium and Poppler.
+- The benchmark of PDFium and Poppler, to check the default.
+- The effect of the GPL of Poppler on the distribution of the worker image.
 - A check of the licences of PDFium, `pdfium-render`, `calamine`, `zip`, `quick-xml` and `csv`.
 - A check that nsjail runs inside the container of the worker on the development system and in CI.
 - The list of system calls for seccomp.
