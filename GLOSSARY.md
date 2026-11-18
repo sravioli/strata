@@ -39,3 +39,7 @@ _Avoid_: Task, message, event
 **Parked job**:
 A job that stopped and waits for an operator. A job becomes parked after its last failed attempt, or when its tenant is not active.
 _Avoid_: Dead letter, failed job
+
+**Signed URL**:
+A URL that gives access to one file, for one operation, for a short time. A client gets it from the API after the API permits the action.
+_Avoid_: Link, token, presigned link
