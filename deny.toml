@@ -35,3 +35,7 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+
+# The workspace crates are not published and have no licence field.
+[licenses.private]
+ignore = true
