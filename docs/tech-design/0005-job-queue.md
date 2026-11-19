@@ -187,7 +187,6 @@ Each theorem is about the Rust function `job_step` in the core crate. It uses en
 | `fail_at_max_parks` | Q5 | A failure or an expired lease when the count of attempts is at the maximum makes the job `Parked`. | `j.state = .running → j.attempts = max → e ∈ [.fail, .leaseExpired] → (jobStep j e now).state = .parked` | `job_step` |
 | `done_final` | Q11 | No event changes a `Done` job. | `j.state = .done → jobStep j e now = j` | `job_step` |
 | `parked_needs_operator` | Q5 | Only `Requeue` takes a job out of `Parked`. | `j.state = .parked → e ≠ .requeue → (jobStep j e now).state = .parked` | `job_step` |
-| `ghost_theorem` | Q5 | A theorem that does not exist. | `True` | `job_step` |
 
 Assumptions:
 
