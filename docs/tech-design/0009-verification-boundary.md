@@ -1,7 +1,7 @@
 - Issue: [#9](https://github.com/sravioli/strata/issues/9)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-19
-- Decided by: (not decided)
+- Decided by: sravioli, 2026-11-19
 
 # Verification boundary: what Lean proves, what tests cover, and what "proved" means
 
@@ -187,12 +187,12 @@ L0: these checks run in CI on each pull request that changes Rust code of the co
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-9-01 | L0 | Given a change to a proved Rust function and no new translation. When CI runs. Then the check of the fresh translation fails. | (not decided) | pending |
-| TC-9-02 | L0 | Given a theorem that contains `sorry`. When CI runs. Then the verification job fails. | (not decided) | pending |
-| TC-9-03 | L0 | Given a theorem in a "Proof obligations" table that depends on an axiom that Aeneas generated. When CI runs. Then the check of the axioms fails and names the theorem and the axiom. | (not decided) | pending |
-| TC-9-04 | L0 | Given a theorem that the "Proof obligations" table of an accepted design names, and that does not exist in the Lean code. When CI runs. Then the check fails and names the theorem. | (not decided) | pending |
-| TC-9-05 | L0 | Given a Rust crate that uses a nightly feature. When CI builds it on stable. Then the build fails. | (not decided) | pending |
-| TC-9-06 | L0 | Given a package of Aeneas with a SHA-256 that is not the pinned one. When CI installs it. Then the job stops before it uses the package. | (not decided) | pending |
+| TC-9-01 | L0 | Given a change to a proved Rust function and no new translation. When CI runs. Then the check of the fresh translation fails. | sravioli, 2026-11-19 | pending |
+| TC-9-02 | L0 | Given a theorem that contains `sorry`. When CI runs. Then the verification job fails. | sravioli, 2026-11-19 | pending |
+| TC-9-03 | L0 | Given a theorem in a "Proof obligations" table that depends on an axiom that Aeneas generated. When CI runs. Then the check of the axioms fails and names the theorem and the axiom. | sravioli, 2026-11-19 | pending |
+| TC-9-04 | L0 | Given a theorem that the "Proof obligations" table of an accepted design names, and that does not exist in the Lean code. When CI runs. Then the check fails and names the theorem. | sravioli, 2026-11-19 | pending |
+| TC-9-05 | L0 | Given a Rust crate that uses a nightly feature. When CI builds it on stable. Then the build fails. | sravioli, 2026-11-19 | pending |
+| TC-9-06 | L0 | Given a package of Aeneas with a SHA-256 that is not the pinned one. When CI installs it. Then the job stops before it uses the package. | sravioli, 2026-11-19 | pending |
 
 ## Unresolved questions
 
@@ -202,11 +202,8 @@ The owner answered these questions on 2026-11-19:
 2. CI uses the prebuilt release of Aeneas, with a check of the SHA-256 and a copy in a Strata release.
 3. The workspace does not import the code of the spike.
 4. No second spike now. The rules of a document with several revisions use route 2. A second spike happens only if the model shows that a proof of the loop is worth its cost.
-
-The owner must answer these questions before this design can be accepted:
-
-1. Do you accept that the crates build on stable, and that only the translation uses the nightly of Charon? A stable toolchain for the translation is not possible, because Charon cannot run without the nightly (see "Toolchain").
-2. Does the verification job run on each pull request that changes core or Lean code, as this design proposes? Or on each push, as L0 tests do?
+5. The crates build on stable. Only the translation uses the nightly of Charon, because Charon cannot run without it.
+6. The verification job runs on each pull request that changes core or Lean code.
 
 Implementation resolves these points:
 

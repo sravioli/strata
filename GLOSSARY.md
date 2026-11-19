@@ -47,3 +47,11 @@ _Avoid_: Link, token, presigned link
 **Extraction process**:
 A separate process in a sandbox that reads one file of a revision and returns its text and structure. It has no credentials and no network.
 _Avoid_: Parser, extractor service, converter
+
+**Proved core**:
+The pure Rust functions that Lean proves correct on their translated code. Code outside it is tested.
+_Avoid_: Verified code, formal core
+
+**Proved**:
+A theorem that passes all checks of ADR 0007 in CI. A theorem that fails one check, or code that only has tests, is not proved.
+_Avoid_: Verified, formally checked
