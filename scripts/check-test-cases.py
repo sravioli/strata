@@ -70,7 +70,7 @@ def spec_scenarios(text):
 
 def check(root):
     root = pathlib.Path(root)
-    carried = {}  # id -> first test file that carries it
+    carried = {}  # id -> test files that carry it
     designs = {}  # id -> list of (file, cell)
     specs = {}  # id -> list of (file, pending)
     for path in tracked_files(root):
@@ -88,7 +88,7 @@ def check(root):
                 specs.setdefault(tc, []).append((path, pending))
         else:
             for tc in ID.findall(text):
-                carried.setdefault(tc, path)
+                carried.setdefault(tc, []).append(path)
 
     failures = []
     for tc, places in sorted(specs.items()):
@@ -103,9 +103,9 @@ def check(root):
         for path, cell in places:
             if cell != "pending":
                 failures.append(f"{tc}: {path}: the row is not pending and no test carries the ID")
-    for tc, path in sorted(carried.items()):
+    for tc, paths in sorted(carried.items()):
         if tc not in specs and tc not in designs:
-            failures.append(f"{tc}: {path}: the test carries an ID that no tech design and no spec defines")
+            failures += [f"{tc}: {p}: the test carries an ID that no tech design and no spec defines" for p in paths]
     return failures
 
 

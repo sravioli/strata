@@ -25,7 +25,7 @@ Every L2 and L3 test, and every L1 test the owner decided, is a test case. Other
 A test case with no automated test yet is listed as `pending`; a test case is never silently dropped.
 
 - **Status after the spec exists.** When a test case has its spec scenario, the spec is its only status. The row in the tech design is not updated: an accepted design stays as the owner decided it.
-- **Pending marker.** A scenario with no automated test yet has the line `- **PENDING** <reason>` after its steps.
+- **Pending marker.** A scenario with no automated test yet has the line `- **PENDING** <reason>` in its body.
 - **Check.** `python3 scripts/check-test-cases.py` enforces these rules. CI runs it on each run.
 
 ## Running the levels

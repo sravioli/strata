@@ -76,6 +76,10 @@ class CheckTestCases(unittest.TestCase):
         self.assertIn("TC-99-01", failures[0])
         self.assertIn(TEST, failures[0])
 
+    def test_unknown_id_names_each_test_file(self):
+        failures = self.run_check({TEST: "// TC-99-01\n", "lean/T.lean": "-- TC-99-01\n"})
+        self.assertEqual(len(failures), 2)
+
     def test_excluded_paths_do_not_count(self):
         files = {
             "scripts/tests/test_check_test_cases.py": "TC-99-01",
