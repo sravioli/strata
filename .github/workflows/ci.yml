@@ -171,6 +171,8 @@ jobs:
       - name: Check 1, fresh translation
         run: scripts/translate.sh --check
       # Gets the Mathlib cache and the GitHub cache of lean/.lake, then runs lake build.
+      # Measured on PR #37: 320 s with no GitHub cache (Mathlib from its cache, 214 Aeneas modules built),
+      # 76 s with the GitHub cache (nothing built).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee  # v1.7.1
         with:
           lake-package-directory: lean

@@ -16,7 +16,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
   - First source not available: the script uses the second source.
 
   Remove the PENDING line of TC-9-06. Verify: the tests pass, and each test fails when its rule is removed from the script.
-- [ ] 1.4 Owner step: put a copy of `aeneas-linux-x86_64.tar.gz` into the Strata release `aeneas-nightly-2026.11.14-0d21a9e`. Give the owner the exact `gh release create` command and the SHA-256 to compare. The owner runs it. Verify: `gh release view aeneas-nightly-2026.11.14-0d21a9e` lists the asset, and its digest is the pinned SHA-256.
+- [x] 1.4 Owner step: put a copy of `aeneas-linux-x86_64.tar.gz` into the Strata release `aeneas-nightly-2026.11.14-0d21a9e`. Give the owner the exact `gh release create` command and the SHA-256 to compare. The owner runs it. Verify: `gh release view aeneas-nightly-2026.11.14-0d21a9e` lists the asset, and its digest is the pinned SHA-256.
 
 ## 2. Lean project
 
@@ -29,7 +29,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
   - `Strata/Proofs/`: the refinement theorems and the theorems of the tables.
 
   Add `lean/.lake/` to `.gitignore`, and commit `lake-manifest.json`. Verify: `lake build` passes with an empty model.
-- [ ] 2.2 Measure the first build in CI. Compare three ways to get the build state of Mathlib and of the Aeneas library: `lake exe cache get`, the release asset `lean-build-aeneas-x86_64-unknown-linux-gnu.tar.gz`, and `actions/cache` of `lean/.lake/packages`. The repository cache limit is 10 GB. Use the fastest way that does not build Mathlib. Record the times in a comment in the workflow. Verify: a second run of the job does not compile Mathlib, as the log shows.
+- [x] 2.2 Measure the first build in CI. Compare three ways to get the build state of Mathlib and of the Aeneas library: `lake exe cache get`, the release asset `lean-build-aeneas-x86_64-unknown-linux-gnu.tar.gz`, and `actions/cache` of `lean/.lake/packages`. The repository cache limit is 10 GB. Use the fastest way that does not build Mathlib. Record the times in a comment in the workflow. Verify: a second run of the job does not compile Mathlib, as the log shows.
 
 ## 3. Verification scripts
 
@@ -110,7 +110,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
 
 ## 6. CI
 
-- [ ] 6.1 In `.github/workflows/ci.yml`, replace the `lean` filter and job with a `proofs` filter and a `verify` job.
+- [x] 6.1 In `.github/workflows/ci.yml`, replace the `lean` filter and job with a `proofs` filter and a `verify` job.
   - The filter: `crates/core/**`, `lean/**`, `scripts/{translate,install-aeneas,check-*,proof-obligations}*`, `scripts/tests/**`, `docs/tech-design/**`, `toolchain.env` and `Cargo.lock`.
   - The job, in sequence:
     1. Install the tools with `install-aeneas.sh`, and the pinned nightly with `rustc-dev`.
