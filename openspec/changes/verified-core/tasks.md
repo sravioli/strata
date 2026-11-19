@@ -131,7 +131,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
 ## 7. Documentation and pull request
 
 - [x] 7.1 Update `docs/agents/testing.md`. Add how to install the tools, how to translate, how to build the Lean project, and how to run the checks locally. Add the rule that a change to a proved function includes the new translation and the updated proofs. Verify: markdownlint and ste-lint pass, and each command runs as written.
-- [ ] 7.2 Run `python3 scripts/check-test-cases.py`. No PENDING line of a TC-9 scenario stays. Run the `code-review` skill. Open the pull request with the `pr` skill. Its body says `Closes #11`. Verify: all CI jobs and `ci-ok` are green.
+- [x] 7.2 Run `python3 scripts/check-test-cases.py`. No PENDING line of a TC-9 scenario stays. Run the `code-review` skill. Open the pull request with the `pr` skill. Its body says `Closes #11`. Verify: all CI jobs and `ci-ok` are green.
 
 ## Workflow follow-up
 
