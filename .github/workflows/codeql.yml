@@ -24,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [actions, python, rust]
+        # Add rust (build-mode none) once the first crate lands: with no .rs files the rust leg fails (exit 32).
+        language: [actions, python]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: github/codeql-action/init@v4.39.3
