@@ -1,5 +1,5 @@
 globs: ["*.md", "docs/**/*.md"]
-ignores: ["docs/adr/draft/**", "node_modules/**"]
+ignores: ["node_modules/**"]
 config:
   MD013: false
   MD033: false
