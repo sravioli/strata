@@ -1,6 +1,6 @@
 # Decision workflow
 
-Every change to what Strata does, or to how it is built, passes through a **tech design** that the owner decides on. Until the owner decides, everything is a **draft**: recommendations written in issues, the ADRs in `docs/adr/draft/`, and any tech design whose status is not `accepted`.
+Every change to what Strata does, or to how it is built, passes through a **tech design** that the owner decides on. Until the owner decides, everything is a **draft**: recommendations written in issues, the background in `docs/reference/`, and any tech design whose status is not `accepted`.
 
 ## Steps
 
