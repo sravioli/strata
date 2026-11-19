@@ -3,10 +3,12 @@
 
 Rules: the `test-case-check` OpenSpec spec, and `docs/agents/testing.md`.
 
-Usage: check-test-cases.py [ROOT]   (ROOT defaults to the current directory, a git work tree)
-Exit code 1 when a failure exists, 0 when none exists.
+Usage: check-test-cases.py [--report] [ROOT]   (ROOT defaults to the current directory, a git work tree)
+  default   print each failure. Exit code 1 when a failure exists, 0 when none exists.
+  --report  print the state of each ID, its design, its spec and its tests. Exit code 0.
 """
 
+import argparse
 import pathlib
 import re
 import subprocess
@@ -68,7 +70,8 @@ def spec_scenarios(text):
             yield tc, pending
 
 
-def check(root):
+def collect(root):
+    """Return (designs, specs, carried): the design rows, spec scenarios and test files of each ID."""
     root = pathlib.Path(root)
     carried = {}  # id -> test files that carry it
     designs = {}  # id -> list of (file, cell)
@@ -89,7 +92,11 @@ def check(root):
         else:
             for tc in ID.findall(text):
                 carried.setdefault(tc, []).append(path)
+    return designs, specs, carried
 
+
+def check(root):
+    designs, specs, carried = collect(root)
     failures = []
     for tc, places in sorted(specs.items()):
         if tc in carried:
@@ -109,8 +116,34 @@ def check(root):
     return failures
 
 
+def report(root):
+    """Yield one line for each ID: the ID, its state and the files that define or carry it."""
+    designs, specs, carried = collect(root)
+    failing = {line.split(":", 1)[0] for line in check(root)}
+    for tc in sorted(designs.keys() | specs.keys() | carried.keys(), key=lambda t: tuple(map(int, t.split("-")[1:]))):
+        if tc in failing:
+            state = "failing"
+        elif tc in carried:
+            state = "implemented"
+        elif tc in specs:
+            state = "planned"
+        else:
+            state = "approved"
+        files = [("design", [p for p, _ in designs.get(tc, [])]), ("spec", [p for p, _ in specs.get(tc, [])]),
+                 ("tests", carried.get(tc, []))]
+        yield " ".join([tc, state] + [f"{name}={','.join(paths) or '-'}" for name, paths in files])
+
+
 def main():
-    failures = check(sys.argv[1] if len(sys.argv) > 1 else ".")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--report", action="store_true")
+    parser.add_argument("root", nargs="?", default=".")
+    args = parser.parse_args()
+    if args.report:
+        for line in report(args.root):
+            print(line)
+        return 0
+    failures = check(args.root)
     for line in failures:
         print(line)
     if failures:
