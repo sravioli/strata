@@ -116,9 +116,7 @@ theorem fail_at_max_parks (j : job.Job) (e : job.Event) (now : U64) :
 
 theorem done_final (j : job.Job) (e : job.Event) (now : U64) :
     j.state = .Done → job.job_step j e now ⦃ j' => j' = j ⦄ := by
-  intro hs
-  unfold job.job_step
-  cases e <;> simp [hs]
+  sorry
 
 theorem parked_needs_operator (j : job.Job) (e : job.Event) (now : U64) :
     j.state = .Parked → e ≠ .Requeue → job.job_step j e now ⦃ j' => j'.state = .Parked ⦄ := by

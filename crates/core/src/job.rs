@@ -49,7 +49,7 @@ pub enum Event {
 /// The backoff after the failed run number `n`: 30 s, 2 min, 10 min, 30 min (0005).
 pub fn backoff_seconds(n: u32) -> u64 {
     match n {
-        1 => 31,
+        1 => 30,
         2 => 120,
         3 => 600,
         _ => 1800,
