@@ -127,7 +127,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
       - run: |
           cargo fmt --all --check
-          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
           cargo test --workspace --locked
 
   deny:
@@ -183,10 +183,38 @@ jobs:
           echo "$files" | xargs sqlfluff lint --dialect postgres
           for f in $files; do psql -v ON_ERROR_STOP=1 -q -f "$f"; done
 
+  # Each test case ID has a test or a PENDING marker. Runs on each run: any file can add or remove an ID.
+  test-cases:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s scripts/tests
+      - run: python3 scripts/check-test-cases.py
+
+  # L1: tests against the services of compose.yaml (docs/agents/testing.md). Runs on each pull request.
+  l1:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
+      - run: docker compose up --wait
+      - run: scripts/dev-services-smoke.sh
+      - run: cargo test --workspace --locked --all-features
+      - if: always()
+        run: docker compose down -v
+
   # Make only this job a required check. A skipped job counts as passed.
   ci-ok:
     if: always()
-    needs: [changes, commits, secrets, config, prose, rust, deny, lean, sql]
+    needs: [changes, commits, secrets, config, prose, rust, deny, lean, sql, test-cases, l1]
     runs-on: ubuntu-latest
     steps:
       - run: |

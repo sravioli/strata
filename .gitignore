@@ -1,3 +1,5 @@
 .claude/worktrees/
 .claude/handoff/
 .claude/settings.local.json
+target/
+__pycache__/

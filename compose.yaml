@@ -1,0 +1,45 @@
+# Local services for development and L1 tests. Start: docker compose up --wait
+# The passwords and keys are for development only. Each port binds to 127.0.0.1.
+name: strata
+
+services:
+  postgres:
+    # The tag that the sql job of CI uses.
+    image: docker.io/library/postgres:17@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c
+    environment:
+      POSTGRES_USER: strata
+      POSTGRES_PASSWORD: strata
+      POSTGRES_DB: strata
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "strata", "-d", "strata"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  garage:
+    image: docker.io/dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    # --single-node applies a layout of one node, --default-bucket creates the bucket and the key below.
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000000
+      GARAGE_DEFAULT_SECRET_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      GARAGE_DEFAULT_BUCKET: strata
+    ports: ["127.0.0.1:3900:3900"]
+    volumes:
+      - ./dev/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    healthcheck:
+      # The image has no shell, so the check uses the exec form. `garage status` exits 0 also
+      # with no layout. This command fails until the layout is applied and the bucket exists.
+      test: ["CMD", "/garage", "bucket", "info", "strata"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres:
+  garage-meta:
+  garage-data:

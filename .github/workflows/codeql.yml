@@ -24,8 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Add rust (build-mode none) once the first crate lands: with no .rs files the rust leg fails (exit 32).
-        language: [actions, python]
+        language: [actions, python, rust]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
