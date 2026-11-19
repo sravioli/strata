@@ -95,8 +95,10 @@ jobs:
           file_or_dir: .
           config_file: .yamllint.yaml
       - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7  # v2.2.0
-      - run: pipx install taplo-cli || pip install taplo
-      - run: taplo fmt --check
+      - run: |
+          python3 -m venv "$RUNNER_TEMP/taplo"
+          "$RUNNER_TEMP/taplo/bin/python" -m pip install --require-hashes --no-deps -r .github/requirements/taplo.txt
+          "$RUNNER_TEMP/taplo/bin/taplo" fmt --check
       - run: git ls-files 'scripts/*.sh' | xargs -r shellcheck
 
   prose:

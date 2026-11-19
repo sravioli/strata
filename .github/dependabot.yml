@@ -4,3 +4,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait a week before a new release is proposed, so a bad release can be pulled first.
+    cooldown:
+      default-days: 7
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
