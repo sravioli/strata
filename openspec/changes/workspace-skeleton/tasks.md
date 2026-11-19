@@ -52,7 +52,7 @@
 
 ## 5. Integration
 
-- [ ] 5.1 Run `npx markdownlint-cli2` on the changed Markdown files, then open one pull request with all groups. Its body says `Refs #11`. Verify: all CI jobs, the CodeQL `rust` leg and `ci-ok` are green.
+- [x] 5.1 Run `npx markdownlint-cli2` on the changed Markdown files, then open one pull request with all groups. Its body says `Refs #11`. Verify: all CI jobs, the CodeQL `rust` leg and `ci-ok` are green.
 
 ## Workflow follow-up
 
