@@ -1,0 +1,1 @@
+Tech design: [docs/tech-design/0009-verification-boundary.md](../../../../docs/tech-design/0009-verification-boundary.md). The theorems are in the "Proof obligations" tables of [0004](../../../../docs/tech-design/0004-v1-authorization.md) and [0005](../../../../docs/tech-design/0005-job-queue.md). The owner decisions for issue #11 are on the issue (comment of 2026-11-19).
