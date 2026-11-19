@@ -109,9 +109,11 @@ theorem active_account_allowed (t c : U64) (a : authorization.Action)
   exact Model.active_account_allowed _ _ _ _ ha (by simp [absResource, hr])
 
 theorem account_never_processes (t c : U64) (aa ta : Bool) (r : authorization.Resource) :
-    authorization.authorize (.Account t c aa ta) .ProcessDocument r ≠ ok .Allow := by
-  rw [Ne, rust_allow]
-  simp [absPrincipal, absAction, Model.account_never_processes]
+    ∃ reason, authorization.authorize (.Account t c aa ta) .ProcessDocument r = ok (.Deny reason) := by
+  obtain ⟨d, hd, hm⟩ := authorize_refines (.Account t c aa ta) .ProcessDocument r
+  cases d with
+  | Allow => simp [isAllow, absPrincipal, absAction, Model.account_never_processes] at hm
+  | Deny reason => exact ⟨reason, hd⟩
 
 theorem job_only_processes (t : U64) (ta : Bool) (a : authorization.Action)
     (r : authorization.Resource) :

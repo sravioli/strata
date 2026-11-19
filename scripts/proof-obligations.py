@@ -39,7 +39,7 @@ def core_functions(root):
         parts = [] if module.name in ("lib", "mod") and module.parent == pathlib.Path(".") else list(module.parts)
         if parts and parts[-1] == "mod":
             parts = parts[:-1]
-        for name in re.findall(r"^\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+([a-z_][a-z0-9_]*)\b", path.read_text(), re.M):
+        for name in re.findall(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe)\s+)*fn\s+([a-z_][a-z0-9_]*)\b", path.read_text(), re.M):
             found.setdefault(name, "::".join(["crate", *parts, name]))
     return found
 

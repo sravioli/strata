@@ -29,9 +29,9 @@ _spec.loader.exec_module(proof_obligations)
 
 def required(root):
     """Return [(lean name, what it is for)] for each theorem that must exist."""
-    rows, functions = proof_obligations.obligations(root)
+    rows, _ = proof_obligations.obligations(root)
     names = [(f"Strata.{r['theorem']}", f"theorem `{r['theorem']}` of {r['design']}") for r in rows]
-    fns = sorted({f for r in rows for f in r["functions"] if f in functions})
+    fns = sorted({f for r in rows for f in r["functions"]})
     names += [(f"Strata.{f}_refines", f"refinement theorem of the Rust function `{f}`") for f in fns]
     return names
 

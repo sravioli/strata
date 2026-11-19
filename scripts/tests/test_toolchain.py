@@ -14,7 +14,6 @@ class Toolchain(unittest.TestCase):
         self.root = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root)
 
-    @unittest.skipUnless(shutil.which("cargo") and shutil.which("rustup"), "needs cargo and rustup")
     def test_tc_9_05_nightly_feature_fails_on_stable(self):
         """TC-9-05: a Rust crate that uses a nightly feature fails to build on stable."""
         (self.root / "src").mkdir()

@@ -48,7 +48,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
   - `sorryAx` fails as an unfinished proof.
 
   It also searches each `.lean` file under `lean/Strata/` for the words `sorry` and `admit`, and fails with the file and the line. Verify: the script passes on the project when the models and proofs are complete (groups 4 and 5).
-- [x] 3.3 Add `scripts/tests/test_check_proofs.py`, with fixture Lean projects in `scripts/tests/fixtures/check-proofs/`. These use core Lean only, with no Mathlib, so that each test runs in seconds. The tests:
+- [x] 3.3 Add `scripts/tests/test_check_proofs.py`. Each test builds its own small Lean project in a temporary folder. These use core Lean only, with no Mathlib, so that each test runs in seconds. The tests:
   - `test_tc_9_02_sorry_fails`: a theorem with `sorry`.
   - `test_tc_9_03_aeneas_axiom_fails`: a theorem that uses an `axiom` that Aeneas could generate. The message names the theorem and the axiom.
   - `test_tc_9_04_missing_theorem_fails`: a fixture table names a theorem that is not in the project. The message names the theorem.
@@ -58,7 +58,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
   Remove the PENDING lines of TC-9-02, TC-9-03 and TC-9-04. Verify: the tests pass in the `verify` job.
 - [x] 3.4 Add `scripts/translate.sh [--check]`. It runs `charon cargo --preset=aeneas` in `crates/core`, with the pinned nightly and one `--start-from` for each function of task 3.1, and runs `aeneas -backend lean` into `lean/Strata/Generated/`. With `--check`, it writes into a temporary folder, runs `diff -r` against `lean/Strata/Generated/`, and fails with the names of the files that differ. Verify: a second run gives no difference, as spike #8 found.
 - [x] 3.5 Add `scripts/tests/test_translate.py` with `test_tc_9_01_stale_translation_fails`. The test copies the core crate to a temporary folder, changes one proved function, and runs `translate.sh --check` against the generated code of the repository. The check must fail and name the file. Remove the PENDING line of TC-9-01. Verify: the test passes in the `verify` job.
-- [x] 3.6 Add `scripts/check-toolchain.sh`. It fails when a `rust-toolchain` or `rust-toolchain.toml` file exists outside `scripts/tests/fixtures/`, and the message names the file. Add the fixture crate `scripts/tests/fixtures/nightly-crate/`: a crate with `#![feature(never_type)]`, outside the workspace. Add `scripts/tests/test_toolchain.py`:
+- [x] 3.6 Add `scripts/check-toolchain.sh`. It fails when a `rust-toolchain` or `rust-toolchain.toml` file exists outside `scripts/tests/fixtures/`, and the message names the file. The test builds a crate with `#![feature(never_type)]` in a temporary folder, outside the workspace. Add `scripts/tests/test_toolchain.py`:
   - `test_tc_9_05_nightly_feature_fails_on_stable`: `cargo +stable build --manifest-path` on the fixture fails.
   - A temporary `rust-toolchain` file makes `check-toolchain.sh` fail.
 
@@ -98,7 +98,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
 
   Also write the model statements of the 6 rows of 0005, where `max` is `maxAttempts`. Verify: `lake build` passes, and a proof on the model exists for each model statement.
 - [x] 5.2 Write `crates/core/src/job.rs` in the proved subset:
-  - `job_step(job, event, now)` uses saturating additions for times, and the constants `MAX_ATTEMPTS`, `LEASE_SECONDS` and `BACKOFF_SECONDS`.
+  - `job_step(job, event, now)` uses saturating additions for times, the constants `MAX_ATTEMPTS` and `LEASE_SECONDS`, and `backoff_seconds(n)` for the backoff schedule of 0005.
   - An event that does not apply leaves the job unchanged.
 
   Add L0 tests for the backoff and the lease times. Verify: `cargo test` and clippy pass.
@@ -120,7 +120,7 @@ Each task that adds the test of a TC-9 scenario also deletes the `- **PENDING**`
     5. The unit tests of the checks.
 
   Add `verify` to `needs` of `ci-ok`. Run the `rust` job also on `check-toolchain.sh`. Verify: actionlint and zizmor pass, and `verify` is green on the pull request.
-- [ ] 6.2 Show each check failing in CI once. On a branch that is not merged, push four commits:
+- [x] 6.2 Show each check failing in CI once. On a branch that is not merged, push four commits:
   1. a stale translation.
   2. a `sorry`.
   3. an unknown name in a table.

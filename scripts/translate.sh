@@ -6,6 +6,10 @@
 #   --check  translate into a temporary folder and fail if lean/Strata/Generated/ differs (check 1 of 0009)
 # CHARON and AENEAS select the binaries (default: on PATH). CORE selects the crate (default: crates/core).
 set -euo pipefail
+case "${1:-}" in
+  "" | --check) ;;
+  *) echo "usage: scripts/translate.sh [--check]" >&2; exit 2 ;;
+esac
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=/dev/null
 . "$repo/toolchain.env"

@@ -15,7 +15,7 @@ SCRIPT = REPO / "scripts/translate.sh"
 TOOLS = all(shutil.which(os.environ.get(t.upper(), t)) for t in ("charon", "aeneas"))
 
 
-@unittest.skipUnless(TOOLS, "needs charon and aeneas (scripts/install-aeneas.sh)")
+@unittest.skipUnless(TOOLS or os.environ.get("REQUIRE_PROOF_TOOLS"), "needs charon and aeneas (scripts/install-aeneas.sh)")
 class Translate(unittest.TestCase):
     def run_check(self, change=None):
         tmp = pathlib.Path(tempfile.mkdtemp())

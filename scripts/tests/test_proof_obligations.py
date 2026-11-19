@@ -54,6 +54,10 @@ class ProofObligations(unittest.TestCase):
                  "crates/core/src/lib.rs": "pub fn step() {}\n"}
         self.assertEqual(self.rows(files), [])
 
+    def test_const_fn_counts(self):
+        rows = self.rows({"docs/tech-design/0001-a.md": design("accepted"), "crates/core/src/lib.rs": "pub const fn step() {}\n"})
+        self.assertEqual(len(rows), 2)
+
     def test_charon_path_uses_the_module(self):
         with tempfile.TemporaryDirectory() as root:
             p = pathlib.Path(root, "crates/core/src/job.rs")

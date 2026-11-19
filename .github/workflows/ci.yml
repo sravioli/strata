@@ -55,6 +55,7 @@ jobs:
               - 'lean/**'
               - 'scripts/translate.sh'
               - 'scripts/install-aeneas.sh'
+              - 'scripts/check-toolchain.sh'
               - 'scripts/check-proofs.py'
               - 'scripts/proof-obligations.py'
               - 'scripts/tests/**'
@@ -160,13 +161,17 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Aeneas and Charon (pinned package, SHA-256 checked)
+        id: pins
         run: |
           scripts/install-aeneas.sh "$RUNNER_TEMP/aeneas"
           echo "$RUNNER_TEMP/aeneas" >> "$GITHUB_PATH"
+          . ./toolchain.env
+          "$RUNNER_TEMP/aeneas/charon" version | grep -F "$CHARON_COMMIT"
+          echo "charon-rust=$CHARON_RUST" >> "$GITHUB_OUTPUT"
       # Charon needs its pinned nightly with the compiler libraries. The crates still build on stable.
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11
         with:
-          toolchain: nightly-2026-09-17
+          toolchain: ${{ steps.pins.outputs.charon-rust }}
           components: rustc-dev, llvm-tools, rust-src
       - name: Check 1, fresh translation
         run: scripts/translate.sh --check
@@ -179,9 +184,9 @@ jobs:
       - name: Checks 2 to 5, theorems and axioms
         run: python3 scripts/check-proofs.py
       - name: Tests of the checks
-        run: >-
-          python3 -m unittest scripts/tests/test_check_proofs.py scripts/tests/test_translate.py
-          scripts/tests/test_install_aeneas.py scripts/tests/test_proof_obligations.py scripts/tests/test_toolchain.py
+        env:
+          REQUIRE_PROOF_TOOLS: "1"  # a test that needs Lean, Charon or Aeneas fails here, never skips
+        run: python3 -m unittest discover -s scripts/tests
 
   sql:
     needs: changes

@@ -4,6 +4,7 @@ Spec proof-verification: TC-9-02, TC-9-03, TC-9-04 and the refinement theorem ru
 """
 
 import importlib.util
+import os
 import pathlib
 import shutil
 import tempfile
@@ -26,7 +27,7 @@ DESIGN = """- Status: accepted
 GOOD = "namespace Strata\ndef f : Nat := 1\ntheorem f_ok : f = 1 := rfl\ntheorem f_refines : f = 1 := rfl\nend Strata\n"
 
 
-@unittest.skipUnless(shutil.which("lake"), "needs the Lean toolchain (lake)")
+@unittest.skipUnless(shutil.which("lake") or os.environ.get("REQUIRE_PROOF_TOOLS"), "needs the Lean toolchain (lake)")
 class CheckProofs(unittest.TestCase):
     def check(self, lean, design=DESIGN):
         root = pathlib.Path(tempfile.mkdtemp())
@@ -66,6 +67,11 @@ class CheckProofs(unittest.TestCase):
         self.assertEqual(len(failures), 1, failures)
         self.assertIn("Strata.f_ok: missing", failures[0])
         self.assertIn("0001-a.md", failures[0])
+
+    def test_named_function_not_in_crate_still_needs_refinement(self):
+        design = DESIGN.replace("| `f` |", "| `f`, `g` |")
+        failures = self.check(GOOD, design)
+        self.assertEqual(failures, ["Strata.g_refines: missing, the refinement theorem of the Rust function `g`"])
 
     def test_function_with_no_refinement_theorem_fails(self):
         failures = self.check(GOOD.replace("theorem f_refines : f = 1 := rfl\n", ""))
