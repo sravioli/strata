@@ -26,7 +26,7 @@ def scenario(tc, pending=False):
 
 
 class CheckTestCases(unittest.TestCase):
-    def run_check(self, files):
+    def run_check(self, files, fn=None):
         with tempfile.TemporaryDirectory() as root:
             for path, text in files.items():
                 p = pathlib.Path(root, path)
@@ -34,7 +34,29 @@ class CheckTestCases(unittest.TestCase):
                 p.write_text(text)
             subprocess.run(["git", "init", "-q", root], check=True)
             subprocess.run(["git", "-C", root, "add", "-A"], check=True)
-            return ctc.check(root)
+            return list((fn or ctc.check)(root))
+
+    def report(self, files):
+        return self.run_check(files, ctc.report)
+
+    def test_report_approved(self):
+        self.assertEqual(self.report({DESIGN: design("TC-9-02", "pending")}),
+                         [f"TC-9-02 approved design={DESIGN} spec=- tests=-"])
+
+    def test_report_planned(self):
+        self.assertEqual(self.report({DESIGN: design("TC-9-02", "pending"), SPEC: scenario("TC-9-02", pending=True)}),
+                         [f"TC-9-02 planned design={DESIGN} spec={SPEC} tests=-"])
+
+    def test_report_implemented(self):
+        self.assertEqual(self.report({DESIGN: design("TC-9-02", "pending"), SPEC: scenario("TC-9-02"), TEST: "// TC-9-02\n"}),
+                         [f"TC-9-02 implemented design={DESIGN} spec={SPEC} tests={TEST}"])
+
+    def test_report_failing(self):
+        self.assertEqual(self.report({SPEC: scenario("TC-9-02")}), [f"TC-9-02 failing design=- spec={SPEC} tests=-"])
+
+    def test_report_sorts_ids_by_number(self):
+        lines = self.report({DESIGN: design("TC-10-01", "pending") + design("TC-9-02", "pending")})
+        self.assertEqual([line.split()[0] for line in lines], ["TC-9-02", "TC-10-01"])
 
     def test_scenario_with_test_passes(self):
         self.assertEqual(self.run_check({SPEC: scenario("TC-9-02"), TEST: "// TC-9-02\n"}), [])

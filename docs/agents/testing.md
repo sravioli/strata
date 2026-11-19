@@ -27,6 +27,7 @@ A test case with no automated test yet is listed as `pending`; a test case is ne
 - **Status after the spec exists.** When a test case has its spec scenario, the spec is its only status. The row in the tech design is not updated: an accepted design stays as the owner decided it.
 - **Pending marker.** A scenario with no automated test yet has the line `- **PENDING** <reason>` in its body.
 - **Check.** `python3 scripts/check-test-cases.py` enforces these rules. CI runs it on each run.
+- **Report.** `python3 scripts/check-test-cases.py --report` prints one line for each ID: its state, its design, its spec and its tests. The states are `approved` (a design row only) and `planned` (a spec scenario with the pending marker). They are also `implemented` (a test carries the ID) and `failing` (the check fails on the ID).
 
 ## Running the levels
 
