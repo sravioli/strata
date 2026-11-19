@@ -22,7 +22,7 @@ jobs:
       rust: ${{ steps.f.outputs.rust }}
       deny: ${{ steps.f.outputs.deny }}
       sql: ${{ steps.f.outputs.sql }}
-      lean: ${{ steps.f.outputs.lean }}
+      proofs: ${{ steps.f.outputs.proofs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -50,11 +50,19 @@ jobs:
               - 'deny.toml'
             sql:
               - '**/*.sql'
-            lean:
-              - '**/*.lean'
-              - '**/lakefile.*'
-              - '**/lean-toolchain'
-              - '**/lake-manifest.json'
+            proofs:
+              - 'crates/core/**'
+              - 'lean/**'
+              - 'scripts/translate.sh'
+              - 'scripts/install-aeneas.sh'
+              - 'scripts/check-toolchain.sh'
+              - 'scripts/check-proofs.py'
+              - 'scripts/proof-obligations.py'
+              - 'scripts/tests/**'
+              - 'docs/tech-design/**'
+              - 'toolchain.env'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
 
   commits:
     if: github.event_name == 'pull_request'
@@ -129,6 +137,7 @@ jobs:
           cargo fmt --all --check
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
           cargo test --workspace --locked
+          scripts/check-toolchain.sh
 
   deny:
     needs: changes
@@ -142,19 +151,42 @@ jobs:
       - if: hashFiles('Cargo.toml') != ''
         uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9  # v2.1.2
 
-  lean:
+  # The checks of tech design 0009 ("The definition of proved"). Any failure fails ci-ok.
+  verify:
     needs: changes
-    if: needs.changes.outputs.lean == 'true'
+    if: needs.changes.outputs.proofs == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - id: pkg
-        run: echo "dir=$(git ls-files '*lakefile.toml' '*lakefile.lean' | head -1 | xargs -r dirname)" >> "$GITHUB_OUTPUT"
+      - name: Install Aeneas and Charon (pinned package, SHA-256 checked)
+        id: pins
+        run: |
+          scripts/install-aeneas.sh "$RUNNER_TEMP/aeneas"
+          echo "$RUNNER_TEMP/aeneas" >> "$GITHUB_PATH"
+          . ./toolchain.env
+          "$RUNNER_TEMP/aeneas/charon" version | grep -F "$CHARON_COMMIT"
+          echo "charon-rust=$CHARON_RUST" >> "$GITHUB_OUTPUT"
+      # Charon needs its pinned nightly with the compiler libraries. The crates still build on stable.
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11
+        with:
+          toolchain: ${{ steps.pins.outputs.charon-rust }}
+          components: rustc-dev, llvm-tools, rust-src
+      - name: Check 1, fresh translation
+        run: scripts/translate.sh --check
+      # Gets the Mathlib cache and the GitHub cache of lean/.lake, then runs lake build.
+      # Measured on PR #37: 320 s with no GitHub cache (Mathlib from its cache, 214 Aeneas modules built),
+      # 76 s with the GitHub cache (nothing built).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee  # v1.7.1
         with:
-          lake-package-directory: ${{ steps.pkg.outputs.dir }}
+          lake-package-directory: lean
+      - name: Checks 2 to 5, theorems and axioms
+        run: python3 scripts/check-proofs.py
+      - name: Tests of the checks
+        env:
+          REQUIRE_PROOF_TOOLS: "1"  # a test that needs Lean, Charon or Aeneas fails here, never skips
+        run: python3 -m unittest discover -s scripts/tests
 
   sql:
     needs: changes
@@ -214,7 +246,7 @@ jobs:
   # Make only this job a required check. A skipped job counts as passed.
   ci-ok:
     if: always()
-    needs: [changes, commits, secrets, config, prose, rust, deny, lean, sql, test-cases, l1]
+    needs: [changes, commits, secrets, config, prose, rust, deny, verify, sql, test-cases, l1]
     runs-on: ubuntu-latest
     steps:
       - run: |

@@ -32,3 +32,20 @@ A test case with no automated test yet is listed as `pending`; a test case is ne
 
 - **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request.
 - **L1:** `docker compose up --wait`, then `cargo test --workspace --all-features`. An L1 test target has `required-features = ["l1"]` in its `Cargo.toml`, so L0 does not run it. An L1 test fails when a service is not available. It does not skip. `scripts/dev-services-smoke.sh` tests the services themselves. CI runs L1 on each pull request.
+
+## Proofs
+
+Tech design 0009 sets when a theorem is "proved". The `verify` job of CI runs its checks. Run them locally in this sequence:
+
+1. Install the pinned tools: `scripts/install-aeneas.sh ~/.local/aeneas`, then add that folder to `PATH`. Charon also needs the nightly of `toolchain.env` with the components `rustc-dev`, `llvm-tools` and `rust-src`.
+2. Translate the core crate: `scripts/translate.sh`. It writes `lean/Strata/Generated/`. `scripts/translate.sh --check` only compares.
+3. Build the Lean project: `cd lean && lake exe cache get && lake build`.
+4. Check the theorems: `python3 scripts/check-proofs.py`.
+5. Run the tests of the checks: `python3 -m unittest discover -s scripts/tests`.
+
+Rules:
+
+- A change to a proved Rust function includes the new translation and the updated proofs in the same pull request.
+- A "Proof obligations" table is enforced when a Rust function that it names exists in `crates/core/src`. From then on, each theorem of the table must exist as `Strata.<name>`, and each function must have `Strata.<function>_refines`.
+- The crates build on stable Rust. No crate has a `rust-toolchain` file. `scripts/check-toolchain.sh` checks this.
+- An upgrade of the pins in `toolchain.env`, `lean/lean-toolchain` and `lean/lakefile.toml` is one pull request that moves all of them together.
