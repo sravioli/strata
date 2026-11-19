@@ -34,6 +34,10 @@ A test case with no automated test yet is listed as `pending`; a test case is ne
 - **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request.
 - **L1:** `docker compose up --wait`, then `cargo test --workspace --all-features`. An L1 test target has `required-features = ["l1"]` in its `Cargo.toml`, so L0 does not run it. An L1 test fails when a service is not available. It does not skip. `scripts/dev-services-smoke.sh` tests the services themselves. CI runs L1 on each pull request.
 
+## Repo tooling
+
+Product code is Rust, and the levels above test it. Repo tooling (the checks and helpers in `scripts/`) is Python 3 with the standard library only. Its tests are in `scripts/tests/`: run `python3 -m unittest discover -s scripts/tests`. Tooling is not a crate, so the workspace holds only product code. Move tooling to a Rust `xtask` crate only when it must share types with the product or parse Rust code.
+
 ## Proofs
 
 Tech design 0009 sets when a theorem is "proved". The `verify` job of CI runs its checks. Run them locally in this sequence:
