@@ -24,8 +24,10 @@ jobs:
       sql: ${{ steps.f.outputs.sql }}
       lean: ${{ steps.f.outputs.lean }}
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: dorny/paths-filter@v4.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         id: f
         with:
           filters: |
@@ -58,8 +60,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       # The cocogitto action installs cog 6.5.0, which rejects `pre` in cog.toml. Install the version used locally.
       - run: |
@@ -70,8 +73,9 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       - run: |
           curl -fsSL https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz | tar xz betterleaks
@@ -82,13 +86,15 @@ jobs:
     if: needs.changes.outputs.config == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: DavidAnson/markdownlint-cli2-action@v25.0.0
-      - uses: ibiqlik/action-yamllint@v3.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34  # v25.0.0
+      - uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
         with:
           file_or_dir: .
           config_file: .yamllint.yaml
-      - uses: raven-actions/actionlint@v2.2.0
+      - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7  # v2.2.0
       - run: pipx install taplo-cli || pip install taplo
       - run: taplo fmt --check
       - run: git ls-files 'scripts/*.sh' | xargs -r shellcheck
@@ -98,7 +104,9 @@ jobs:
     if: needs.changes.outputs.prose == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       # Templates (0000-*) stay out: they hold placeholder text.
       - run: git ls-files 'docs/tech-design/*.md' 'docs/adr/*.md' | grep -v '/0000-' | xargs -r python3 .agents/skills/asd-ste100/scripts/ste-lint.py
 
@@ -107,11 +115,14 @@ jobs:
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11
+        with:
+          toolchain: stable
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
       - run: |
           cargo fmt --all --check
           cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -122,18 +133,24 @@ jobs:
     if: needs.changes.outputs.deny == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: EmbarkStudios/cargo-deny-action@v2.1.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # Skips until the first crate lands: with no Cargo.toml, cargo-deny fails.
+      - if: hashFiles('Cargo.toml') != ''
+        uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9  # v2.1.2
 
   lean:
     needs: changes
     if: needs.changes.outputs.lean == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - id: pkg
         run: echo "dir=$(git ls-files '*lakefile.toml' '*lakefile.lean' | head -1 | xargs -r dirname)" >> "$GITHUB_OUTPUT"
-      - uses: leanprover/lean-action@v1.7.1
+      - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee  # v1.7.1
         with:
           lake-package-directory: ${{ steps.pkg.outputs.dir }}
 
@@ -154,7 +171,9 @@ jobs:
       PGHOST: localhost
       PGUSER: postgres
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       # Real validation: every .sql file must apply, in path order, to an empty Postgres.
       - run: |
           files=$(git ls-files '*.sql' | sort)
