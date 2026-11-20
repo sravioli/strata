@@ -19,9 +19,7 @@ Goals:
 Non-goals:
 
 - Authorization inside a tenant. Issue [#4](https://github.com/sravioli/strata/issues/4) owns that decision.
-- The identity provider and the storage of passwords. Milestone M1 owns those decisions.
-- Who issues the access token: Strata or an external identity provider. Milestone M1 owns that decision.
-- The signing key, the lifetime and the renewal of an access token. Milestone M1 owns those decisions.
+- The identity providers, the signing keys and the lifetime of an access token. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) owns those decisions.
 - A user interface. A later frontend for demonstrations is a client of the API.
 - Dedicated infrastructure for one tenant.
 - The layout of the vector index. Milestone M2 owns that decision.
@@ -36,10 +34,10 @@ The owner made two decisions on 2026-11-14:
 
 The owner made seven decisions on 2026-11-15:
 
-- At login, the client sends the name of the tenant, a username and a password. Thus a username is unique in one tenant only.
+- At login, the client sends the name of the tenant, a username and a password. Thus a username is unique in one tenant only. The owner replaced this decision on 2026-11-20 ([#21](https://github.com/sravioli/strata/issues/21)): Strata has no login in v1.
 - Strata is a backend only. A client authenticates each request with a JSON Web Token (JWT).
 - The total of approximately 50,000 accounts is an estimate and a goal.
-- Who issues the access token is not decided. Milestone M1 decides it.
+- Who issues the access token is not decided. Milestone M1 decides it. The owner decided on 2026-11-20 ([#21](https://github.com/sravioli/strata/issues/21)): in v1, only external identity providers issue access tokens.
 - When a tenant is not active, the API rejects all of its requests. Strata keeps its data.
 - In v1, an operator creates tenants and accounts with a command. There is no self-service sign-up.
 - Strata must not reveal the names of tenants.
@@ -57,7 +55,7 @@ Terms used in this design:
 - **Tenant-owned table**: a table whose rows each belong to one tenant.
 - **Global table**: a table whose rows belong to no tenant.
 - **Tenant context**: the tenant that a database transaction acts for.
-- **Access token**: a signed JWT that a client sends with each request. It names one tenant and one account.
+- **Access token**: a signed JWT that a client sends with each request. A trusted issuer signs it. It names one tenant and one account.
 - **Runtime role**: a database role that the API or a worker uses.
 - **Owner role**: the database role that owns the tables and applies migrations.
 - **Operator role**: the database role that an operator uses for tasks that span tenants.
@@ -67,13 +65,13 @@ Terms used in this design:
 | ID | Requirement |
 |---|---|
 | R1 | A transaction reads and changes tenant-owned rows of one tenant only. |
-| R2 | After login, the tenant of a request comes from the verified access token only. It never comes from other request input. |
+| R2 | The tenant of a request comes from the verified access token only. It never comes from other request input. |
 | R3 | A transaction with no tenant context gets no tenant-owned rows. |
 | R4 | A query that omits the tenant filter because of a programming error exposes no rows of other tenants. |
 | R5 | A new tenant costs one row. The design creates no schema, table, partition, index or role for a tenant. |
 | R6 | The model works through a connection pooler in transaction mode. |
 | R7 | A worker processes jobs of all tenants. Each job runs in the tenant context of exactly one tenant. |
-| R8 | The tenant name that a client gives at login is a claim. It gives no access until the API verifies the password. |
+| R8 | The tenant value in an access token gives no access until the API verifies the token and finds an issuer binding for that value. |
 | R9 | A runtime role cannot list the names of tenants. No response shows that a tenant name exists. |
 
 Quantities:
@@ -88,8 +86,8 @@ Quantities:
 
 Two tables carry the model:
 
-- `tenants(tenant_id, name, status, created_at)`. The `name` is unique. It is the name that a client sends at login.
-- `accounts(tenant_id, account_id, username, status, created_at)` is tenant-owned. The pair `(tenant_id, username)` is unique.
+- `tenants(tenant_id, name, status, created_at)`. The `name` is unique. An operator uses it. No client sends it.
+- `accounts(tenant_id, account_id, issuer_id, subject, status, created_at)` is tenant-owned. The triple `(tenant_id, issuer_id, subject)` is unique. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) defines `issuer_id` and `subject`.
 
 Three rules apply to every tenant-owned table:
 
@@ -129,19 +127,13 @@ A table must not have a second policy. PostgreSQL gives access when one of sever
 
 ### The `tenants` table
 
-The login step must find a tenant by its name before a tenant context exists. The `tenants` table has its own policy for that step. It has row-level security enabled and forced, and exactly one policy, for `select` only:
+The `tenants` table has row-level security enabled and forced, and exactly one policy, for `select` only:
 
 ```sql
-using (
-  tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
-  or name = nullif(current_setting('app.login_tenant', true), '')
-)
+using (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 ```
 
-A runtime role thus reads a row of `tenants` in two cases only:
-
-- The row is the tenant of the tenant context.
-- The transaction gives the exact name of the tenant.
+A runtime role thus reads only the row of the tenant of the tenant context. The API finds the tenant of a token through an issuer binding, not through the name of the tenant. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) defines the `issuer_bindings` table and its policy.
 
 A runtime role has only the right to select from `tenants`. Only the operator role adds a tenant or changes its status.
 
@@ -161,9 +153,10 @@ Two roles can bypass row-level security: the PostgreSQL superuser and `strata_op
 The operator command does these tasks:
 
 - It creates a tenant.
-- It creates an account.
 - It changes the status of a tenant or of an account.
 - It lists tenants.
+
+The API creates an account on its first valid request. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) adds the tasks for issuers and issuer bindings.
 
 ### Global tables
 
@@ -175,42 +168,24 @@ No database function runs with the rights of the owner role.
 
 ### Login flow
 
-This flow applies when Strata issues the access token. If an identity provider issues the token, the provider does this flow. The token must then carry a `tenant_id` that Strata can trust.
-
-1. The client sends a tenant name, a username and a password.
-2. The API starts a transaction and runs `select set_config('app.login_tenant', $1, true)` with the tenant name.
-3. The API reads the row of `tenants` with that name. It gets the `tenant_id` and the status.
-4. The API sets the tenant context to that `tenant_id` in the same transaction.
-5. The API reads the account with that `(tenant_id, username)`.
-6. The API verifies the password. Milestone M1 decides how.
-7. The API rejects the login if the tenant or the account is not active.
-8. The API issues an access token that carries the `tenant_id` and the `account_id`.
-
-The API gives the same response in each of these cases:
-
-- The tenant name is not known.
-- The username is not known in that tenant.
-- The password is incorrect.
-- The tenant or the account is not active.
-
-The API verifies a password hash in each case. Thus the response time does not show which case occurred.
+Strata has no login flow in v1. A trusted identity provider authenticates the user and issues the access token. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) gives the steps that the API does to verify a token and to find its tenant and its account.
 
 ### Access token
 
-The access token is the only source of the tenant after login. These rules apply:
+The access token is the only source of the tenant. These rules apply:
 
-- The issuer signs the token. The issuer is Strata, or an identity provider that Strata trusts.
-- The token carries one `tenant_id`, one `account_id` and an expiry time.
+- A trusted issuer signs the token ([#21](https://github.com/sravioli/strata/issues/21)).
+- The token carries one tenant value, one subject and an expiry time. The API maps the tenant value to a `tenant_id` through an issuer binding.
 - A client cannot change the token, because a change breaks the signature.
 - The API verifies the signature and the expiry time before it runs a query on a tenant-owned table.
-- The API accepts one signing algorithm only. It rejects a token that names a different algorithm or no algorithm.
+- The API accepts one signing algorithm for each issuer. It rejects a token that names a different algorithm or no algorithm.
 - The API rejects a token that fails verification or whose expiry time passed.
 
 A token stays valid until its expiry time. The API cannot cancel it earlier. Thus the API reads the status of the account and of the tenant on each request.
 
 ### Request flow
 
-1. The API verifies the access token and gets the tenant and the account from it.
+1. The API verifies the access token and gets the tenant and the account from it. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) gives the steps.
 2. The API opens a tenant transaction for that tenant.
 3. The API reads the status of the account and of the tenant. It rejects the request if one of them is not active.
 4. The API runs its queries in that transaction.
@@ -223,7 +198,7 @@ When a request names a row of a different tenant, the query finds no row. The AP
 
 The tenant context applies to one transaction. A pooler in transaction mode gives a connection to one transaction at a time. Thus a later transaction on the same connection does not get the earlier tenant context.
 
-The code sets `app.tenant_id` and `app.login_tenant` only with the third argument of `set_config` set to `true`. A value that applies to the database session stays on the connection for the next client.
+The code sets `app.tenant_id`, `app.issuer_id` and `app.tenant_value` only with the third argument of `set_config` set to `true`. A value that applies to the database session stays on the connection for the next client.
 
 ### Isolation tiers
 
@@ -274,7 +249,7 @@ N/A. This design is database behaviour: SQL, row-level security policies and dat
 | A tenant identifier in a header, a query parameter, a path or a body | The API reads the tenant from the access token only. |
 | The identifier of a row, to the identifier of a row of a different tenant | The filter and the policy find no row. |
 | The access token | The API verifies the signature and rejects a token that a client changed. |
-| The tenant name at login | The password check fails, because the account is not in that tenant. |
+| The tenant value in the token | The API verifies the signature, and a changed token fails. A valid token of a different issuer has no issuer binding for that tenant. |
 | The `tenant_id` of a row in a write | The policy and the composite foreign keys reject the write. |
 
 **A compromised process.** Row-level security protects against programming errors. It does not protect against a compromised process:
@@ -297,8 +272,8 @@ N/A. This design is database behaviour: SQL, row-level security policies and dat
 
 **Tenant names.** The design keeps the names of tenants secret in four ways:
 
-- A runtime role reads a row of `tenants` only with the exact name or in the tenant context of that tenant.
-- The login step gives one response for all causes of failure.
+- A runtime role reads a row of `tenants` only in the tenant context of that tenant.
+- The API gives one response for all causes of a rejected token.
 - The API has no endpoint that lists or searches tenants.
 - A response or an error message never contains the name of a different tenant.
 
@@ -325,34 +300,32 @@ L3: none. The tenant context adds one statement to each transaction. Later desig
 | TC-3-03 | L1 | Given the tenant context of A. When a transaction inserts a row with the `tenant_id` of B. Then PostgreSQL rejects the insert. | sravioli, 2026-11-15 | pending |
 | TC-3-04 | L1 | Given the tenant context of A. When a transaction inserts a child row of A that points at a parent row of B. Then PostgreSQL rejects the insert. | sravioli, 2026-11-15 | pending |
 | TC-3-05 | L1 | Given a pooler in transaction mode with one server connection. When a transaction of A ends and a transaction of B starts on that connection. Then the transaction of B reads only rows of B. | sravioli, 2026-11-15 | pending |
-| TC-3-06 | L1 | For each table in the schema. Then the table is in the list of global tables, or it has forced row-level security and exactly one policy. The text of that policy is equal to the text in this design for a tenant-owned table or for `tenants`. A tenant-owned table also has a `tenant_id` column. | sravioli, 2026-11-15 | pending |
+| TC-3-06 | L1 | For each table in the schema. Then the table is in the list of global tables, or it has forced row-level security and exactly one policy. The text of that policy is equal to the text in this design for a tenant-owned table or for `tenants`. For `issuer_bindings`, it is equal to the text in the identity provider design ([#21](https://github.com/sravioli/strata/issues/21)). A tenant-owned table also has a `tenant_id` column. | sravioli, 2026-11-15 | pending |
 | TC-3-07 | L1 | For each runtime role. Then the role is not a superuser and cannot bypass row-level security. The role cannot create roles or objects in the schema. The role owns no table, cannot truncate a table and is a member of no other role. | sravioli, 2026-11-15 | pending |
-| TC-3-08 | L1 | Given an account of tenant A. When the client logs in with the name of A, the username and the password. Then the API issues an access token that carries A and the account. | sravioli, 2026-11-15 | pending |
 | TC-3-09 | L1 | Given a tenant that is not active. When one of its accounts sends a request. Then the API rejects the request and runs no further query. | sravioli, 2026-11-15 | pending |
 | TC-3-10 | L2 | Given tenants A and B each own a document that contains a word no other document contains. When an account of A searches for the word of B through the public API. Then the response contains no result and no count that reveals the document of B. | sravioli, 2026-11-15 | pending |
 | TC-3-11 | L1 | Given an access token of an account of A. When a request carries the `tenant_id` of B in a header, in a query parameter, in the path or in the body. Then the API acts for A in each case. | sravioli, 2026-11-15 | pending |
 | TC-3-12 | L1 | Given an access token of an account of A and a row of B. When the account reads, changes or removes the row by its identifier. Then each response is equal to the response for an identifier that does not exist. The row of B does not change. | sravioli, 2026-11-15 | pending |
 | TC-3-13 | L1 | Given an access token of an account of A. When a client changes the tenant in the token, breaks its signature, names a different algorithm or uses it after its expiry time. Then the API rejects the request and runs no query on a tenant-owned table. | sravioli, 2026-11-15 | pending |
-| TC-3-14 | L1 | Given an account of A. When a client logs in with the name of B and the username and password of that account. Then the API rejects the login. The responses for a tenant name that is not known, a username that is not known and an incorrect password are equal. | sravioli, 2026-11-15 | pending |
 | TC-3-15 | L1 | Given the tenant context of A and a row of A. When a transaction updates the `tenant_id` of the row to B. Then PostgreSQL rejects the update. | sravioli, 2026-11-15 | pending |
 | TC-3-16 | L1 | Given an access token of an account of A. When a string parameter of a request contains SQL text that sets the tenant context to B. Then the API uses the text as data. The tenant context stays A. | sravioli, 2026-11-15 | pending |
 | TC-3-17 | L1 | Given a job of tenant A whose content names a document of B. When a worker runs the job. Then the worker finds no document and reads no row of B. | sravioli, 2026-11-15 | pending |
 | TC-3-18 | L1 | For each route of the API. Then a test calls the route with identifiers of a different tenant. The build fails if a route has no such test. | sravioli, 2026-11-15 | pending |
 | TC-3-19 | L2 | Given tenants A and B each own data. When an account of A calls each endpoint of the public API with identifiers of B. Then no response contains data of B or a count that reveals data of B. | sravioli, 2026-11-15 | pending |
-| TC-3-20 | L1 | Given tenants A and B. When a runtime role selects all rows of `tenants` in the tenant context of A. Then the result contains only the row of A. When the role selects with no tenant context and no login name. Then the result is empty. When the role selects with the login name of B. Then the result contains only the row of B. | sravioli, 2026-11-15 | pending |
+| TC-3-20 | L1 | Given tenants A and B. When a runtime role selects all rows of `tenants` in the tenant context of A. Then the result contains only the row of A. When the role selects with no tenant context. Then the result is empty. | sravioli, 2026-11-15 | pending |
 
-Test cases TC-3-08 and TC-3-14 test the login flow. They stay `pending` until milestone M1 decides who issues the access token.
+The owner removed test cases TC-3-08 and TC-3-14 on 2026-11-20. They tested the login flow, and v1 has no login flow ([#21](https://github.com/sravioli/strata/issues/21)). The identity provider design has the test cases for tokens and issuer bindings.
 
 ## Unresolved questions
 
 None. The owner answered the three questions of the first draft on 2026-11-15. The answers are in "Background and references".
 
-The owner deferred one question to milestone M1 on 2026-11-15: does Strata issue the access token, or does an external identity provider issue it? The rules for the access token apply in the two cases.
+The owner deferred one question to milestone M1 on 2026-11-15: does Strata issue the access token, or does an external identity provider issue it? The owner answered it on 2026-11-20 ([#21](https://github.com/sravioli/strata/issues/21)): in v1, only external identity providers issue access tokens.
 
 Implementation resolves these points:
 
 - The UUID version. Version 7 is the recommendation, because its values increase with time and keep index pages together.
 - The exact SQL text of the policies.
 - The test helper that opens a tenant transaction.
-- The rules for a tenant name and a username: permitted characters and letter case.
-- A check that the prepared statements of the database driver work through the pooler in transaction mode.
+- The rules for a tenant name: permitted characters and letter case.
+- A test that the prepared statements of the database driver work through the pooler in transaction mode.
