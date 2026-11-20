@@ -110,9 +110,16 @@ The "finish upload" step of the object storage design ([#6](https://github.com/s
 | Revision `Failed` | `failed` |
 | A newer revision of the same document is ready | `superseded` |
 
+More than one row can agree with a revision. Example: revision 1 is `processing` or `failed`, and revision 2 is ready. The API uses this order:
+
+1. `failed` stays `failed`.
+2. Otherwise, `superseded` comes before `uploading`, `processing` and `ready`.
+
+For a `superseded` revision, `updated_at` is the time when the newer revision became ready.
+
 The design of the walking skeleton ([#49](https://github.com/sravioli/strata/issues/49)) defines the revision lifecycle and its internal state names. This map then uses those names. The five public statuses do not change.
 
-A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)). A search finds it only by its metadata.
+A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)). See "Unresolved questions".
 
 ### Retry-After
 
@@ -124,11 +131,19 @@ A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/
 
 ### Limit on status reads
 
-- Each API instance keeps a token bucket in memory for each account. The two status routes use the same bucket.
-- The bucket holds 3 tokens. It gets 1 token for each `Retry-After` interval. One request of each route takes 1 token. A batch request also takes 1 token.
+- The rule is for each revision: a client does not read the status of one revision more frequently than `Retry-After` permits.
+- Each API instance keeps a token bucket in memory for each pair (account, revision). The two status routes use the same buckets.
+- A bucket holds 3 tokens. It gets 1 token for each `Retry-After` interval. A read of one revision takes 1 token from its bucket. A batch request takes 1 token from the bucket of each revision that it names.
+- If one bucket of a batch request is empty, the API answers `429` for the complete request.
+- Each account also has one bucket for all its status requests. It holds 20 tokens and gets 10 tokens each second. Thus an account that names new revisions in each request still has a limit.
+
+Example: a product backend uses one account and waits for 300 revisions. It sends 3 batch requests every 2 seconds. Each revision gets one read every 2 seconds, so no bucket becomes empty.
+
+Other rules:
+
 - An empty bucket gives `429 Too Many Requests`, with `Retry-After`.
 - The number of buckets has a bound in the configuration. When the count reaches the bound, the API removes the bucket that it used least recently ([#2](https://github.com/sravioli/strata/issues/2), S3).
-- With N instances, an account can read up to N times the limit. The limit protects the API. It is not exact. A limit for all routes comes later ([#53](https://github.com/sravioli/strata/issues/53)).
+- With N instances, an account can read one revision up to N times the limit. The limit protects the API. It is not exact. A limit for all routes comes later ([#53](https://github.com/sravioli/strata/issues/53)).
 
 ### Reads from a replica
 
@@ -186,7 +201,10 @@ L0: the map from internal states to public statuses, the parse of `ids`, and the
 | TC-47-02 | L1 | Given a revision whose job is `Parked`. When a client reads its status. Then the status is `processing`. | | pending |
 | TC-47-03 | L1 | Given revision 1 and revision 2 of one document, and revision 2 is ready. When a client reads revision 1. Then the status is `superseded`. | | pending |
 | TC-47-04 | L1 | Given a revision that is not final. When a client reads its status. Then the response has `Retry-After` with the configured value. Given a revision that is final. Then the response has no `Retry-After`. | | pending |
-| TC-47-05 | L1 | Given an account that read a status 3 times in less than one `Retry-After` interval. When it reads again. Then the API answers `429` with `Retry-After`. | | pending |
+| TC-47-05 | L1 | Given an account that read the status of revision R 3 times in less than one `Retry-After` interval. When it reads R again. Then the API answers `429` with `Retry-After`. When it reads a different revision. Then the API answers with its status. | | pending |
+| TC-47-12 | L1 | Given one account that waits for 300 revisions. When it sends 3 batch requests of 100 revisions in each `Retry-After` interval, for 10 intervals. Then no response is `429`. | | pending |
+| TC-47-13 | L1 | Given revision 1 is `failed` and revision 2 of the same document is ready. When a client reads revision 1. Then the status is `failed`. Given revision 1 is `processing` and revision 2 is ready. Then the status of revision 1 is `superseded`. | | pending |
+| TC-47-14 | L1 | Given an account that sends 21 status requests in less than one second, each for a different revision. When it sends one more. Then the API answers `429`. | | pending |
 | TC-47-06 | L1 | Given a revision of tenant B. When an account of tenant A reads its status. Then the response is equal to the response for a revision that does not exist. When the account names it in a batch request. Then the list omits it. | | pending |
 | TC-47-07 | L1 | Given a batch request with 101 identifiers, or with an identifier that is not valid. When a client sends it. Then the API answers `400`. | | pending |
 | TC-47-08 | L1 | Given a batch request with one revision that is `processing` and one that is `ready`. When a client sends it. Then the response has two entries and `Retry-After`. | | pending |
@@ -233,6 +251,7 @@ L3: none in this design. TC-2-01 of the capacity design measures the read load. 
 The owner must decide:
 
 - The test cases above.
+- If a `ready` revision with the class `NoText` shows that class to the client. A client cannot see now that the revision has no text. A marker adds a field to the public contract.
 
 Implementation resolves these points:
 
