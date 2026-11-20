@@ -44,6 +44,8 @@ jobs:
               - '**/Cargo.toml'
               - '**/Cargo.lock'
               - 'rust-toolchain*'
+              - 'CONSTRAINTS.md'
+              - '.github/workflows/ci.yml'
             deny:
               - '**/Cargo.toml'
               - '**/Cargo.lock'
@@ -131,12 +133,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11
         with:
           toolchain: stable
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b  # v2.90.1
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      # L0 runs once, under coverage. The floor is in CONSTRAINTS.md.
       - run: |
           cargo fmt --all --check
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-          cargo test --workspace --locked
+          cargo llvm-cov --workspace --locked --fail-under-lines 75
+          cargo test --workspace --doc --locked
           scripts/check-toolchain.sh
 
   deny:

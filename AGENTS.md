@@ -12,6 +12,8 @@ Tech design first: before implementing anything or settling a decision, write a 
 
 Test levels L0 to L3 and test cases: read before writing a test or proposing test scenarios. See `docs/agents/testing.md`.
 
+Constraints: read `CONSTRAINTS.md` before you write code. It holds the quality bar and its numbers. When a check fails, fix the code and keep the number.
+
 ### Issue tracker
 
 Issues live in GitHub Issues for sravioli/strata (via `gh`). See `docs/agents/issue-tracker.md`.
