@@ -9,8 +9,16 @@ An organisation whose documents Strata keeps. It is a group of several people, a
 _Avoid_: Customer, organisation, workspace, company
 
 **Account**:
-The identity of one person inside exactly one tenant. A person who works with two tenants has one account in each.
+The identity of one person, or of one client of a product, inside exactly one tenant. A person who works with two tenants has one account in each.
 _Avoid_: User, member, login
+
+**Trusted issuer**:
+An identity provider that an operator registered in Strata. Strata accepts only the access tokens of trusted issuers.
+_Avoid_: Auth server, IdP, token provider
+
+**Issuer binding**:
+The link from one tenant value of one trusted issuer to one tenant. A trusted issuer can name only the tenants that it has a binding for.
+_Avoid_: Tenant mapping, issuer tenant
 
 **Principal**:
 The actor of an action. It is an account, or a job that Strata runs for one tenant.

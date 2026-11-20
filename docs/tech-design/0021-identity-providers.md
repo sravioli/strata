@@ -1,7 +1,7 @@
 - Issue: [#21](https://github.com/sravioli/strata/issues/21)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-20
-- Decided by: (filled in on the decision)
+- Decided by: sravioli, 2026-11-20
 
 # Identity providers: several trusted issuers, each bound to its tenants
 
@@ -245,24 +245,24 @@ L0: the claim rules of step 6, for each claim and each limit, with no database a
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-21-01 | L1 | Given issuer P1 with a binding from `acme-corp` to tenant A. When a client sends a valid P1 token with tenant value `acme-corp`. Then the API acts for tenant A. | | pending |
-| TC-21-02 | L1 | Given issuers P1 and P2, and a binding of P2 from `t-2` to tenant B. When a client sends a valid P1 token with tenant value `t-2`. Then the API rejects the request. | | pending |
-| TC-21-03 | L1 | Given a token signed by a key pair that is not registered, with an `iss` that is not registered. When a client sends it. Then the API rejects the request. | | pending |
-| TC-21-04 | L1 | Given issuer P1 with algorithm ES256. When a client sends a P1 token with `alg` = `none`, with HS256 signed with the public key of P1, or with RS256. Then the API rejects each request. | | pending |
-| TC-21-05 | L1 | Given a valid P1 token. When the client changes `aud` or removes `exp` or `iat`. Then the API rejects each request. When `exp` is more than 60 seconds in the past, or `nbf` or `iat` is more than 60 seconds in the future. Then the API rejects each request. When `exp` minus `iat` is above `max_lifetime_s`. Then the API rejects the request. | | pending |
-| TC-21-06 | L1 | Given a valid P1 token. When the tenant claim or the account claim is missing, empty, an array, a number, or longer than 256 bytes. Then the API rejects each request. | | pending |
-| TC-21-07 | L1 | Given no account for (P1, `u-1`) in tenant A. When two requests with valid tokens for (P1, `u-1`) arrive at the same time. Then the two requests succeed, and tenant A has exactly one account for (P1, `u-1`). | | pending |
-| TC-21-08 | L1 | Given issuers P1 and P2 bound to tenant A. When P1 and P2 tokens with the same subject arrive. Then tenant A has two different accounts. | | pending |
-| TC-21-09 | L1 | Given a valid P1 token. When an operator sets P1 to not active, or removes the binding of its tenant value. Then the next request with that token fails. | | pending |
-| TC-21-10 | L1 | Given keys in the cache of P1. When 100 tokens with unknown `kid` values arrive in one minute. Then the API fetches the JWKS of P1 at most one time in that minute. | | pending |
-| TC-21-11 | L1 | Given keys in the cache of P1. When the JWKS URL of P1 stops responding. Then the API accepts valid P1 tokens with the keys that it has. Given an issuer whose keys the API never fetched. Then the API rejects all its tokens. | | pending |
-| TC-21-12 | L1 | Given a P1 token signed by an attacker key, with a `jku`, `jwk`, `x5u` or `x5c` header that gives that key. When a client sends it. Then the API rejects the request and makes no request to the URL. | | pending |
-| TC-21-13 | L1 | Given a valid P1 token with an `act` claim. When a client sends it. Then the request log contains `act.sub`, and the response is equal to the response for the same token without `act`. | | pending |
-| TC-21-14 | L1 | For each step that rejects a token. Then the status code and the body of the response are equal. | | pending |
-| TC-21-15 | L1 | Given bindings for issuers P1 and P2. When a runtime role selects from `issuer_bindings` with no settings, or with only `app.issuer_id`. Then the result is empty. | | pending |
-| TC-21-16 | L1 | Given a token larger than 8 KiB. When a client sends it. Then the API rejects the request before it parses the token. | | pending |
-| TC-21-17 | L1 | For the dependency graph of the server crate. Then it does not contain the `strata-dev` crate. The build fails if it does. | | pending |
-| TC-21-18 | L2 | Given `strata-dev` serves its JWKS on a loopback address, and the development issuer is registered. When a client requests a token from `strata-dev` and calls the public API. Then the API fetches the keys over HTTP and accepts the request. | | pending |
+| TC-21-01 | L1 | Given issuer P1 with a binding from `acme-corp` to tenant A. When a client sends a valid P1 token with tenant value `acme-corp`. Then the API acts for tenant A. | sravioli, 2026-11-20 | pending |
+| TC-21-02 | L1 | Given issuers P1 and P2, and a binding of P2 from `t-2` to tenant B. When a client sends a valid P1 token with tenant value `t-2`. Then the API rejects the request. | sravioli, 2026-11-20 | pending |
+| TC-21-03 | L1 | Given a token signed by a key pair that is not registered, with an `iss` that is not registered. When a client sends it. Then the API rejects the request. | sravioli, 2026-11-20 | pending |
+| TC-21-04 | L1 | Given issuer P1 with algorithm ES256. When a client sends a P1 token with `alg` = `none`, with HS256 signed with the public key of P1, or with RS256. Then the API rejects each request. | sravioli, 2026-11-20 | pending |
+| TC-21-05 | L1 | Given a valid P1 token. When the client changes `aud` or removes `exp` or `iat`. Then the API rejects each request. When `exp` is more than 60 seconds in the past, or `nbf` or `iat` is more than 60 seconds in the future. Then the API rejects each request. When `exp` minus `iat` is above `max_lifetime_s`. Then the API rejects the request. | sravioli, 2026-11-20 | pending |
+| TC-21-06 | L1 | Given a valid P1 token. When the tenant claim or the account claim is missing, empty, an array, a number, or longer than 256 bytes. Then the API rejects each request. | sravioli, 2026-11-20 | pending |
+| TC-21-07 | L1 | Given no account for (P1, `u-1`) in tenant A. When two requests with valid tokens for (P1, `u-1`) arrive at the same time. Then the two requests succeed, and tenant A has exactly one account for (P1, `u-1`). | sravioli, 2026-11-20 | pending |
+| TC-21-08 | L1 | Given issuers P1 and P2 bound to tenant A. When P1 and P2 tokens with the same subject arrive. Then tenant A has two different accounts. | sravioli, 2026-11-20 | pending |
+| TC-21-09 | L1 | Given a valid P1 token. When an operator sets P1 to not active, or removes the binding of its tenant value. Then the next request with that token fails. | sravioli, 2026-11-20 | pending |
+| TC-21-10 | L1 | Given keys in the cache of P1. When 100 tokens with unknown `kid` values arrive in one minute. Then the API fetches the JWKS of P1 at most one time in that minute. | sravioli, 2026-11-20 | pending |
+| TC-21-11 | L1 | Given keys in the cache of P1. When the JWKS URL of P1 stops responding. Then the API accepts valid P1 tokens with the keys that it has. Given an issuer whose keys the API never fetched. Then the API rejects all its tokens. | sravioli, 2026-11-20 | pending |
+| TC-21-12 | L1 | Given a P1 token signed by an attacker key, with a `jku`, `jwk`, `x5u` or `x5c` header that gives that key. When a client sends it. Then the API rejects the request and makes no request to the URL. | sravioli, 2026-11-20 | pending |
+| TC-21-13 | L1 | Given a valid P1 token with an `act` claim. When a client sends it. Then the request log contains `act.sub`, and the response is equal to the response for the same token without `act`. | sravioli, 2026-11-20 | pending |
+| TC-21-14 | L1 | For each step that rejects a token. Then the status code and the body of the response are equal. | sravioli, 2026-11-20 | pending |
+| TC-21-15 | L1 | Given bindings for issuers P1 and P2. When a runtime role selects from `issuer_bindings` with no settings, or with only `app.issuer_id`. Then the result is empty. | sravioli, 2026-11-20 | pending |
+| TC-21-16 | L1 | Given a token larger than 8 KiB. When a client sends it. Then the API rejects the request before it parses the token. | sravioli, 2026-11-20 | pending |
+| TC-21-17 | L1 | For the dependency graph of the server crate. Then it does not contain the `strata-dev` crate. The build fails if it does. | sravioli, 2026-11-20 | pending |
+| TC-21-18 | L2 | Given `strata-dev` serves its JWKS on a loopback address, and the development issuer is registered. When a client requests a token from `strata-dev` and calls the public API. Then the API fetches the keys over HTTP and accepts the request. | sravioli, 2026-11-20 | pending |
 
 L3: none in this design. The added reads use primary keys in the transaction that already exists. The L3 test cases of the capacity design measure the request flow with these reads.
 
@@ -303,9 +303,7 @@ L3: none in this design. The added reads use primary keys in the transaction tha
 
 ## Unresolved questions
 
-The owner must decide:
-
-- The test cases above.
+None for the owner. The owner accepted the design and its test cases on 2026-11-20.
 
 Implementation resolves these points:
 
