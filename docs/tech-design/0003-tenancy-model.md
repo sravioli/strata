@@ -20,10 +20,10 @@ Non-goals:
 
 - Authorization inside a tenant. Issue [#4](https://github.com/sravioli/strata/issues/4) owns that decision.
 - The identity providers, the signing keys and the lifetime of an access token. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) owns those decisions.
-- A user interface. A later frontend for demonstrations is a client of the API.
+- A user interface. A later frontend for demonstrations is a client of the API ([#65](https://github.com/sravioli/strata/issues/65)).
 - Dedicated infrastructure for one tenant.
-- The layout of the vector index. Milestone M2 owns that decision.
-- The removal of a tenant and its data.
+- The layout of the vector index. Milestone M2 owns that decision ([#64](https://github.com/sravioli/strata/issues/64)).
+- The removal of a tenant and its data ([#63](https://github.com/sravioli/strata/issues/63)).
 
 ## Background and references
 

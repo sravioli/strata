@@ -17,9 +17,9 @@ Goals:
 
 Non-goals:
 
-- Chunking, embedding and indexing of the text (M2).
-- OCR of scanned PDFs. The owner decided that OCR is not in v1, but a later version must add it.
-- The corpus of hostile files for tests. The map puts it in M1.
+- Chunking, embedding and indexing of the text (M2, [#70](https://github.com/sravioli/strata/issues/70), [#71](https://github.com/sravioli/strata/issues/71), [#64](https://github.com/sravioli/strata/issues/64)).
+- OCR of scanned PDFs. The owner decided that OCR is not in v1, but a later version must add it ([#72](https://github.com/sravioli/strata/issues/72)).
+- The corpus of hostile files for tests. The map puts it in M1 ([#48](https://github.com/sravioli/strata/issues/48)).
 
 ## Background and references
 
@@ -136,7 +136,7 @@ Proposed limits:
 
 The reader of archives counts the expanded bytes and stops at the limit, before the control group must stop the process.
 
-Legacy formats (DOC, PPT, XLS) are not in v1. A revision in a format that is not supported becomes `Failed` with the class `UnsupportedFormat`.
+Legacy formats (DOC, PPT, XLS) are not in v1 ([#76](https://github.com/sravioli/strata/issues/76)). A revision in a format that is not supported becomes `Failed` with the class `UnsupportedFormat`.
 
 ### Two parsers for PDF
 
@@ -154,7 +154,7 @@ The comparison is one third-party test on invoices, with templates. It shows a c
 
 - The start of an upload (ADR 0005) has the field `pdf_parser`, with the value `accurate` (Poppler) or `fast` (PDFium). If the tenant does not send the field, the value is `accurate`. Strata ignores the field for formats that are not PDF.
 - The revision holds the value. The worker reads it when it starts the extraction, and gives the selected parser to the extraction process.
-- A new extraction of an old revision with a different parser is not in v1. The tenant uploads a new revision.
+- A new extraction of an old revision with a different parser is not in v1 ([#77](https://github.com/sravioli/strata/issues/77)). The tenant uploads a new revision.
 - Both parsers run in the same sandbox, with the same limits. The sandbox (E1 to E3) does not change with the parser.
 - `strata-extract` links PDFium. For Poppler, the sandbox runs the program `pdftotext`, and `strata-extract` does not link Poppler. Before the first release, the owner must check the effect of the GPL on the distribution of the worker image.
 
@@ -255,11 +255,11 @@ L0: unit tests cover the reader of each format, the check of the output, and the
 
 The owner answered these questions on 2026-11-19:
 
-1. OCR of scanned PDFs is not in v1. A later version must add it. A scanned PDF gets the class `NoText`, so that the OCR step can find it.
+1. OCR of scanned PDFs is not in v1. A later version must add it ([#72](https://github.com/sravioli/strata/issues/72)). A scanned PDF gets the class `NoText`, so that the OCR step can find it.
 2. The sandbox tool is nsjail.
 3. Strata supports both PDFium and Poppler. The owner decided this on 2026-11-19, because each has an advantage. See "Two parsers for PDF".
 4. The limits in the table stay. They are 1 GB of memory, 60 seconds of CPU and 120 seconds in total. Also 50 MB of output, and 500 MB for an expanded archive.
-5. Legacy formats (DOC, PPT, XLS) are not in v1.
+5. Legacy formats (DOC, PPT, XLS) are not in v1 ([#76](https://github.com/sravioli/strata/issues/76)).
 
 The owner also decided on 2026-11-19 that the tenant selects the parser for each upload, with the field `pdf_parser`.
 
@@ -274,7 +274,7 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- OCR, and where it runs (M2). A later version must add it.
-- The corpus of hostile files (M1).
-- A separate container or virtual machine for extraction, if the risk of a kernel fault becomes too high.
-- The platform that permits user namespaces (M3).
+- OCR, and where it runs (M2). A later version must add it ([#72](https://github.com/sravioli/strata/issues/72)).
+- The corpus of hostile files (M1, [#48](https://github.com/sravioli/strata/issues/48)).
+- A separate container or virtual machine for extraction, if the risk of a kernel fault becomes too high ([#75](https://github.com/sravioli/strata/issues/75)).
+- The platform that permits user namespaces (M3, [#61](https://github.com/sravioli/strata/issues/61)).

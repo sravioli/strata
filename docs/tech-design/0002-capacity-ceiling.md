@@ -16,7 +16,7 @@ Goals:
 
 Non-goals:
 
-- Instance sizes, replica counts, hosting and cost. Milestone M3 decides them.
+- Instance sizes, replica counts, hosting and cost. Milestone M3 decides them ([#61](https://github.com/sravioli/strata/issues/61)).
 - A forecast of real load. The ceiling is a test target, not a forecast.
 
 ## Background and references
@@ -77,7 +77,7 @@ A copy can keep a cache in its memory only when two conditions are true:
 - The loss of the cache changes no result.
 - The data in the cache cannot become incorrect, or each copy gets the invalidation.
 
-A status cache in the memory of each copy does not meet the second condition without a message to each copy. Thus v1 has no status cache. The status read is two reads by primary key on the primary. ADR 0002 permits a cache that a change of status clears. The owner accepted this narrower rule on 2026-11-18. A shared cache, for example in one cache service, can meet the two conditions. M3 can add it if the primary needs it.
+A status cache in the memory of each copy does not meet the second condition without a message to each copy. Thus v1 has no status cache. The status read is two reads by primary key on the primary. ADR 0002 permits a cache that a change of status clears. The owner accepted this narrower rule on 2026-11-18. A shared cache, for example in one cache service, can meet the two conditions. M3 can add it if the primary needs it ([#62](https://github.com/sravioli/strata/issues/62)).
 
 ### Reads on the primary
 
@@ -191,5 +191,5 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- Push connections for the state of a document, for example server-sent events. Their count can be up to C1. The design for that channel (M1) must give it a bound.
-- Instance sizes, replica counts, hosting and cost (M3).
+- Push connections for the state of a document, for example server-sent events. Their count can be up to C1. The design for that channel (M1) must give it a bound. v1 uses polling ([#47](https://github.com/sravioli/strata/issues/47)). Push to browsers is in [#55](https://github.com/sravioli/strata/issues/55).
+- Instance sizes, replica counts, hosting and cost (M3): [#61](https://github.com/sravioli/strata/issues/61).
