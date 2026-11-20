@@ -31,7 +31,7 @@ A test case with no automated test yet is listed as `pending`; a test case is ne
 
 ## Running the levels
 
-- **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request.
+- **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request, under `cargo llvm-cov` with the coverage floor of `CONSTRAINTS.md`.
 - **L1:** `docker compose up --wait`, then `cargo test --workspace --all-features`. An L1 test target has `required-features = ["l1"]` in its `Cargo.toml`, so L0 does not run it. An L1 test fails when a service is not available. It does not skip. `scripts/dev-services-smoke.sh` tests the services themselves. CI runs L1 on each pull request.
 
 ## Proofs
