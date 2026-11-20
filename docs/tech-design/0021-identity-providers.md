@@ -295,7 +295,7 @@ L3: none in this design. The added reads use primary keys in the transaction tha
 
 **A token endpoint in the server behind a flag.** This removes the separate tool. But one wrong flag in production lets each client issue tokens. Rejected.
 
-**A full identity provider, for example Keycloak, in the local setup.** This is more realistic. It is also slow to start and large. A later L3 test can add it if necessary.
+**A full identity provider, for example Keycloak, in the local setup.** This is more realistic. It is also slow to start and large. The L3 tests can add it later ([#58](https://github.com/sravioli/strata/issues/58)).
 
 ## Prior art
 
@@ -312,13 +312,15 @@ None for the owner. The owner accepted the design and its test cases on 2026-11-
 Implementation resolves these points:
 
 - The JWT library. It must support RS256, ES256 and EdDSA, and a fixed algorithm for each verification.
-- The claim that a client-credentials token of Duende uses for its subject. The account claim of an issuer must identify one user or one client in each type of token of that issuer. RFC 9068 makes `sub` necessary in an access token. Thus a provider must put `sub` in its client tokens, or Strata rejects them. `client_id` is not an account claim: the user tokens of a product also contain it, so all users of the product become one account.
+- The claim that a client-credentials token of Duende uses for its subject. The account claim of an issuer must identify one user or one client in each type of token of that issuer. RFC 9068 makes `sub` necessary in an access token. Thus a provider must put `sub` in its client tokens, or Strata rejects them. Issue [#59](https://github.com/sravioli/strata/issues/59) finds out how Duende does this. `client_id` is not an account claim: the user tokens of a product also contain it, so all users of the product become one account.
 - The SQL statement that creates the `issuer_bindings` policy. Its expression is the text in this design (TC-3-06).
 - The commands and options of the operator command for issuers and bindings.
 
 ## Future possibilities
 
-- Scopes, with the rule in "Scopes".
-- A Strata issuer, with password login. Issue [#46](https://github.com/sravioli/strata/issues/46) holds the questions for that case.
-- A list of the products that can act for users of an issuer, from the `act` claim.
-- A full identity provider in the L3 tests.
+Each item has an issue:
+
+- Scopes, with the rule in "Scopes": [#22](https://github.com/sravioli/strata/issues/22).
+- A Strata issuer, with password login: [#56](https://github.com/sravioli/strata/issues/56). Issue [#46](https://github.com/sravioli/strata/issues/46) holds the questions about passwords.
+- A list of the products that can act for users of an issuer, from the `act` claim: [#57](https://github.com/sravioli/strata/issues/57).
+- A full identity provider in the L3 tests: [#58](https://github.com/sravioli/strata/issues/58).
