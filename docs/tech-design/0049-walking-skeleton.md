@@ -1,7 +1,7 @@
 - Issue: [#49](https://github.com/sravioli/strata/issues/49)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-21
-- Decided by:
+- Decided by: sravioli, 2026-11-21
 
 # Walking skeleton: one PDF goes from upload to a tenant-scoped lexical search result
 
@@ -323,14 +323,14 @@ L0: unit tests cover the split of blocks, the check of the request body and the 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
 | TC-49-01 | L2 | Given the walking skeleton on a laptop, with the tenants A and B and an account of each. When the account of A uploads a PDF with a unique word, and polls the status of the revision until it is final. Then the status is `ready`. A search of A for the word returns the document. The same search of B returns no result. CI runs this test on each pull request that changes Rust code, and before each release. | sravioli, 2026-11-21 | pending |
-| TC-49-02 | L1 | Given revision 1 of a document is `Ready`. When revision 2 becomes `Ready`. Then revision 1 is `Superseded`, its text parts do not exist, and a search returns revision 2 only. | | pending |
-| TC-49-03 | L1 | Given revision 2 of a document is `Ready`. When the job of revision 1 ends after that. Then revision 1 stays `Superseded`, the worker writes no text for it, and the job is `Done`. | | pending |
-| TC-49-04 | L1 | Given two starts of an upload for the same `document_id` at the same time. When both complete. Then they get two different revision numbers, one after the other. | | pending |
-| TC-49-05 | L1 | Given documents of tenants A and B with the same word. When A searches for the word. Then each result is a document of A. | | pending |
-| TC-49-06 | L1 | Given a page of 200 KB of text. When the worker writes it. Then it is in four parts of at most 64 KB, and a search for a word in the last part returns the page. | | pending |
-| TC-49-07 | L1 | Given a search body with no `q`, with a `limit` of 101, or above 16 KB. When the client sends it. Then the API answers `400`, `400` and `413`. | | pending |
-| TC-49-08 | L1 | Given a `GET` and a `POST` to `/v1/search`. When the API gets them. Then it answers `405` with the header `Allow: QUERY`. | | pending |
-| TC-49-09 | L1 | Given a revision in `AwaitingUpload` with its object in the storage. When the client sends two finishes at the same time, and then a third. Then the revision is `Uploaded`, it has exactly one job, and each finish answers `202` with the same `Location`. | | pending |
+| TC-49-02 | L1 | Given revision 1 of a document is `Ready`. When revision 2 becomes `Ready`. Then revision 1 is `Superseded`, its text parts do not exist, and a search returns revision 2 only. | sravioli, 2026-11-21 | pending |
+| TC-49-03 | L1 | Given revision 2 of a document is `Ready`. When the job of revision 1 ends after that. Then revision 1 stays `Superseded`, the worker writes no text for it, and the job is `Done`. | sravioli, 2026-11-21 | pending |
+| TC-49-04 | L1 | Given two starts of an upload for the same `document_id` at the same time. When both complete. Then they get two different revision numbers, one after the other. | sravioli, 2026-11-21 | pending |
+| TC-49-05 | L1 | Given documents of tenants A and B with the same word. When A searches for the word. Then each result is a document of A. | sravioli, 2026-11-21 | pending |
+| TC-49-06 | L1 | Given a page of 200 KB of text. When the worker writes it. Then it is in four parts of at most 64 KB, and a search for a word in the last part returns the page. | sravioli, 2026-11-21 | pending |
+| TC-49-07 | L1 | Given a search body with no `q`, with a `limit` of 101, or above 16 KB. When the client sends it. Then the API answers `400`, `400` and `413`. | sravioli, 2026-11-21 | pending |
+| TC-49-08 | L1 | Given a `GET` and a `POST` to `/v1/search`. When the API gets them. Then it answers `405` with the header `Allow: QUERY`. | sravioli, 2026-11-21 | pending |
+| TC-49-09 | L1 | Given a revision in `AwaitingUpload` with its object in the storage. When the client sends two finishes at the same time, and then a third. Then the revision is `Uploaded`, it has exactly one job, and each finish answers `202` with the same `Location`. | sravioli, 2026-11-21 | pending |
 
 TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on 2026-11-21. It runs in CI also, not only before a release. That is a change to `docs/agents/testing.md` for this one test, and the fourth change makes it.
 
@@ -387,14 +387,10 @@ The owner answered these questions on 2026-11-21:
 15. A global table `upload_slots` counts the revisions in `AwaitingUpload` for the bound of 0006.
 16. PgBouncer in transaction mode is in `compose.yaml`, and `strata api` and `strata worker` connect through it.
 17. The upload routes are `POST /v1/documents`, `POST /v1/documents/{document_id}/revisions` and `POST /v1/documents/{document_id}/revisions/{revision}/finish`.
-
-The owner must answer these questions:
-
-1. Approval of the values in "Values that the accepted designs left to implementation".
-2. Approval of the limit of 1 to 1,000 characters on `q`.
-3. Approval of the amended notes: the start of an upload rejects a declared size above 100 MB with `413` (0006). Also the job kinds and the classes of `last_error` (0005), the state names (0047 and ADR 0009) and the line on `FileTooLarge` (0048).
-4. The cleanup of revisions in `AwaitingUpload` waits for [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. Approval that the skeleton can wait for that cleanup.
-5. Approval of the test cases TC-49-02 to TC-49-09.
+18. The owner approved the values in "Values that the accepted designs left to implementation", and the limit of 1 to 1,000 characters on `q`.
+19. The owner approved the amended notes in 0005, 0006, 0047, ADR 0009 and 0048.
+20. The skeleton does not clean up revisions in `AwaitingUpload` or the objects of `Superseded` revisions. That cleanup waits for its principal in [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. The issue #69 records this.
+21. The owner approved the test cases TC-49-02 to TC-49-09.
 
 Implementation resolves these points:
 
