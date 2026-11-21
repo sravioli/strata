@@ -25,9 +25,9 @@ Three questions belong to this design:
 
 Alice works for the tenant `acme`. Her product backend uploads a PDF and searches for it.
 
-1. The backend gets a token from the issuer of `acme` and calls `POST /v1/uploads` with the file name, the content type and the size. The API creates the document, revision 1 in the state `AwaitingUpload`, and a signed PUT URL. The public status is `uploading`.
+1. The backend gets a token from the issuer of `acme` and calls `POST /v1/documents` with the file name, the content type and the size. The API creates the document, revision 1 in the state `AwaitingUpload`, and a signed PUT URL. The public status is `uploading`.
 2. The backend sends the bytes to the storage with the URL.
-3. The backend calls `POST /v1/uploads/{document_id}/revisions/1/finish`. The API checks the size, sets the revision to `Uploaded` and creates its job, in one transaction. It answers `202` with the URL of the status. The public status is `processing`.
+3. The backend calls `POST /v1/documents/{document_id}/revisions/1/finish`. The API checks the size, sets the revision to `Uploaded` and creates its job, in one transaction. It answers `202` with the URL of the status. The public status is `processing`.
 4. A worker claims the job and starts `strata-extract` in nsjail. The extraction process reads the PDF with `pdftotext` and writes one block of text for each page.
 5. The worker writes the text parts, sets the revision to `Ready`, and ends the job, in one transaction. The public status is `ready`.
 6. The backend polls `GET /v1/documents/{document_id}/revisions/1` until the status is final.
@@ -37,7 +37,7 @@ A backend of the tenant `globex` sends the same search. The answer is empty, bec
 
 ### A new revision of the same document
 
-Alice uploads a new file as revision 2 of the same document. Revision 1 stays searchable until revision 2 is `Ready`. In the transaction that sets revision 2 to `Ready`, revision 1 becomes `Superseded`, and its search rows go. A search then finds revision 2 only. A client cannot go back to revision 1 in v1 ([#101](https://github.com/sravioli/strata/issues/101)).
+Alice uploads a new file as revision 2 of the same document, with `POST /v1/documents/{document_id}/revisions`. Revision 1 stays searchable until revision 2 is `Ready`. In the transaction that sets revision 2 to `Ready`, revision 1 becomes `Superseded`, and its search rows go. A search then finds revision 2 only. A client cannot go back to revision 1 in v1 ([#101](https://github.com/sravioli/strata/issues/101)).
 
 ### On a laptop
 
@@ -176,8 +176,11 @@ The test helper `tenant_tx(tenant)` opens a tenant transaction for tests through
 
 | Route | Action (0004) | Result |
 |---|---|---|
-| `POST /v1/uploads` | `UploadDocument` | `201`, with `document_id`, `revision`, the signed PUT URL and its expiry |
-| `POST /v1/uploads/{document_id}/revisions/{revision}/finish` | `UploadDocument` | `202`, with `Location` (0047) |
+| `POST /v1/documents` | `UploadDocument` | Start of an upload of a new document. `201`, with `document_id`, `revision` (1), the signed PUT URL and its expiry. |
+| `POST /v1/documents/{document_id}/revisions` | `UploadDocument` | Start of an upload of the next revision. `201`, with the same fields. A document of a different tenant gives the same `404` as a document that does not exist (0006). |
+| `POST /v1/documents/{document_id}/revisions/{revision}/finish` | `UploadDocument` | `202`, with `Location` (0047) |
+
+Each route of a revision is under the path of its status, `/v1/documents/{document_id}/revisions/{revision}` (0047). The `document_id` of 0006 is thus in the path, not in the body. The collections have plural names, as the routes of 0047 do.
 
 The start rejects a size above 100 MB with `413`, so the client learns early. The finish still checks the real size of the object, because the signed URL cannot limit it (0006).
 
@@ -382,15 +385,16 @@ The owner answered these questions on 2026-11-21:
 13. Each step reads or writes its rows with one statement.
 14. The skeleton uses PostgreSQL 19, the latest version, and `core` uses `u128` for identifiers.
 15. A global table `upload_slots` counts the revisions in `AwaitingUpload` for the bound of 0006.
+16. PgBouncer in transaction mode is in `compose.yaml`, and `strata api` and `strata worker` connect through it.
+17. The upload routes are `POST /v1/documents`, `POST /v1/documents/{document_id}/revisions` and `POST /v1/documents/{document_id}/revisions/{revision}/finish`.
 
 The owner must answer these questions:
 
 1. Approval of the values in "Values that the accepted designs left to implementation".
-2. Approval of the route paths `POST /v1/uploads` and `POST /v1/uploads/{document_id}/revisions/{revision}/finish`, and of the limit of 1 to 1,000 characters on `q`.
-3. Approval of PgBouncer in `compose.yaml`.
-4. Approval of the amended notes: the start of an upload rejects a declared size above 100 MB with `413` (0006). Also the job kinds and the classes of `last_error` (0005), the state names (0047 and ADR 0009) and the line on `FileTooLarge` (0048).
-5. The cleanup of revisions in `AwaitingUpload` waits for [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. Approval that the skeleton can wait for that cleanup.
-6. Approval of the test cases TC-49-02 to TC-49-09.
+2. Approval of the limit of 1 to 1,000 characters on `q`.
+3. Approval of the amended notes: the start of an upload rejects a declared size above 100 MB with `413` (0006). Also the job kinds and the classes of `last_error` (0005), the state names (0047 and ADR 0009) and the line on `FileTooLarge` (0048).
+4. The cleanup of revisions in `AwaitingUpload` waits for [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. Approval that the skeleton can wait for that cleanup.
+5. Approval of the test cases TC-49-02 to TC-49-09.
 
 Implementation resolves these points:
 
