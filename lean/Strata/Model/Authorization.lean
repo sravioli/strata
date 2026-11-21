@@ -22,11 +22,13 @@ inductive Action where
   | uploadDocument
   | deleteDocument
   | processDocument
+  | removeDocumentFiles
   deriving DecidableEq
 
-/-- The actions that an account can take. -/
+/-- The actions that an account can take. The others are the job actions. -/
 def Action.forAccount : Action → Bool
   | .processDocument => false
+  | .removeDocumentFiles => false
   | _ => true
 
 structure Resource where
@@ -43,7 +45,7 @@ def Scope.contains : Scope → Resource → Bool
 /-- Part 1 of the rule: the rule permits the action for the principal. -/
 def permitted : Principal → Action → Bool
   | .account _ _ aa ta, a => aa && ta && a.forAccount
-  | .job _ ta, a => ta && a == .processDocument
+  | .job _ ta, a => ta && !a.forAccount
 
 /-- Part 1 and part 2: the resource belongs to the tenant of the principal. -/
 def authorize (p : Principal) (a : Action) (r : Resource) : Bool :=
@@ -67,15 +69,15 @@ theorem active_account_allowed (t c : Nat) (a : Action) (r : Resource) :
   intro ha hr
   simp [authorize, permitted, Principal.tenant, ha, hr]
 
-theorem account_never_processes (t c : Nat) (aa ta : Bool) (r : Resource) :
-    authorize (.account t c aa ta) .processDocument r = false := by
-  simp [authorize, permitted, Action.forAccount]
+theorem account_never_processes (t c : Nat) (aa ta : Bool) (a : Action) (r : Resource) :
+    a.forAccount = false → authorize (.account t c aa ta) a r = false := by
+  intro ha
+  simp [authorize, permitted, ha]
 
 theorem job_only_processes (t : Nat) (ta : Bool) (a : Action) (r : Resource) :
-    authorize (.job t ta) a r = true → a = .processDocument ∧ r.tenant = t := by
-  simp [authorize, permitted, Principal.tenant]
-  intro _ ha hr
-  exact ⟨ha, hr⟩
+    authorize (.job t ta) a r = true →
+      (a = .processDocument ∨ a = .removeDocumentFiles) ∧ r.tenant = t := by
+  cases a <;> simp [authorize, permitted, Principal.tenant, Action.forAccount]
 
 theorem allow_job_active (t : Nat) (ta : Bool) (a : Action) (r : Resource) :
     authorize (.job t ta) a r = true → ta = true := by

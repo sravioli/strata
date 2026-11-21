@@ -25,6 +25,7 @@ def absAction : authorization.Action → Model.Action
   | .UploadDocument => .uploadDocument
   | .DeleteDocument => .deleteDocument
   | .ProcessDocument => .processDocument
+  | .RemoveDocumentFiles => .removeDocumentFiles
 
 def absResource (r : authorization.Resource) : Model.Resource := ⟨r.tenant.val⟩
 
@@ -49,7 +50,7 @@ theorem authorize_refines (p : authorization.Principal) (a : authorization.Actio
   rcases p with ⟨t, c, aa, ta⟩ | ⟨t, ta⟩ <;> cases a <;> (try cases aa) <;> cases ta <;>
     by_cases h : r.tenant.val = t.val <;>
     simp_all [authorization.authorize, authorization.is_active, authorization.action_allowed,
-      authorization.principal_tenant, Model.authorize, Model.permitted, Model.Action.forAccount,
+      authorization.is_job_action, authorization.principal_tenant, Model.authorize, Model.permitted, Model.Action.forAccount,
       Model.Principal.tenant, absPrincipal, absAction, absResource, isAllow]
 
 theorem authorized_scope_refines (p : authorization.Principal) (a : authorization.Action) :
@@ -57,7 +58,7 @@ theorem authorized_scope_refines (p : authorization.Principal) (a : authorizatio
       absScope s = Model.authorizedScope (absPrincipal p) (absAction a) := by
   rcases p with ⟨t, c, aa, ta⟩ | ⟨t, ta⟩ <;> cases a <;> (try cases aa) <;> cases ta <;>
     simp_all [authorization.authorized_scope, authorization.is_active, authorization.action_allowed,
-      authorization.principal_tenant, Model.authorizedScope, Model.permitted,
+      authorization.is_job_action, authorization.principal_tenant, Model.authorizedScope, Model.permitted,
       Model.Action.forAccount, Model.Principal.tenant, absPrincipal, absAction, absScope]
 
 /-- `authorize_total` (0004): the two functions give a result for each input and never stop
@@ -108,17 +109,23 @@ theorem active_account_allowed (t c : U64) (a : authorization.Action)
   rw [rust_allow]
   exact Model.active_account_allowed _ _ _ _ ha (by simp [absResource, hr])
 
-theorem account_never_processes (t c : U64) (aa ta : Bool) (r : authorization.Resource) :
-    ∃ reason, authorization.authorize (.Account t c aa ta) .ProcessDocument r = ok (.Deny reason) := by
-  obtain ⟨d, hd, hm⟩ := authorize_refines (.Account t c aa ta) .ProcessDocument r
+theorem account_never_processes (t c : U64) (aa ta : Bool) (a : authorization.Action)
+    (r : authorization.Resource) :
+    (absAction a).forAccount = false →
+      ∃ reason, authorization.authorize (.Account t c aa ta) a r = ok (.Deny reason) := by
+  intro ha
+  obtain ⟨d, hd, hm⟩ := authorize_refines (.Account t c aa ta) a r
   cases d with
-  | Allow => simp [isAllow, absPrincipal, absAction, Model.account_never_processes] at hm
+  | Allow =>
+    simp only [isAllow, absPrincipal] at hm
+    rw [Model.account_never_processes _ _ _ _ _ _ ha] at hm
+    exact absurd hm (by decide)
   | Deny reason => exact ⟨reason, hd⟩
 
 theorem job_only_processes (t : U64) (ta : Bool) (a : authorization.Action)
     (r : authorization.Resource) :
     authorization.authorize (.Job t ta) a r = ok .Allow →
-      a = .ProcessDocument ∧ r.tenant = t := by
+      (a = .ProcessDocument ∨ a = .RemoveDocumentFiles) ∧ r.tenant = t := by
   rw [rust_allow]
   intro h
   obtain ⟨ha, hr⟩ := Model.job_only_processes _ _ _ _ h

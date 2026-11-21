@@ -25,6 +25,7 @@ pub enum Action {
     UploadDocument,
     DeleteDocument,
     ProcessDocument,
+    RemoveDocumentFiles,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,10 +85,15 @@ fn is_active(p: Principal) -> bool {
     }
 }
 
+/// The job actions. An account gets only the other actions, and a job gets only these.
+fn is_job_action(a: Action) -> bool {
+    matches!(a, Action::ProcessDocument | Action::RemoveDocumentFiles)
+}
+
 fn action_allowed(p: Principal, a: Action) -> bool {
     match p {
-        Principal::Account { .. } => !matches!(a, Action::ProcessDocument),
-        Principal::Job { .. } => matches!(a, Action::ProcessDocument),
+        Principal::Account { .. } => !is_job_action(a),
+        Principal::Job { .. } => is_job_action(a),
     }
 }
 
@@ -147,6 +153,35 @@ mod tests {
             Decision::Deny(DenyReason::OtherTenant)
         );
         assert_eq!(authorize(ANNA, Action::Search, doc), Decision::Allow);
+    }
+
+    #[test]
+    fn job_actions() {
+        let job = Principal::Job {
+            tenant: 1,
+            tenant_active: true,
+        };
+        let doc = Resource { tenant: 1 };
+        assert_eq!(
+            authorize(job, Action::RemoveDocumentFiles, doc),
+            Decision::Allow
+        );
+        assert_eq!(
+            authorize(job, Action::RemoveDocumentFiles, Resource { tenant: 2 }),
+            Decision::Deny(DenyReason::OtherTenant)
+        );
+        assert_eq!(
+            authorize(ANNA, Action::RemoveDocumentFiles, doc),
+            Decision::Deny(DenyReason::NotPermitted)
+        );
+        assert_eq!(
+            authorized_scope(job, Action::RemoveDocumentFiles).tenant(),
+            Some(1)
+        );
+        assert_eq!(
+            authorized_scope(ANNA, Action::RemoveDocumentFiles).tenant(),
+            None
+        );
     }
 
     #[test]
