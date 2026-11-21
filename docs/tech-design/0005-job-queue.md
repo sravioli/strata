@@ -71,7 +71,7 @@ One global table, `jobs`. Each row is one job. A row holds only these fields:
 |---|---|
 | `job_id` | The identifier of the job |
 | `tenant_id` | The tenant that the job is for |
-| `kind` | The kind of job. v1 has one kind: `ProcessDocument`. A later design adds kinds. |
+| `kind` | The kind of job: `ProcessDocument`, and `RemoveFiles` of 0006 ([#69](https://github.com/sravioli/strata/issues/69)). Amended on 2026-11-21 ([#49](https://github.com/sravioli/strata/issues/49)): before, v1 had one kind. |
 | `target` | The identifiers that the job works on, for example the document and the revision number |
 | `state` | `Waiting`, `Running`, `Parked` or `Done` |
 | `attempts` | The count of runs that started |
@@ -79,7 +79,7 @@ One global table, `jobs`. Each row is one job. A row holds only these fields:
 | `lease_until` | For a `Running` job: the time when the lease expires |
 | `lease_token` | For a `Running` job: a new random value at each claim. Only the worker that has this value can renew the lease or end the job. |
 | `ended_at` | For a `Done` job: the time when it ended |
-| `last_error` | An error class from a fixed list, for example `ExtractionTimeout`. Never an error text. |
+| `last_error` | An error class from a fixed list: `NoError`, `TenantNotActive`, `LeaseExpired` or `JobFailed`. Never an error text. The class of a failed extraction goes to the revision (0007). Amended on 2026-11-21 ([#49](https://github.com/sravioli/strata/issues/49)): before, the example was `ExtractionTimeout`. |
 
 `last_error` is a class, not a text, because an error text can contain tenant content, for example a line of a document. The worker writes the full error to the log of the tenant transaction. Issue [#7](https://github.com/sravioli/strata/issues/7) decides where extraction errors go.
 

@@ -125,9 +125,9 @@ The "finish upload" step of the object storage design ([#6](https://github.com/s
 |---|---|
 | Revision `AwaitingUpload` | `uploading` |
 | Revision `Uploaded`. Its job can be `Waiting`, `Running` or `Parked`. | `processing` |
-| Text in the lexical index, and the revision is the current revision | `ready` |
+| Revision `Ready`: its text is in the lexical index, and it is the current revision | `ready` |
 | Revision `Failed` | `failed` |
-| A newer revision of the same document became ready while this revision was not `failed` | `superseded` |
+| Revision `Superseded`: a newer revision of the same document became ready while this revision was not `failed` | `superseded` |
 
 A final status does not change, except from `ready` to `superseded`. Thus the revision stores its final status when it gets it. These rules apply when a revision becomes ready:
 
@@ -140,7 +140,7 @@ An order of precedence between `failed` and `superseded` is not sufficient. With
 
 For a `superseded` revision, `updated_at` is the time when the newer revision became ready.
 
-The design of the walking skeleton ([#49](https://github.com/sravioli/strata/issues/49)) defines the revision lifecycle and its internal state names. This map then uses those names. The five public statuses do not change.
+The design of the walking skeleton ([#49](https://github.com/sravioli/strata/issues/49)) defines the revision lifecycle and its internal state names. This map uses those names. The five public statuses do not change. Amended on 2026-11-21 ([#49](https://github.com/sravioli/strata/issues/49)): before, the states `Ready` and `Superseded` had no names.
 
 A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)), with `no_text` set to `true`. It supersedes an older revision in the same way as each other revision. The owner decided this on 2026-11-21, because the newest file is the file that the account uploaded. Thus a search does not find the text of the older revision.
 

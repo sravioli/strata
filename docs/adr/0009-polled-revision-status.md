@@ -42,4 +42,4 @@ The decision has these parts:
 * Bad, because a `ready` revision can become `superseded` with no notice in v1.
 * Bad, because the limit is not exact with more than one instance.
 * Bad, because a proxy in front of the API must forward the `QUERY` method.
-* Not decided: the internal state names of the revision lifecycle, in the design of [#49](https://github.com/sravioli/strata/issues/49).
+* The internal states of a revision are `AwaitingUpload`, `Uploaded`, `Ready`, `Failed` and `Superseded`, one for each public status (tech design 0049). Amended on 2026-11-21 ([#49](https://github.com/sravioli/strata/issues/49)): before, the names were not decided.

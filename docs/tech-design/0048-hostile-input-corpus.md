@@ -20,7 +20,7 @@ Non-goals:
 - Fuzzing of the readers and the parsers ([#93](https://github.com/sravioli/strata/issues/93)).
 - Real malformed files from public sets, to test the PDF parsers ([#94](https://github.com/sravioli/strata/issues/94)).
 - The benchmark of PDFium and Poppler. It measures text quality and speed, not limits (0007).
-- Files above 100 MB. The start of an upload rejects them with `FileTooLarge` (0006), so they never reach extraction.
+- Files above 100 MB. The start of an upload rejects a declared size above 100 MB, and the finish rejects a real size above it with `FileTooLarge` (0006). Thus they never reach extraction. Amended on 2026-11-21 ([#49](https://github.com/sravioli/strata/issues/49)): before, this line said that the start gives `FileTooLarge`.
 
 ## Background and references
 
