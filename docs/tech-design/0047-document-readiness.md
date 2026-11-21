@@ -7,7 +7,7 @@
 
 ## Summary
 
-A client learns that a revision is ready when it reads the status of that revision. v1 has no push. The API gives five public statuses: `uploading`, `processing`, `ready`, `failed` and `superseded`. They are separate from the internal states. The response tells the client how long to wait before the next read, and the API rejects a client that reads too frequently. A client can read up to 100 revisions in one request. Webhooks come later ([#52](https://github.com/sravioli/strata/issues/52)), and this design fixes their contract now.
+A client learns that a revision is ready when it reads the status of that revision. v1 has no push. The API gives five public statuses: `uploading`, `processing`, `ready`, `failed` and `superseded`. They are separate from the internal states. The response tells the client how long to wait before the next read, and the API rejects a client that reads too frequently. A client can read up to 100 revisions in one request, with the HTTP `QUERY` method. Webhooks come later ([#52](https://github.com/sravioli/strata/issues/52)), and this design fixes their contract now.
 
 ## Motivation
 
@@ -88,13 +88,31 @@ The action is `ReadDocument` ([#4](https://github.com/sravioli/strata/issues/4))
 
 ### Batch status
 
-`GET /v1/revisions?ids={document_id}:{revision},{document_id}:{revision},…`
+`QUERY /v1/revisions` (RFC 10008)
+
+The request body:
+
+```json
+{
+  "revisions": [
+    { "document_id": "7b1e…", "revision": 1 },
+    { "document_id": "9c4d…", "revision": 3 }
+  ]
+}
+```
 
 - The action is `ReadDocument`.
+- `QUERY` is safe and idempotent. Thus a client can send a request again after a connection failure.
+- The request must have `Content-Type: application/json`.
+  - No `Content-Type` gives `400`.
+  - A different media type gives `415`.
 - A request names 1 to 100 revisions. More than 100 gives `400`. A repeated identifier counts one time.
+- A body larger than 16 KB gives `413`. A body with 100 revisions is approximately 7 KB.
 - The response has a list with one entry for each revision that the API found. Each entry has the fields of the single response.
 - The list omits a revision that does not exist or that belongs to a different tenant. Thus the response does not show that a revision of a different tenant exists.
-- With 100 identifiers, the URL is approximately 4 KB long.
+- Each response of this route has the header `Accept-Query: application/json`.
+
+A cache can keep a `QUERY` response (RFC 10008, section 2.7). A status changes, so the responses of the two status routes have `Cache-Control: no-store`.
 
 ### Finish upload
 
@@ -174,6 +192,7 @@ N/A. This design is an HTTP interface and a map from internal states. The rules 
 ### Infrastructure
 
 - No new service, no new storage and no added cost.
+- A proxy or a load balancer in front of the API must send `QUERY` requests to the API. `QUERY` is new, and some proxies reject a method that they do not know.
 - Metrics:
   - the count of status reads, for each route,
   - the count of `429` responses,
@@ -185,7 +204,7 @@ N/A. This design is an HTTP interface and a map from internal states. The rules 
 - The two routes use `ReadDocument` and a tenant transaction ([#3](https://github.com/sravioli/strata/issues/3), [#4](https://github.com/sravioli/strata/issues/4)).
 - A revision of a different tenant gives the same `404` as a revision that does not exist. A batch request omits it.
 - `error_class` comes from a fixed list. It never holds an error text, because a text can hold tenant content.
-- New untrusted input: the identifiers in the path and in `ids`. The API parses each one as a UUID and a positive integer, and rejects a request with an identifier that fails.
+- New untrusted input: the identifiers in the path and in the body of a batch request. The API parses each one as a UUID and a positive integer, and rejects a request with an identifier that fails.
 
 ### Data and migration
 
@@ -193,7 +212,7 @@ No schema change. The routes read the revision and its job.
 
 ## Test cases
 
-L0: the map from internal states to public statuses, the parse of `ids`, and the token bucket.
+L0: the map from internal states to public statuses, the parse of the batch body, and the token bucket.
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
@@ -207,6 +226,7 @@ L0: the map from internal states to public statuses, the parse of `ids`, and the
 | TC-47-14 | L1 | Given an account that sends 21 status requests in less than one second, each for a different revision. When it sends one more. Then the API answers `429`. | | pending |
 | TC-47-06 | L1 | Given a revision of tenant B. When an account of tenant A reads its status. Then the response is equal to the response for a revision that does not exist. When the account names it in a batch request. Then the list omits it. | | pending |
 | TC-47-07 | L1 | Given a batch request with 101 identifiers, or with an identifier that is not valid. When a client sends it. Then the API answers `400`. | | pending |
+| TC-47-15 | L1 | Given a batch request with no `Content-Type`. When a client sends it. Then the API answers `400`. Given a batch request with `Content-Type: text/plain`. Then the API answers `415` with `Accept-Query: application/json`. Given a batch request with a body larger than 16 KB. Then the API answers `413`. | | pending |
 | TC-47-08 | L1 | Given a batch request with one revision that is `processing` and one that is `ready`. When a client sends it. Then the response has two entries and `Retry-After`. | | pending |
 | TC-47-09 | L1 | Given an upload that the client finished. When the client finishes it a second time. Then each answer is `202` with the same `Location`. | | pending |
 | TC-47-10 | L1 | Given a revision that is `failed`. When a client reads its status. Then `error_class` is a value from the list of the extraction design, and the body holds no other error text. | | pending |
@@ -234,11 +254,17 @@ L3: none in this design. TC-2-01 of the capacity design measures the read load. 
 
 **A shared counter for the limit.** This is exact. It needs one write for each read, or a new service. Rejected for v1. A limit for all routes comes later ([#53](https://github.com/sravioli/strata/issues/53)).
 
+**A batch read with `GET` and the identifiers in the query string.** With 100 identifiers, the URL is approximately 4 KB long. Some proxies have a limit on the URL length, and many logs keep the URL. Rejected.
+
+**A batch read with `POST`.** `POST` is not safe and not idempotent. Thus a client or a proxy cannot send it again automatically, and the method does not show that the request only reads. Rejected.
+
 **A batch read by filter, for example all revisions that are `processing`.** The client then does not keep identifiers, but the response needs pages. Rejected for v1, and tracked ([#54](https://github.com/sravioli/strata/issues/54)).
 
 ## Prior art
 
 - RFC 9110, "HTTP Semantics": `202 Accepted` (section 15.3.3) and `Retry-After` (section 10.2.3). https://www.rfc-editor.org/rfc/rfc9110
+- RFC 10008, "The HTTP QUERY Method": a safe and idempotent method with a request body, the `Accept-Query` header (section 3), and caching (section 2.7). https://www.rfc-editor.org/rfc/rfc10008
+- OpenAPI Specification 3.2.0: the `query` operation of a path item. https://spec.openapis.org/oas/v3.2.0.html
 - RFC 6585, "Additional HTTP Status Codes": `429 Too Many Requests`. https://www.rfc-editor.org/rfc/rfc6585
 - Google AIP-151, "Long-running operations". A client reads an operation resource until it is done. https://google.aip.dev/151
 - Azure AI Document Intelligence. An analysis answers `202` with an `Operation-Location` header, and the client reads that URL. https://learn.microsoft.com/en-us/rest/api/aiservices/document-models/analyze-document
@@ -257,6 +283,7 @@ Implementation resolves these points:
 
 - The internal state names of the revision lifecycle, in the design of [#49](https://github.com/sravioli/strata/issues/49).
 - The configured bound on the number of token buckets.
+- The route for `QUERY` in the HTTP framework. axum 0.8.9 has no method filter for `QUERY`, so the route can need a check of the method in the handler.
 
 ## Future possibilities
 
