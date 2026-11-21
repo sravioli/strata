@@ -26,14 +26,14 @@ The decision has these parts:
 
 * One global table, `jobs`, holds identifiers, state and an error class. It holds no tenant content.
 * The upload transaction creates the revision and its job together.
-* A worker claims a job with `FOR UPDATE SKIP LOCKED` and gets a lease with a token. When the lease expires, a different worker can claim the job. The write of the first worker then fails.
+* A worker claims a job with `FOR UPDATE SKIP LOCKED` and gets a lease with a token. When the lease expires, a different worker can claim the job. The claim query also takes `Running` jobs whose lease expired (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))). The write of the first worker then fails.
 * A job can run more than one time. Each kind of job must give the same result for a second run.
 * A job that fails 5 times becomes `Parked`. The backoff is 30 seconds, 2 minutes, 10 minutes and 30 minutes.
 * A job of a tenant that is not active becomes `Parked` at the claim, with no change to its count of attempts. An operator requeues it.
 * A job that ends with success becomes `Done`. A cleanup task removes `Done` jobs after 24 hours.
-* The count of `Waiting` jobs has a bound. At the bound, an upload gets 503 with `Retry-After`.
+* The count of `Waiting` jobs has a bound. At the bound, an upload gets 503 with `Retry-After`. The bound is approximate (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))).
 * v1 has no message bus. Workers ask for work at an interval. A later version must be able to add a bus that wakes workers, with no change to the job table.
-* The API can insert jobs and count `Waiting` jobs. It cannot read rows.
+* The API can insert jobs and count `Waiting` jobs. It can read only the column `state` (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))).
 * A pure function, `job_step`, gives each change of state. Lean proves six statements about it.
 
 ### Consequences

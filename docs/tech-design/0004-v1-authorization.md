@@ -112,7 +112,7 @@ The scope is "Tenant" when part 1 of the rule is true. If part 1 is false, the s
 Three rules apply to the scope:
 
 1. Only `authorized_scope` creates a scope. Other code cannot build one.
-2. The function that opens a tenant transaction accepts only an "allow" decision or a scope. Thus no query on a tenant-owned table runs before a decision.
+2. The function that opens a tenant transaction accepts only an "allow" decision or a scope. Thus no query on a tenant-owned table runs before a decision. The identity transaction is the only exception (see "Order of the checks in a request").
 3. Each retrieval function takes a scope as an argument: lexical search, vector search and the fusion of the two. Each one filters by the scope in its query. No retrieval function filters its results after the query.
 
 Rule 3 is important for vector search. A filter after the query can return fewer results than the client requested, and it can reveal the count of hidden documents.
@@ -127,17 +127,30 @@ Rule 3 is important for vector search. A filter after the query can return fewer
 
 The reason for a "deny" goes to the log only.
 
-A worker that gets "deny" for a job does not start the job. The job queue design ([#5](https://github.com/sravioli/strata/issues/5)) decides if the job waits in the queue or fails.
+A worker that gets "deny" for a job does not start the job. The job queue design ([#5](https://github.com/sravioli/strata/issues/5)) decides if the job waits in the queue or fails. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): ADR 0004 (job queue) decided that the job becomes `Parked`.
 
 ### Order of the checks in a request
 
 1. The API verifies the access token.
-2. The API reads the status of the account and of the tenant.
+2. The API opens the identity transaction, and reads the status of the account and of the tenant in it.
 3. The API builds the principal.
 4. The API calls `authorize` or `authorized_scope`.
-5. The API opens the tenant transaction with the result and runs the queries.
+5. The API gives the result to the function that opens a tenant transaction. That function changes the identity transaction into a tenant transaction. Then the API runs the queries.
 
-Step 2 reads two rows by their primary key. The tenancy design permits that read: it uses the tenant of the verified token.
+The status rows are tenant-owned, so row-level security permits their read only in a tenant context. The **identity transaction** gives that context before a decision exists:
+
+- It is a transaction on the primary. Its tenant context is the tenant of the issuer binding of the verified token ([#21](https://github.com/sravioli/strata/issues/21)). Thus R2 of the tenancy design holds.
+- It can do only three things:
+  - read the issuer binding,
+  - read or create the account,
+  - read the status of the account and of the tenant.
+- No other query accepts it as its database handle. The Rust type system enforces that rule.
+
+A read that goes to a replica (ADR 0003, capacity, S2) runs in a second tenant transaction on the replica. The API opens it with the same decision or scope.
+
+A worker does the same steps at the claim of a job. The claim transaction reads the job, sets the tenant context of the job, and reads the tenant status. That is the identity transaction of the worker. Then `job_step` and `authorize` decide, and the worker opens the tenant transaction of the job with the result.
+
+Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): the identity transaction is new. Before it, the order of the checks in this design, in the tenancy design and in the identity provider design did not agree.
 
 Step 2 can use a cache. If it uses a cache, the operator command that changes a status must remove the old status from the cache. Then the next request after the change gets the new status, and test case TC-4-04 passes with no delay.
 
@@ -174,7 +187,7 @@ Assumptions:
 - The principal is correct. The proofs do not show that the API builds the principal from a verified token. Test cases cover that.
 - The status in the principal is the status at the time of the read. A change of status after the read applies to the next request. For a job, it applies to the next job that a worker claims.
 - The proofs do not show that a retrieval function obeys its scope. Test cases cover that.
-- Issue [#9](https://github.com/sravioli/strata/issues/9) decides the proof route. If the route is a model with differential tests, the statements stay the same and a differential test compares the Rust code with the model.
+- Issue [#9](https://github.com/sravioli/strata/issues/9) decides the proof route. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): ADR 0007 (verification boundary) chose route 1 for these functions. If the route is a model with differential tests, the statements stay the same and a differential test compares the Rust code with the model.
 - `active_account_allowed` is true for v1 only. M4 replaces it.
 
 ## Impacts
@@ -260,7 +273,7 @@ These questions belong to later designs:
 - The scope unit: a collection of documents or one document. Milestone M4 decides ([#22](https://github.com/sravioli/strata/issues/22)).
 - Roles inside a tenant ([#66](https://github.com/sravioli/strata/issues/66)).
 - Authorization for an operation that a later design adds.
-- If a job that gets "deny" waits in the queue or fails. Issue [#5](https://github.com/sravioli/strata/issues/5) decides.
+- If a job that gets "deny" waits in the queue or fails. Issue [#5](https://github.com/sravioli/strata/issues/5) decides. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): it becomes `Parked` (ADR 0004, job queue).
 
 ## Future possibilities
 

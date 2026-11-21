@@ -43,4 +43,5 @@ The decision has these parts:
 * Bad, because the login of each user depends on its provider.
 * Bad, because a product with no identity provider cannot use Strata in v1.
 * Bad, because a stolen token works until it expires, up to 1 hour, unless an operator stops its account.
+* Bad, because the key cache is an exception to S1 of ADR 0003. A copy can accept a removed key for up to 10 minutes (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))).
 * Not decided: the JWT library, and the claim that Duende puts in its client tokens for the subject.

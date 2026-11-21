@@ -127,10 +127,12 @@ The API does these steps for each request. Each step that fails stops the reques
    - If `nbf` exists, the current time is not earlier than `nbf` minus 60 seconds.
    - The tenant claim exists. It is one string of 1 to 256 bytes.
    - The account claim exists. It is one string of 1 to 256 bytes.
-7. The API starts a transaction. It sets `app.issuer_id` and `app.tenant_value` with `set_config(..., true)` and reads the binding. If no binding exists, the API rejects the token.
+7. The API starts the identity transaction of the v1 authorization design ([#4](https://github.com/sravioli/strata/issues/4)). It sets `app.issuer_id` and `app.tenant_value` with `set_config(..., true)` and reads the binding. If no binding exists, the API rejects the token.
 8. The API opens the tenant context for the `tenant_id` of the binding, in the same transaction.
 9. The API reads the account for `(tenant_id, issuer_id, subject)`. If no account exists, the API inserts it as active. The insert uses `on conflict do nothing` and then reads the row again. Thus two first requests at the same time give one account.
 10. The API reads the status of the tenant and of the account, as the tenancy design says. The v1 authorization design ([#4](https://github.com/sravioli/strata/issues/4)) then decides the request.
+
+Steps 7 to 10 run in the identity transaction. It can only read the binding, read or create the account, and read the statuses. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): before, this design opened a plain transaction for these steps. The v1 authorization design permitted no query on a tenant-owned table before the decision.
 
 Steps 4 to 6 hold no database connection. Step 4 can wait for a fetch of keys, so a token with an unknown `kid` must not hold a connection of the pool. Steps 3 and 7 read the database at different times. If the operator changes the issuer between them, the next request uses the change.
 
@@ -155,6 +157,8 @@ Each API instance keeps a key cache for each issuer in memory:
 - If the API never fetched keys for an issuer, it rejects all tokens of that issuer.
 
 A provider that removes a key from its JWKS stops that key in Strata after the next fetch. This takes 10 minutes at most.
+
+The key cache is an exception to rule S1 of the capacity design (ADR 0003). A copy can accept a removed key for up to 10 minutes, and two copies can have different keys for that time. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): this design now records the exception.
 
 ### Scopes
 
@@ -230,7 +234,7 @@ Tenant names: no step reads a tenant name. A tenant value is the value of the pr
 
 - New tables `issuers` and `issuer_bindings`.
 - `accounts` adds `issuer_id` and `subject` and removes `username`. No data exists yet, so no backfill is necessary.
-- The `tenants` table loses its login policy. Its policy permits only the row of the tenant context. See the changes to the tenancy design in this pull request.
+- The `tenants` table loses its login policy. Its policy permits only the row of the tenant context. The tenancy design records this change.
 - Test case TC-3-06 of the tenancy design classifies the two new tables.
 
 ### Developer
@@ -309,7 +313,7 @@ Implementation resolves these points:
 
 - The JWT library. It must support RS256, ES256 and EdDSA, and a fixed algorithm for each verification.
 - The claim that a client-credentials token of Duende uses for its subject. The account claim of an issuer must identify one user or one client in each type of token of that issuer. RFC 9068 makes `sub` necessary in an access token. Thus a provider must put `sub` in its client tokens, or Strata rejects them. `client_id` is not an account claim: the user tokens of a product also contain it, so all users of the product become one account.
-- The exact SQL text of the `issuer_bindings` policy.
+- The SQL statement that creates the `issuer_bindings` policy. Its expression is the text in this design (TC-3-06).
 - The commands and options of the operator command for issuers and bindings.
 
 ## Future possibilities
