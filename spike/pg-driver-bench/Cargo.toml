@@ -1,0 +1,19 @@
+[package]
+name = "pg-driver-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Not a member of the repo workspace: a throwaway spike (#100).
+[workspace]
+
+[dependencies]
+sqlx = { version = "=0.9.1", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
+tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1", "with-chrono-0_4"] }
+deadpool-postgres = "=0.14.2"
+tokio = { version = "1.54", features = ["full"] }
+uuid = "1"
+chrono = "0.4"
+
+[profile.release]
+debug = false

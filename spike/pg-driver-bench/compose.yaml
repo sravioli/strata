@@ -1,0 +1,26 @@
+# Spike #100 only. Start: podman-compose -p strata-bench up -d
+# Own project name and ports, so it does not touch the strata stack on 5432.
+services:
+  postgres:
+    image: docker.io/library/postgres:19.0@sha256:d2c8a7d3d224a9c0335bf9f69ae6ad0b9aa7d88c4b64bab89f0f261332f6d4de
+    environment:
+      POSTGRES_USER: bench_owner
+      POSTGRES_PASSWORD: ${BENCH_PASSWORD:?export BENCH_PASSWORD first}
+      POSTGRES_DB: bench
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=2GB"]
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro"]
+
+  pgbouncer:
+    image: docker.io/edoburu/pgbouncer:v1.26.1-p0@sha256:a26a00a576e248e73230eff35c8fbe77279bf0d8b6550d3007c56ee69287c664
+    # The entrypoint keeps a mounted pgbouncer.ini and generates nothing.
+    volumes:
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports: ["127.0.0.1:56432:6432"]
+    depends_on: [postgres]
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0@sha256:a3e244375123dad8849091bcc59775e188624d3f602db01901f9af855682fef8
+    ports: ["127.0.0.1:57432:5433", "127.0.0.1:58474:8474"]
+    depends_on: [postgres]
