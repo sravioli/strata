@@ -81,6 +81,7 @@ The action is `ReadDocument` ([#4](https://github.com/sravioli/strata/issues/4))
 
 - `error_class` exists only when `state` is `failed`. Its values are the classes of the extraction design ([#7](https://github.com/sravioli/strata/issues/7)), and `FileTooLarge` ([#6](https://github.com/sravioli/strata/issues/6)).
 - `updated_at` is the time of the last change of the public status.
+- `no_text` exists only when `state` is `ready`. It is `true` when the file of the revision has no text, for example a scanned PDF with no OCR ([#7](https://github.com/sravioli/strata/issues/7), class `NoText`). Then a search does not find the document. Otherwise it is `false`.
 - The API answers `404` in these cases. The `404` responses are equal ([#3](https://github.com/sravioli/strata/issues/3)).
   - The revision does not exist, or it belongs to a different tenant.
   - The cleanup removed an upload that the client did not finish.
@@ -141,7 +142,7 @@ For a `superseded` revision, `updated_at` is the time when the newer revision be
 
 The design of the walking skeleton ([#49](https://github.com/sravioli/strata/issues/49)) defines the revision lifecycle and its internal state names. This map then uses those names. The five public statuses do not change.
 
-A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)). If it is the newest revision, it supersedes an older revision that has text. Then a search finds no text of the document. See "Unresolved questions".
+A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)), with `no_text` set to `true`. It supersedes an older revision in the same way as each other revision. The owner decided this on 2026-11-21, because the newest file is the file that the account uploaded. Thus a search does not find the text of the older revision.
 
 ### Retry-After
 
@@ -237,6 +238,7 @@ L0: the map from internal states to public statuses, the parse of the batch body
 | TC-47-14 | L1 | Given an account that sends 21 status requests in less than one second, each for a different revision. When it sends one more. Then the API answers `429`. | | pending |
 | TC-47-15 | L1 | Given a batch request with no `Content-Type`. When a client sends it. Then the API answers `400`. Given a batch request with `Content-Type: text/plain`. Then the API answers `415` with `Accept-Query: application/json`. Given a batch request with a body larger than 16 KB. Then the API answers `413`. | | pending |
 | TC-47-16 | L1 | Given revision 1 is `processing` or `uploading`, and revision 2 of the same document becomes ready. When the job of revision 1 runs, or the client finishes revision 1. Then the job does no extraction, no new job exists, and revision 1 stays `superseded`. | | pending |
+| TC-47-17 | L1 | Given revision 1 of a document with text is `ready`. When revision 2, a scanned PDF with no text, becomes ready. Then revision 2 is `ready` with `no_text` set to `true`. Revision 1 is `superseded`, and a search does not find its text. | | pending |
 
 L3: none in this design. TC-2-01 of the capacity design measures the read load. A later L3 test case can add status reads to that load.
 
@@ -280,10 +282,14 @@ L3: none in this design. TC-2-01 of the capacity design measures the read load. 
 
 ## Unresolved questions
 
+The owner answered on 2026-11-21:
+
+- A `ready` revision shows `no_text`. A `NoText` revision supersedes an older revision.
+- `ExtractionCrash` retries one time.
+
 The owner must decide:
 
 - The test cases above.
-- If a `ready` revision with the class `NoText` shows that class to the client. A client cannot see now that the revision has no text. A marker adds a field to the public contract. Also, a `NoText` revision supersedes an older revision that has text, so the document loses its searchable text. The owner decides if Strata accepts that, or if a `NoText` revision supersedes no revision.
 - If the classes `ExtractionTimeout` and `InvalidOutput` also retry one time before the revision becomes `failed`. These classes can come from a fault in Strata too. The owner decided on 2026-11-21 that `ExtractionCrash` retries one time, and the extraction design ([#7](https://github.com/sravioli/strata/issues/7)) now says so. With no retry, the client must upload a new revision.
 
 Implementation resolves these points:
