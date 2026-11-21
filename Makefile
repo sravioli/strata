@@ -23,8 +23,8 @@ check: lint prose test-cases rust
 tools: $(TOOLS)/stamp
 $(TOOLS)/stamp: $(REQ)/tools.txt $(REQ)/package.json $(REQ)/package-lock.json
 	rm -rf $(TOOLS)
-	python3 -m venv $(TOOLS)/venv
-	$(TOOLS)/venv/bin/pip install --quiet --require-hashes --no-deps -r $(REQ)/tools.txt
+	uv venv --quiet $(TOOLS)/venv
+	uv pip install --quiet --python $(TOOLS)/venv/bin/python --require-hashes --no-deps -r $(REQ)/tools.txt
 	mkdir -p $(TOOLS)/npm
 	cp $(REQ)/package.json $(REQ)/package-lock.json $(TOOLS)/npm/
 	npm ci --prefix $(TOOLS)/npm --ignore-scripts --no-audit --no-fund --silent

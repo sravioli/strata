@@ -35,7 +35,7 @@ The `Makefile` holds the commands of CI. Each CI job of `.github/workflows/ci.ym
 
 - **Before each commit:** run `make`. It runs `lint`, `prose`, `test-cases` and `rust`.
 - **Other targets:** `deny`, `verify`, `sql`, `l1`, `commits` and `secrets`. Each has the name of its CI job.
-- **Pinned tools.** `make tools` installs the lint and SQL tools into `.tools/`, at the versions and hashes of `.github/requirements/`. `make lint` and `make sql` run it first. Install the other tools yourself: the Rust toolchain, `cargo-llvm-cov`, `cargo-deny`, `cog`, `betterleaks`, Lean, Charon and Aeneas. CI pins their versions in `ci.yml` and `toolchain.env`.
+- **Pinned tools.** `make tools` installs the lint and SQL tools into `.tools/`, at the versions and hashes of `.github/requirements/`. It needs `uv` and `npm`. `make lint` and `make sql` run it first. Install the other tools yourself: the Rust toolchain, `cargo-llvm-cov`, `cargo-deny`, `cog`, `betterleaks`, Lean, Charon and Aeneas. CI pins their versions in `ci.yml` and `toolchain.env`.
 - **Linter configuration.** The configuration files are in `.github/linters/`. The targets give the path to each tool, so run a linter through `make`, not directly.
 
 ## Running the levels
