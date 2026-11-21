@@ -13,5 +13,6 @@ The ADR numbers and the tech design numbers are different. A tech design has the
 | [0007](0007-verification-boundary.md) | Verification boundary | [0009](../tech-design/0009-verification-boundary.md) | [#9](https://github.com/sravioli/strata/issues/9) |
 | [0008](0008-trusted-external-issuers.md) | Identity providers | [0021](../tech-design/0021-identity-providers.md) | [#21](https://github.com/sravioli/strata/issues/21) |
 | [0009](0009-polled-revision-status.md) | Document readiness | [0047](../tech-design/0047-document-readiness.md) | [#47](https://github.com/sravioli/strata/issues/47) |
+| [0010](0010-generated-hostile-input-corpus.md) | Hostile-input corpus | [0048](../tech-design/0048-hostile-input-corpus.md) | [#48](https://github.com/sravioli/strata/issues/48) |
 
 Copy [0000-template.md](0000-template.md) for a new ADR, and add a row here in the same pull request.

@@ -138,6 +138,8 @@ For DOCX and PPTX, the reader of archives counts the expanded bytes and stops at
 
 Legacy formats (DOC, PPT, XLS) are not in v1 ([#76](https://github.com/sravioli/strata/issues/76)). A revision in a format that is not supported becomes `Failed` with the class `UnsupportedFormat`.
 
+A file that needs a password becomes `Failed` with the class `EncryptedFile`. Two kinds of file need a password: a PDF with a user password, and an Office file with a password. An Office file with a password is a Compound File Binary container with the stream `EncryptedPackage`. `strata-extract` finds that stream, and gives `UnsupportedFormat` to each other container of that type. A PDF with only an owner password opens with no password, and the extraction continues. Strata does not decrypt files in v1 ([#98](https://github.com/sravioli/strata/issues/98)). Amended on 2026-11-21 ([#48](https://github.com/sravioli/strata/issues/48)): before, no class existed for an encrypted file.
+
 ### Two parsers for PDF
 
 Both are free and open-source software. They differ in these points:
@@ -179,7 +181,7 @@ The extraction process writes one JSON document. It holds the format, a list of 
 |---|---|---|
 | The process ends with valid output | The worker writes the text. The revision continues to indexing. | `Done` |
 | The process crashes, reaches the time limit, or ends with output that fails the check, and the revision has no retry mark | The revision gets the retry mark | A normal failure. The job retries (ADR 0004). |
-| The process crashes or reaches the time limit, and the revision has the retry mark. On any run, the process reaches a different limit or rejects the file. | `Failed`, with a class: `ExtractionTimeout`, `ExtractionMemory`, `ExtractionCrash`, `ExtractionOutputTooLarge`, `ArchiveTooLarge`, `UnsupportedFormat`, `MalformedFile` | `Done`. The job did its work: it decided that the file fails. |
+| The process crashes or reaches the time limit, and the revision has the retry mark. On any run, the process reaches a different limit or rejects the file. | `Failed`, with a class: `ExtractionTimeout`, `ExtractionMemory`, `ExtractionCrash`, `ExtractionOutputTooLarge`, `ArchiveTooLarge`, `UnsupportedFormat`, `EncryptedFile`, `MalformedFile` | `Done`. The job did its work: it decided that the file fails. |
 | The process ends with output that fails the check, and the revision has the retry mark | `Failed`, class `InvalidOutput` | `Done` |
 | The worker cannot read the file, or the worker stops | No change | A normal failure. The job retries (ADR 0004). |
 
