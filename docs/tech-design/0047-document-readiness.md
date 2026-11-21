@@ -41,7 +41,7 @@ The owner asked which mechanism other services use. Services that process docume
 
 A `ready` revision becomes `superseded` when a newer revision of the same document becomes ready. A client that stops at `ready` does not see this change.
 
-`failed` means that the revision ended with a class of the extraction design ([#7](https://github.com/sravioli/strata/issues/7)), or with `FileTooLarge` of the object storage design ([#6](https://github.com/sravioli/strata/issues/6)). Most classes have a cause in the file, for example `UnsupportedFormat`. `ExtractionCrash`, `ExtractionTimeout` and `InvalidOutput` can also come from a fault in Strata, for example a bug in `strata-extract` or a slow machine. A problem outside the extraction never shows as `failed`. If the job of a revision is `Parked`, the revision stays `processing`, and an operator requeues the job.
+`failed` means that the revision ended with a class of the extraction design ([#7](https://github.com/sravioli/strata/issues/7)), or with `FileTooLarge` of the object storage design ([#6](https://github.com/sravioli/strata/issues/6)). Most classes have a cause in the file, for example `UnsupportedFormat`. `ExtractionCrash`, `ExtractionTimeout` and `InvalidOutput` can also come from a fault in Strata, for example a bug in `strata-extract` or a slow machine. A crash retries one time before the revision becomes `failed` (owner, 2026-11-21). While the job retries, the revision stays `processing`. A problem outside the extraction never shows as `failed`. If the job of a revision is `Parked`, the revision stays `processing`, and an operator requeues the job.
 
 ### Example: one upload
 
@@ -284,7 +284,7 @@ The owner must decide:
 
 - The test cases above.
 - If a `ready` revision with the class `NoText` shows that class to the client. A client cannot see now that the revision has no text. A marker adds a field to the public contract. Also, a `NoText` revision supersedes an older revision that has text, so the document loses its searchable text. The owner decides if Strata accepts that, or if a `NoText` revision supersedes no revision.
-- If the classes `ExtractionCrash`, `ExtractionTimeout` and `InvalidOutput` retry one time before the revision becomes `failed`. These classes can come from a fault in Strata. A retry changes the extraction design ([#7](https://github.com/sravioli/strata/issues/7)). With no retry, the client must upload a new revision.
+- If the classes `ExtractionTimeout` and `InvalidOutput` also retry one time before the revision becomes `failed`. These classes can come from a fault in Strata too. The owner decided on 2026-11-21 that `ExtractionCrash` retries one time, and the extraction design ([#7](https://github.com/sravioli/strata/issues/7)) now says so. With no retry, the client must upload a new revision.
 
 Implementation resolves these points:
 

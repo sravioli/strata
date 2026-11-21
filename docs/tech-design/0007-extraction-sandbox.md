@@ -178,11 +178,12 @@ The extraction process writes one JSON document. It holds the format, a list of 
 | Result | Revision | Job |
 |---|---|---|
 | The process ends with valid output | The worker writes the text. The revision continues to indexing. | `Done` |
-| The process reaches a limit, crashes, or rejects the file | `Failed`, with a class: `ExtractionTimeout`, `ExtractionMemory`, `ExtractionCrash`, `ExtractionOutputTooLarge`, `ArchiveTooLarge`, `UnsupportedFormat`, `MalformedFile` | `Done`. The job did its work: it decided that the file fails. |
+| The process crashes, and this run is the first run of the job | No change | A normal failure. The job retries one time (ADR 0004). |
+| The process reaches a limit, crashes on the second run or later, or rejects the file | `Failed`, with a class: `ExtractionTimeout`, `ExtractionMemory`, `ExtractionCrash`, `ExtractionOutputTooLarge`, `ArchiveTooLarge`, `UnsupportedFormat`, `MalformedFile` | `Done`. The job did its work: it decided that the file fails. |
 | The process ends with output that fails the check | `Failed`, class `InvalidOutput` | `Done` |
 | The worker cannot read the file, or the worker stops | No change | A normal failure. The job retries (ADR 0004). |
 
-A result for a reason in the file does not retry, because a second run of the same file gives the same result (E4). The class goes to the revision. The log of the worker holds the detail, with no content of the file.
+A result for a reason in the file does not retry, because a second run of the same file gives the same result (E4). A crash is the exception: a fault in Strata or in the machine can also cause it. Thus the first crash is a normal job failure, and the job runs again after the backoff. A second crash sets the revision to `Failed` with `ExtractionCrash`. The worker uses the count of attempts of the job to know which run it is. Amended on 2026-11-21 ([#47](https://github.com/sravioli/strata/issues/47)): before, the first crash set the revision to `Failed`. The class goes to the revision. The log of the worker holds the detail, with no content of the file.
 
 A PDF with no text, for example a scan, gives an empty list of blocks. The revision is not `Failed`. It continues with no text, and it holds the class `NoText` so that a later OCR step can find it.
 
@@ -251,6 +252,7 @@ L0: unit tests cover the reader of each format, the check of the output, and the
 | TC-7-09 | L1 | Given one PDF, DOCX, PPTX, XLSX and CSV file with known text. When the worker extracts each one. Then the output holds that text. | sravioli, 2026-11-19 | pending |
 | TC-7-10 | L1 | Given a worker that stops while an extraction runs. When the lease expires. Then a different worker claims the job and extracts the file. The first extraction process stops at its time limit at the latest, and nothing writes its output. | sravioli, 2026-11-19 | pending |
 | TC-7-11 | L1 | Given two uploads of the same PDF, one with `pdf_parser` set to `fast` and one with no `pdf_parser`. When the worker extracts each one. Then PDFium extracts the first one, Poppler extracts the second one, and each revision holds its value of `pdf_parser`. | sravioli, 2026-11-19 | pending |
+| TC-7-12 | L1 | Given a file that makes the parser crash at each run. When the worker extracts it the first time. Then the revision does not change, and the job retries. When the worker extracts it the second time. Then the revision is `Failed` with `ExtractionCrash`, and the job is `Done`. | | pending |
 
 ## Unresolved questions
 
