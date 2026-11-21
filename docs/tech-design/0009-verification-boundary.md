@@ -19,7 +19,7 @@ Goals:
 Non-goals:
 
 - The theorems of each feature. Each tech design lists its own theorems in "Proof obligations".
-- The design of the search path at M2. This design only sets the route that M2 tries first.
+- The design of the search path at M2. This design only sets the route that M2 tries first ([#73](https://github.com/sravioli/strata/issues/73)).
 
 ## Background and references
 
@@ -213,6 +213,6 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- The search path and route 3 (M2).
-- The design of the revision lifecycle with several revisions.
-- Chunk boundaries (M2).
+- The search path and route 3 (M2, [#73](https://github.com/sravioli/strata/issues/73)).
+- The design of the revision lifecycle with several revisions ([#78](https://github.com/sravioli/strata/issues/78)).
+- Chunk boundaries (M2, [#70](https://github.com/sravioli/strata/issues/70)).

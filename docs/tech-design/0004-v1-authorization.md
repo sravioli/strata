@@ -257,14 +257,14 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- The scope unit: a collection of documents or one document. Milestone M4 decides.
-- Roles inside a tenant.
+- The scope unit: a collection of documents or one document. Milestone M4 decides ([#22](https://github.com/sravioli/strata/issues/22)).
+- Roles inside a tenant ([#66](https://github.com/sravioli/strata/issues/66)).
 - Authorization for an operation that a later design adds.
 - If a job that gets "deny" waits in the queue or fails. Issue [#5](https://github.com/sravioli/strata/issues/5) decides.
 
 ## Future possibilities
 
-- A scope that names collections, for M4.
-- A read-only kind of account.
-- A tenant administrator who creates accounts through the API.
-- An audit record of each "allow" decision for sensitive actions.
+- A scope that names collections, for M4 ([#22](https://github.com/sravioli/strata/issues/22)).
+- A read-only kind of account ([#66](https://github.com/sravioli/strata/issues/66)).
+- A tenant administrator who creates accounts through the API ([#66](https://github.com/sravioli/strata/issues/66)).
+- An audit record of each "allow" decision for sensitive actions ([#67](https://github.com/sravioli/strata/issues/67)).

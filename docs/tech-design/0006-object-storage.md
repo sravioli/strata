@@ -18,7 +18,7 @@ Goals:
 
 Non-goals:
 
-- Hosting, replication, backup and cost. Milestone M3 decides them.
+- Hosting, replication, backup and cost. Milestone M3 decides them ([#61](https://github.com/sravioli/strata/issues/61)).
 - The extraction of text from a file. Issue [#7](https://github.com/sravioli/strata/issues/7) decides it.
 
 ## Background and references
@@ -218,6 +218,6 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- The state machine of a revision with `AwaitingUpload`.
-- Hosting, replication, backups and encryption of the disks (M3).
-- Azure Blob Storage or a different service as a second backend.
+- The state machine of a revision with `AwaitingUpload` ([#49](https://github.com/sravioli/strata/issues/49)).
+- Hosting, replication, backups and encryption of the disks (M3, [#61](https://github.com/sravioli/strata/issues/61)).
+- Azure Blob Storage or a different service as a second backend ([#74](https://github.com/sravioli/strata/issues/74)).

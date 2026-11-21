@@ -18,9 +18,9 @@ Goals:
 
 Non-goals:
 
-- The steps inside a job: extraction, chunking, embedding. Issue [#7](https://github.com/sravioli/strata/issues/7) and milestone M2 decide them.
-- How a client learns that a document is ready (M1).
-- A message bus in v1.
+- The steps inside a job: extraction, chunking, embedding. Issue [#7](https://github.com/sravioli/strata/issues/7) and milestone M2 decide them ([#70](https://github.com/sravioli/strata/issues/70), [#71](https://github.com/sravioli/strata/issues/71)).
+- How a client learns that a document is ready (M1, [#47](https://github.com/sravioli/strata/issues/47)).
+- A message bus in v1 ([#68](https://github.com/sravioli/strata/issues/68)).
 
 ## Background and references
 
@@ -264,5 +264,5 @@ Implementation resolves these points:
 These questions belong to later designs:
 
 - The steps inside `ProcessDocument`, and where extraction errors go ([#7](https://github.com/sravioli/strata/issues/7)).
-- Which bus wakes workers, and when Strata adds it.
-- New kinds of jobs, for example the removal of stored files ([#6](https://github.com/sravioli/strata/issues/6)).
+- Which bus wakes workers, and when Strata adds it ([#68](https://github.com/sravioli/strata/issues/68)).
+- New kinds of jobs, for example the removal of stored files ([#6](https://github.com/sravioli/strata/issues/6), [#69](https://github.com/sravioli/strata/issues/69)).
