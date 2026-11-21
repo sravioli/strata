@@ -17,15 +17,15 @@ Review checks these rules. No tool checks them yet.
 
 | Dimension | Rule | Checked by | Runs at |
 |---|---|---|---|
-| Format | No diff | `cargo fmt --all --check` | CI `rust` |
-| Lint | No warnings | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | CI `rust` |
-| Coverage | Lines of the workspace at 75% or more (L0 tests) | `cargo llvm-cov --workspace --locked --fail-under-lines 75` | CI `rust` |
-| Dependencies | No advisory, licence or source failure | `cargo deny check` (`deny.toml`) | CI `deny` |
-| Secrets | No finding | `betterleaks git .` | CI `secrets` |
+| Format | No diff | `cargo fmt --all --check` | `make rust`, CI `rust` |
+| Lint | No warnings | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | `make rust`, CI `rust` |
+| Coverage | Lines of the workspace at 75% or more (L0 tests) | `cargo llvm-cov --workspace --locked --fail-under-lines 75` | `make rust`, CI `rust` |
+| Dependencies | No advisory, licence or source failure | `cargo deny check` (`deny.toml`) | `make deny`, CI `deny` |
+| Secrets | No finding | `betterleaks git .` | `make secrets`, CI `secrets` |
 | Code scanning | CodeQL and zizmor: no alert at the threshold of the "Protect main" ruleset | the "Protect main" ruleset | each pull request |
-| Test cases | Each ID has a test or a PENDING marker | `python3 scripts/check-test-cases.py` | CI `test-cases` |
-| Proofs | The checks of tech design 0009 | `scripts/translate.sh --check`, `scripts/check-proofs.py` | CI `verify` |
-| Commits | Conventional commits | `cog check` | CI `commits` |
+| Test cases | Each ID has a test or a PENDING marker | `python3 scripts/check-test-cases.py` | `make test-cases`, CI `test-cases` |
+| Proofs | The checks of tech design 0009 | `scripts/translate.sh --check`, `scripts/check-proofs.py` | `make verify`, CI `verify` |
+| Commits | Conventional commits | `cog check` | `make commits`, CI `commits` |
 
 ### Coverage
 

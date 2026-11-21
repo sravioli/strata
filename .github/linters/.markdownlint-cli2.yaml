@@ -1,0 +1,7 @@
+# make lint passes the files (tracked Markdown at the root, in docs/ and in .github/).
+config:
+  MD013: false
+  MD033: false
+  MD034: false
+  MD041: false
+  MD060: false

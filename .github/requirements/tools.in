@@ -1,0 +1,6 @@
+# Lint and SQL tools of `make tools`. Compile: uvx --from pip-tools pip-compile --generate-hashes --strip-extras tools.in
+actionlint-py==1.7.12.25
+shellcheck-py==0.11.0.1
+sqlfluff==4.5.0
+taplo==0.9.3
+yamllint==1.38.0
