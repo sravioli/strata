@@ -50,15 +50,26 @@ A developer runs `make dev`. It starts PostgreSQL, the pooler and Garage. It app
 | Crate | Kind | Contents |
 |---|---|---|
 | `core` | library | The proved pure functions: authorization, the job state, and the revision state (new). No I/O. |
-| `strata` | binary | The server. Subcommands `api`, `worker` and `admin`. All database and storage code. |
+| `strata` | binary | The server. Subcommands `api`, `worker`, `admin` and `migrate`. All database and storage code. |
 | `strata-extract` | binary | The extraction process of 0007. It has no code for a database, a storage or a network. |
 | `strata-dev` | binary | The development issuer of 0021. The `strata` crate does not depend on it (TC-21-17). |
 
 `strata api` and `strata worker` run as separate processes and scale separately (ADR 0003). `strata admin` is the operator command of 0003 and 0021. It connects with the role `strata_operator`.
 
-Libraries: axum 0.8 and tokio for HTTP, sqlx with `sqlx migrate` for PostgreSQL, `object_store` 0.14 for the storage (0006), `jsonwebtoken` for tokens, and `clap` for the subcommands. sqlx is the default driver. The prototype [#100](https://github.com/sravioli/strata/issues/100) runs before the first change. It keeps sqlx, unless tokio-postgres is better by 20 % or more on p99 latency or throughput for one query shape or more (owner, 2026-11-21). Queries are checked at run time and by L1 tests, not by the macros of sqlx, so the build needs no database.
+Libraries:
+
+- axum 0.8 and tokio for HTTP,
+- tokio-postgres 0.7 with deadpool-postgres 0.14 for PostgreSQL, and refinery 0.10 for the migrations,
+- `object_store` 0.14 for the storage (0006),
+- `jsonwebtoken` for tokens, and `clap` for the subcommands.
+
+Queries are checked at run time and by L1 tests, so the build needs no database.
+
+Amended on 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)): the prototype [#100](https://github.com/sravioli/strata/issues/100) measured sqlx against tokio-postgres. The rule of the owner was: keep sqlx, unless tokio-postgres is better by 20 % or more for one query shape or more (2026-11-21). The rule applies to p99 latency and to throughput. tokio-postgres was better on the tenant transaction (+115 % to +372 % throughput) and on the batch status read (+61 % to +316 %). This was true on each path, through PgBouncer too. The search and the batch insert did not change. Thus tokio-postgres replaces sqlx, and refinery replaces `sqlx migrate`.
 
 **Batching rule.** Each step reads or writes its rows with one statement. Examples: the text parts of a revision go in with one `INSERT … SELECT … FROM unnest(…)`, and the batch status read is one `SELECT`. A loop of statements for single rows is not permitted.
+
+**Pipelining rule.** When a statement does not need the result of an earlier statement in the same transaction, the code sends the statements together on one connection. Example: the tenant transaction of a read sends `BEGIN`, `set_config`, the query and `COMMIT` together. This removes three round trips. If one statement fails, PostgreSQL aborts the transaction, the next statements fail, and `COMMIT` gives a rollback. The code then returns the first error. A statement that needs an earlier result waits for it. Example: the transaction that ends a job locks the document before it writes.
 
 ### Identifiers
 
@@ -243,12 +254,12 @@ The search must rank each match in the tenant. Thus its cost grows with the coun
 
 ### Local services and `make dev`
 
-`compose.yaml` gets PgBouncer in transaction mode, with `max_prepared_statements` above 0, so that the prepared statements of sqlx work through it. `strata api` and `strata worker` connect through PgBouncer. The migrations and `strata admin` connect to PostgreSQL directly. The L1 test of 0003 for prepared statements through the pooler runs against it.
+`compose.yaml` gets PgBouncer in transaction mode, with `max_prepared_statements` above 0, so that the prepared statements of tokio-postgres work through it. The prototype [#100](https://github.com/sravioli/strata/issues/100) used 200. `strata api` and `strata worker` connect through PgBouncer. The migrations and `strata admin` connect to PostgreSQL directly. The L1 test of 0003 for prepared statements through the pooler runs against it.
 
 `make dev`:
 
 1. `docker compose up --wait`: PostgreSQL 19, PgBouncer and Garage.
-2. `sqlx migrate run` as `strata_owner`.
+2. `strata migrate` as `strata_owner`. refinery embeds the SQL files of `migrations/` in the binary.
 3. Start `strata-dev serve`. It prints the commands that register its issuer (0021).
 4. `strata admin tenant create acme`, the same for `globex`, the registration of the issuer, and one binding for each tenant.
 5. Start `strata api` and `strata worker` on the host.
@@ -275,7 +286,7 @@ These are the tasks of 0003, 0005 and 0021.
 
 One OpenSpec change for each step, each in its own pull request, in this order:
 
-1. Schema, tenancy and identity. The tables of 0003 and 0021, the roles, `uuidv7()` and PostgreSQL 19, `u128` in `core`, the types of the transactions, `strata admin`, `strata-dev`, and the authentication of the API. Blocked by [#100](https://github.com/sravioli/strata/issues/100).
+1. Schema, tenancy and identity. The tables of 0003 and 0021, the roles, `uuidv7()` and PostgreSQL 19, `u128` in `core`, the types of the transactions, `strata admin`, `strata-dev`, and the authentication of the API. The prototype [#100](https://github.com/sravioli/strata/issues/100) chose tokio-postgres.
 2. Upload. `documents`, `revisions`, `upload_slots`, `jobs`, the upload routes, the Garage checks, the cleanup of `jobs` and `upload_slots`, and `revision_step` with its proofs.
 3. The worker and extraction. The claim, the lease, `strata-extract` with `pdftotext` in nsjail, and the transaction that ends a job.
 4. Search and status. `text_parts`, the search route, the status routes of 0047, `make dev`, and TC-49-01.
@@ -331,6 +342,7 @@ L0: unit tests cover the split of blocks, the check of the request body and the 
 | TC-49-07 | L1 | Given a search body with no `q`, with a `limit` of 101, or above 16 KB. When the client sends it. Then the API answers `400`, `400` and `413`. | sravioli, 2026-11-21 | pending |
 | TC-49-08 | L1 | Given a `GET` and a `POST` to `/v1/search`. When the API gets them. Then it answers `405` with the header `Allow: QUERY`. | sravioli, 2026-11-21 | pending |
 | TC-49-09 | L1 | Given a revision in `AwaitingUpload` with its object in the storage. When the client sends two finishes at the same time, and then a third. Then the revision is `Uploaded`, it has exactly one job, and each finish answers `202` with the same `Location`. | sravioli, 2026-11-21 | pending |
+| TC-49-10 | L1 | Given the nsjail configuration of `strata-extract`. When the extraction process calls `io_uring_setup`, `io_uring_enter` or `io_uring_register`. Then each call fails, and the process does no I/O through a ring. Reason: seccomp does not see the operations of a ring, so a ring can bypass the seccomp list of 0007. | | pending |
 
 TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on 2026-11-21. It runs in CI also, not only before a release. That is a change to `docs/agents/testing.md` for this one test, and the fourth change makes it.
 
@@ -355,7 +367,11 @@ TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on
 
 **Keep the search rows of a `Superseded` revision.** A later restore then needs no extraction. But it costs storage now, and the cleanup of 0006 already removes the file. The owner moved restore to [#101](https://github.com/sravioli/strata/issues/101).
 
-**tokio-postgres and deadpool instead of sqlx.** tokio-postgres can pipeline queries, and some old benchmarks show it faster. sqlx gives the pool, the migrations and the map of rows in one crate. The prototype [#100](https://github.com/sravioli/strata/issues/100) decides with numbers.
+**sqlx instead of tokio-postgres and deadpool.** sqlx gives the pool, the migrations and the map of rows in one crate. But it sends one statement at a time, and the prototype [#100](https://github.com/sravioli/strata/issues/100) measured tokio-postgres better by more than 20 % on two query shapes. Amended on 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)).
+
+**`sqlx-cli` for the migrations only.** The SQL files then stay as they are. But each environment then needs one more binary, and its version must agree with the files. refinery puts the migrations in the `strata` binary.
+
+**io_uring for the I/O of the driver.** The gain of [#100](https://github.com/sravioli/strata/issues/100) comes from fewer round trips, not from the cost of a system call. A runtime with io_uring also replaces tokio for axum and the other libraries, and the default seccomp profile of Docker blocks io_uring. Rejected. PostgreSQL itself can use io_uring for disk reads ([#113](https://github.com/sravioli/strata/issues/113)).
 
 **`GET /v1/search?q=…`.** `GET` works with each client. But the search text then goes in the URL and in access logs, and 0047 already uses `QUERY` for a read with a body.
 
@@ -374,7 +390,7 @@ The owner answered these questions on 2026-11-21:
 2. The search uses PostgreSQL full-text search with the configuration `simple`.
 3. The revision has five internal states, and the other facts are columns.
 4. Four crates, and one server binary with subcommands.
-5. axum, tokio, sqlx, `object_store` and `jsonwebtoken`. The prototype [#100](https://github.com/sravioli/strata/issues/100) checks sqlx with a threshold of 20 %.
+5. axum, tokio, sqlx, `object_store` and `jsonwebtoken`. The prototype [#100](https://github.com/sravioli/strata/issues/100) checks sqlx with a threshold of 20 %. Amended on 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)): tokio-postgres and deadpool-postgres replace sqlx, and refinery replaces `sqlx migrate`.
 6. `make dev`, and development on Linux only.
 7. The revision state function is proved, with the statements of the Proof obligations table.
 8. The agent sets the values of the implementation points, and the owner reviews them in this pull request.
@@ -391,6 +407,12 @@ The owner answered these questions on 2026-11-21:
 19. The owner approved the amended notes in 0005, 0006, 0047, ADR 0009 and 0048.
 20. The skeleton does not clean up revisions in `AwaitingUpload` or the objects of `Superseded` revisions. That cleanup waits for its principal in [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. The issue #69 records this.
 21. The owner approved the test cases TC-49-02 to TC-49-09.
+
+The owner must decide these points of the amendment of 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)):
+
+- refinery for the migrations, with the subcommand `strata migrate`.
+- The pipelining rule.
+- The test case TC-49-10.
 
 Implementation resolves these points:
 
