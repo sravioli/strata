@@ -36,6 +36,18 @@ _Avoid_: File, record, item
 One version of a document, with one original file. A newer revision replaces an older one in search.
 _Avoid_: Version, upload, copy
 
+**Current revision**:
+The revision of a document that a search uses. It is the newest revision that became ready.
+_Avoid_: Latest version, active revision, head
+
+**Public status**:
+The status of a revision that Strata shows to a client. It is one of `uploading`, `processing`, `ready`, `failed` and `superseded`, and it is separate from the internal states.
+_Avoid_: State, job status, processing state
+
+**Final status**:
+A public status that does not change, except from `ready` to `superseded`. `ready`, `failed` and `superseded` are final.
+_Avoid_: Terminal state, done, complete
+
 **Principal**:
 The actor of an action. It is an account, or a job that Strata runs for one tenant.
 _Avoid_: Subject, caller, actor
