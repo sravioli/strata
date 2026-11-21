@@ -29,6 +29,15 @@ A test case with no automated test yet is listed as `pending`; a test case is ne
 - **Check.** `python3 scripts/check-test-cases.py` enforces these rules. CI runs it on each run.
 - **Report.** `python3 scripts/check-test-cases.py --report` prints one line for each ID: its state, its design, its spec and its tests. The states are `approved` (a design row only) and `planned` (a spec scenario with the pending marker). They are also `implemented` (a test carries the ID) and `failing` (the check fails on the ID).
 
+## Running the checks
+
+The `Makefile` holds the commands of CI. Each CI job of `.github/workflows/ci.yml` runs one target, so a local run and a CI run use the same commands.
+
+- **Before each commit:** run `make`. It runs `lint`, `prose`, `test-cases` and `rust`.
+- **Other targets:** `deny`, `verify`, `sql`, `l1`, `commits` and `secrets`. Each has the name of its CI job.
+- **Pinned tools.** `make tools` installs the lint and SQL tools into `.tools/`, at the versions and hashes of `.github/requirements/`. `make lint` and `make sql` run it first. Install the other tools yourself: the Rust toolchain, `cargo-llvm-cov`, `cargo-deny`, `cog`, `betterleaks`, Lean, Charon and Aeneas. CI pins their versions in `ci.yml` and `toolchain.env`.
+- **Linter configuration.** The configuration files are in `.github/linters/`. The targets give the path to each tool, so run a linter through `make`, not directly.
+
 ## Running the levels
 
 - **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request, under `cargo llvm-cov` with the coverage floor of `CONSTRAINTS.md`.
@@ -40,7 +49,7 @@ Product code is Rust, and the levels above test it. Repo tooling (the checks and
 
 ## Proofs
 
-Tech design 0009 sets when a theorem is "proved". The `verify` job of CI runs its checks. Run them locally in this sequence:
+Tech design 0009 sets when a theorem is "proved". `make verify` runs its checks (steps 2 to 5 below, in check mode). Run them by hand in this sequence:
 
 1. Install the pinned tools: `scripts/install-aeneas.sh ~/.local/aeneas`, then add that folder to `PATH`. Charon also needs the nightly of `toolchain.env` with the components `rustc-dev`, `llvm-tools` and `rust-src`.
 2. Translate the core crate: `scripts/translate.sh`. It writes `lean/Strata/Generated/`. `scripts/translate.sh --check` only compares.

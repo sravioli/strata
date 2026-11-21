@@ -1,2 +1,0 @@
-# Hash-pinned so CI installs exactly this wheel (Scorecard Pinned-Dependencies).
-taplo==0.9.3 --hash=sha256:33f12648f273478d7330cb3529c82f48f388501e1122e0bea78bce5ff5972b8b

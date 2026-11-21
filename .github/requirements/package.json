@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Node tools of make tools.",
+  "devDependencies": {
+    "markdownlint-cli2": "0.24.1"
+  }
+}

@@ -34,11 +34,13 @@ jobs:
             config:
               - '**/*.{md,yaml,yml,toml,sh}'
               - '.github/**'
+              - 'Makefile'
             prose:
               - 'docs/tech-design/**'
               - 'docs/adr/**'
               - '.agents/skills/asd-ste100/scripts/**'
               - '.github/workflows/ci.yml'
+              - 'Makefile'
             rust:
               - '**/*.rs'
               - '**/Cargo.toml'
@@ -46,12 +48,16 @@ jobs:
               - 'rust-toolchain*'
               - 'CONSTRAINTS.md'
               - '.github/workflows/ci.yml'
+              - 'Makefile'
             deny:
               - '**/Cargo.toml'
               - '**/Cargo.lock'
               - 'deny.toml'
+              - 'Makefile'
             sql:
               - '**/*.sql'
+              - '.github/requirements/**'
+              - 'Makefile'
             proofs:
               - 'crates/core/**'
               - 'lean/**'
@@ -65,6 +71,7 @@ jobs:
               - 'toolchain.env'
               - 'Cargo.lock'
               - '.github/workflows/ci.yml'
+              - 'Makefile'
 
   commits:
     if: github.event_name == 'pull_request'
@@ -78,7 +85,10 @@ jobs:
       - run: |
           curl -fsSL https://github.com/cocogitto/cocogitto/releases/download/7.0.0/cocogitto-7.0.0-x86_64-unknown-linux-musl.tar.gz | tar xz
           find . -name cog -type f -exec install -m755 {} /usr/local/bin/cog \;
-      - run: cog check ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: make commits RANGE="$BASE..$HEAD"
 
   secrets:
     runs-on: ubuntu-latest
@@ -88,8 +98,9 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - run: |
-          curl -fsSL https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz | tar xz betterleaks
-          ./betterleaks git .
+          curl -fsSL https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz | tar xz -C "$RUNNER_TEMP" betterleaks
+          install -m755 "$RUNNER_TEMP/betterleaks" /usr/local/bin/betterleaks
+      - run: make secrets
 
   config:
     needs: changes
@@ -99,17 +110,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34  # v25.0.0
-      - uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
-        with:
-          file_or_dir: .
-          config_file: .yamllint.yaml
-      - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7  # v2.2.0
-      - run: |
-          python3 -m venv "$RUNNER_TEMP/taplo"
-          "$RUNNER_TEMP/taplo/bin/python" -m pip install --require-hashes --no-deps -r .github/requirements/taplo.txt
-          "$RUNNER_TEMP/taplo/bin/taplo" fmt --check
-      - run: git ls-files 'scripts/*.sh' | xargs -r shellcheck
+      # The tools are hash-pinned in .github/requirements (Scorecard Pinned-Dependencies).
+      - run: make lint
 
   prose:
     needs: changes
@@ -119,8 +121,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # Templates (0000-*) stay out: they hold placeholder text.
-      - run: git ls-files 'docs/tech-design/*.md' 'docs/adr/*.md' | grep -v '/0000-' | xargs -r python3 .agents/skills/asd-ste100/scripts/ste-lint.py
+      - run: make prose
 
   rust:
     needs: changes
@@ -138,13 +139,7 @@ jobs:
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39  # v2.90.3
         with:
           tool: cargo-llvm-cov@0.9.1
-      # L0 runs once, under coverage. The floor is in CONSTRAINTS.md.
-      - run: |
-          cargo fmt --all --check
-          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-          cargo llvm-cov --workspace --locked --fail-under-lines 75
-          cargo test --workspace --doc --locked
-          scripts/check-toolchain.sh
+      - run: make rust
 
   deny:
     needs: changes
@@ -154,9 +149,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # Skips until the first crate lands: with no Cargo.toml, cargo-deny fails.
-      - if: hashFiles('Cargo.toml') != ''
-        uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9  # v2.1.2
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39  # v2.90.3
+        with:
+          tool: cargo-deny@0.20.2
+      - run: make deny
 
   # The checks of tech design 0009 ("The definition of proved"). Any failure fails ci-ok.
   verify:
@@ -180,20 +176,14 @@ jobs:
         with:
           toolchain: ${{ steps.pins.outputs.charon-rust }}
           components: rustc-dev, llvm-tools, rust-src
-      - name: Check 1, fresh translation
-        run: scripts/translate.sh --check
       # Gets the Mathlib cache and the GitHub cache of lean/.lake, then runs lake build.
       # Measured on PR #37: 320 s with no GitHub cache (Mathlib from its cache, 214 Aeneas modules built),
       # 76 s with the GitHub cache (nothing built).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee  # v1.7.1
         with:
           lake-package-directory: lean
-      - name: Checks 2 to 5, theorems and axioms
-        run: python3 scripts/check-proofs.py
-      - name: Tests of the checks
-        env:
-          REQUIRE_PROOF_TOOLS: "1"  # a test that needs Lean, Charon or Aeneas fails here, never skips
-        run: python3 -m unittest discover -s scripts/tests
+      # Check 1 (fresh translation), checks 2 to 5 (theorems and axioms), and the tests of the checks.
+      - run: make verify
 
   sql:
     needs: changes
@@ -215,12 +205,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # Real validation: every .sql file must apply, in path order, to an empty Postgres.
-      - run: |
-          files=$(git ls-files '*.sql' | sort)
-          pipx install sqlfluff
-          echo "$files" | xargs sqlfluff lint --dialect postgres
-          for f in $files; do psql -v ON_ERROR_STOP=1 -q -f "$f"; done
+      - run: make sql
 
   # Each test case ID has a test or a PENDING marker. Runs on each run: any file can add or remove an ID.
   test-cases:
@@ -229,8 +214,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 -m unittest discover -s scripts/tests
-      - run: python3 scripts/check-test-cases.py
+      - run: make test-cases
 
   # L1: tests against the services of compose.yaml (docs/agents/testing.md). Runs on each pull request.
   l1:
@@ -244,11 +228,7 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
-      - run: docker compose up --wait
-      - run: scripts/dev-services-smoke.sh
-      - run: cargo test --workspace --locked --all-features
-      - if: always()
-        run: docker compose down -v
+      - run: make l1
 
   # Make only this job a required check. A skipped job counts as passed.
   ci-ok:
