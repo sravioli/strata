@@ -39,7 +39,7 @@ The owner made seven decisions on 2026-11-15:
 - The total of approximately 50,000 accounts is an estimate and a goal.
 - Who issues the access token is not decided. Milestone M1 decides it. The owner decided on 2026-11-20 ([#21](https://github.com/sravioli/strata/issues/21)): in v1, only external identity providers issue access tokens.
 - When a tenant is not active, the API rejects all of its requests. Strata keeps its data.
-- In v1, an operator creates tenants and accounts with a command. There is no self-service sign-up.
+- In v1, an operator creates tenants and accounts with a command. There is no self-service sign-up. The owner replaced the part about accounts on 2026-11-20 ([#21](https://github.com/sravioli/strata/issues/21)): the API creates an account on its first valid request.
 - Strata must not reveal the names of tenants.
 
 References:
@@ -103,7 +103,7 @@ All identifiers are UUIDs that the database generates. A client never supplies a
 
 ### Three layers of enforcement
 
-**Layer 1: the application.** The code reaches tenant-owned tables only through a tenant transaction. The function that opens a tenant transaction does two things:
+**Layer 1: the application.** The code reaches tenant-owned tables only through a tenant transaction. Before the decision of a request, the identity transaction of the v1 authorization design ([#4](https://github.com/sravioli/strata/issues/4)) reads the account and the status rows. It sets the tenant context in the same way. The function that opens a tenant transaction does two things:
 
 1. It starts a database transaction.
 2. It runs `select set_config('app.tenant_id', $1, true)`. The value applies to that transaction only.
@@ -186,9 +186,12 @@ A token stays valid until its expiry time. The API cannot cancel it earlier. Thu
 ### Request flow
 
 1. The API verifies the access token and gets the tenant and the account from it. The identity provider design ([#21](https://github.com/sravioli/strata/issues/21)) gives the steps.
-2. The API opens a tenant transaction for that tenant.
-3. The API reads the status of the account and of the tenant. It rejects the request if one of them is not active.
-4. The API runs its queries in that transaction.
+2. The API opens the identity transaction for that tenant ([#4](https://github.com/sravioli/strata/issues/4)).
+3. The API reads the status of the account and of the tenant in it. It rejects the request if one of them is not active.
+4. The API decides the request. With an "allow" decision or a scope, the identity transaction becomes a tenant transaction.
+5. The API runs its queries in that transaction. A read that goes to a replica (ADR 0003, capacity, S2) runs in a second tenant transaction on the replica, with the same tenant.
+
+Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): steps 2 to 5 now agree with the v1 authorization design and the identity provider design.
 
 The API reads no tenant identifier from a different part of the request.
 
@@ -325,7 +328,7 @@ The owner deferred one question to milestone M1 on 2026-11-15: does Strata issue
 Implementation resolves these points:
 
 - The UUID version. Version 7 is the recommendation, because its values increase with time and keep index pages together.
-- The exact SQL text of the policies.
+- The SQL statements that create the policies. The expression of each policy is the text in this design (TC-3-06).
 - The test helper that opens a tenant transaction.
 - The rules for a tenant name: permitted characters and letter case.
 - A test that the prepared statements of the database driver work through the pooler in transaction mode.

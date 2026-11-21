@@ -20,6 +20,22 @@ _Avoid_: Auth server, IdP, token provider
 The link from one tenant value of one trusted issuer to one tenant. A trusted issuer can name only the tenants that it has a binding for.
 _Avoid_: Tenant mapping, issuer tenant
 
+**Tenant value**:
+The value that a trusted issuer puts in a token to name a tenant. It is the issuer's own value, not a Strata identifier.
+_Avoid_: Tenant ID, org claim
+
+**Subject**:
+The value that a trusted issuer puts in a token to name one account. An account is one subject of one issuer in one tenant.
+_Avoid_: User ID, username
+
+**Document**:
+One item that an account keeps in Strata. It has one or more revisions.
+_Avoid_: File, record, item
+
+**Revision**:
+One version of a document, with one original file. A newer revision replaces an older one in search.
+_Avoid_: Version, upload, copy
+
 **Principal**:
 The actor of an action. It is an account, or a job that Strata runs for one tenant.
 _Avoid_: Subject, caller, actor

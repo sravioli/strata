@@ -28,7 +28,7 @@ The decision has these parts:
 * `authorize(principal, action, resource)` gives "allow" or "deny". It is in the pure core crate and reads no database and no clock.
 * `authorized_scope(principal, action)` gives the set of resources that a principal can reach. Only this function creates a scope.
 * Each retrieval function takes a scope and filters by it in its query.
-* A tenant transaction opens only with an "allow" decision or a scope.
+* A tenant transaction opens only with an "allow" decision or a scope. Before the decision, the identity transaction reads only the issuer binding, the account and the statuses. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): the identity transaction is new.
 * In v1 an active account of an active tenant can do each of the five account actions on the data of its tenant.
 * A worker reads the tenant status when it claims a job. It does not start a job of a tenant that is not active. A job that runs continues to its end.
 * If the status read uses a cache, a change of status removes the old status from the cache.
@@ -41,4 +41,4 @@ The decision has these parts:
 * Bad, because each route and each retrieval function needs a decision or a scope, for a v1 rule that one line can express.
 * Bad, because each request reads the status of the account and of the tenant.
 * Bad, because the proofs do not show that the API builds the principal correctly, or that a retrieval function obeys its scope. Test cases cover those.
-* Not decided: the scope unit of M4, and if a denied job waits in the queue or fails ([#5](https://github.com/sravioli/strata/issues/5)).
+* Not decided: the scope unit of M4, and if a denied job waits in the queue or fails ([#5](https://github.com/sravioli/strata/issues/5)). Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): ADR 0004 (job queue) decided that the job becomes `Parked`.

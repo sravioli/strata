@@ -72,7 +72,7 @@ One global table, `jobs`. Each row is one job. A row holds only these fields:
 | `job_id` | The identifier of the job |
 | `tenant_id` | The tenant that the job is for |
 | `kind` | The kind of job. v1 has one kind: `ProcessDocument`. A later design adds kinds. |
-| `subject` | The identifiers that the job works on, for example the document and the revision number |
+| `target` | The identifiers that the job works on, for example the document and the revision number |
 | `state` | `Waiting`, `Running`, `Parked` or `Done` |
 | `attempts` | The count of runs that started |
 | `run_after` | The earliest time that a worker can claim the job |
@@ -109,7 +109,7 @@ A job that ends with success becomes `Done` in the transaction that writes its r
 ```
 
 1. **Create.** The upload transaction inserts the revision and its job together. If the transaction rolls back, no job exists (Q1).
-2. **Claim.** A worker selects one `Waiting` job with `run_after` in the past, with `FOR UPDATE SKIP LOCKED`. Two workers never get the same row (Q2). In the same transaction, the worker reads the tenant status and gives the decision to the job state function.
+2. **Claim.** A worker selects one job with `FOR UPDATE SKIP LOCKED`: a `Waiting` job with `run_after` in the past, or a `Running` job with `lease_until` in the past. Two workers never get the same row (Q2). For a `Running` job, the worker first gives `LeaseExpired` to the job state function. It continues with the claim only if the job is then `Waiting`. No separate task looks for expired leases. In the same transaction, the worker sets the tenant context of the job and reads the tenant status. This is the identity transaction of the v1 authorization design. Then the worker gives the decision to the job state function. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): before, no step gave `LeaseExpired`, and the claim read the tenant status with no tenant context.
 3. **Run.** If the tenant is active, the job becomes `Running`, `attempts` increases by one, and `lease_until` is set. The worker opens a tenant transaction for the tenant of the job and does the work. While it works, it renews the lease at intervals.
 4. **End with success.** The worker writes the result and sets the job to `Done` in one transaction.
 5. **End with failure.** If `attempts` is less than the maximum, the job becomes `Waiting` with a later `run_after` (a backoff). If `attempts` is at the maximum, the job becomes `Parked` with its error class (Q5).
@@ -142,6 +142,7 @@ The API sends a message after the upload transaction commits. If the send fails,
 ### Bounds
 
 - The count of `Waiting` jobs has a bound that the configuration sets. An upload that finds the count at the bound gets 503 with `Retry-After`, and its transaction creates no revision and no job (Q8).
+- The bound is approximate. The API checks it at the start of an upload (ADR 0005, object storage). It creates the job at the finish, up to 15 minutes later. Two checks at the same time can also both pass. At the ceiling, approximately 2,700 uploads start in 15 minutes. The count can go above the bound by that number. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): this design now says that the bound is approximate.
 - The count of jobs that one worker runs at the same time has a bound.
 - The maximum of `attempts` and the backoff are fixed values in the configuration.
 
@@ -151,7 +152,7 @@ The tenancy design gives each process its own database role. This design adds th
 
 | Role | Rights on `jobs` |
 |---|---|
-| API | Insert, and a count of `Waiting` jobs. No read of rows. |
+| API | Insert, and `select` on the column `state` only. Thus it can count `Waiting` jobs, and it cannot read identifiers. |
 | Worker | Read, update and remove. |
 | Operator command | Read, update. It lists `Parked` jobs and requeues them. |
 
@@ -210,13 +211,16 @@ Assumptions:
 
 - A job row holds identifiers, state and an error class. It holds no tenant content (Q7).
 - A worker opens a tenant transaction for the tenant of the job. Row-level security then limits each read and write to that tenant. A job that names a document of a different tenant gets "deny" from `authorize` (ADR 0002, TC-4-07), and row-level security also finds no row.
-- The API can insert a job and count `Waiting` jobs. It cannot read rows, so it cannot list the identifiers of other tenants.
+- The API can insert a job and count `Waiting` jobs. It can read only the column `state`, so it cannot list the identifiers of other tenants. A test on PostgreSQL 17 on 2026-11-21 showed this. A grant of `select` on one column permits `count(*)` with a filter on that column. PostgreSQL refuses a read of each other column. No function with owner rights is necessary (ADR 0001).
 - A compromised worker can read the identifiers of each job. It can also open a tenant transaction for each tenant. This is the same risk that ADR 0001 states for a worker.
 - New input that is not trusted: none. The API creates each job from the upload that it already checked.
 
 ### Data and migration
 
-- A new global table, `jobs`, with an index on the `Waiting` jobs by `run_after`, and an index on the `Done` jobs by `ended_at` for the cleanup task.
+- A new global table, `jobs`, with three indexes:
+  - the `Waiting` jobs by `run_after`,
+  - the `Running` jobs by `lease_until`, for the claim of an expired lease,
+  - the `Done` jobs by `ended_at`, for the cleanup task.
 - No change to tenant-owned tables.
 - The job table is part of the first schema. There is no earlier version.
 
@@ -238,7 +242,7 @@ L0: unit tests cover each row of `job_step` for each state and each event.
 | TC-5-05 | L1 | Given a `Waiting` job of a tenant that is not active. When a worker claims it. Then the job is `Parked` with `TenantNotActive`, and `attempts` does not change. When the operator sets the tenant to active and requeues the parked jobs of the tenant. Then the job is `Waiting`, and a worker runs it. | sravioli, 2026-11-18 | pending |
 | TC-5-06 | L1 | Given a count of `Waiting` jobs at the bound. When a client uploads a document. Then the API answers 503 with `Retry-After`, and no revision and no job exist for the upload. | sravioli, 2026-11-18 | pending |
 | TC-5-07 | L1 | Given a `Parked` job. When the operator requeues it. Then the job is `Waiting` with `attempts` at zero, and a worker runs it. | sravioli, 2026-11-18 | pending |
-| TC-5-08 | L1 | Given the database role of the API. When it tries to read rows of `jobs`. Then the database refuses the read. | sravioli, 2026-11-18 | pending |
+| TC-5-08 | L1 | Given the database role of the API. When it reads a column of `jobs` other than `state`. Then the database refuses the read. When it counts the `Waiting` jobs. Then the count agrees with the table. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)). | sravioli, 2026-11-18 | pending |
 | TC-5-09 | L1 | Given a job that ends with success. When a worker runs the same job a second time. Then the state of the revision and of its index does not change. | sravioli, 2026-11-18 | pending |
 | TC-5-10 | L1 | Given a `Done` job that ended 23 hours ago and one that ended 25 hours ago. When the cleanup task runs. Then the first job stays and the second job is removed. | sravioli, 2026-11-18 | pending |
 | TC-5-11 | L1 | Given a worker that waits for work, and a source of messages that loses some messages and repeats others. When clients upload documents. Then each job runs, and the result is the same as with no messages. | sravioli, 2026-11-18 | pending |

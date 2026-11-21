@@ -20,6 +20,12 @@ Every change to what Strata does, or to how it is built, passes through a **tech
 
 The pull request that finishes an issue's work says `Closes #<issue>`. An issue that is only a decision has nothing to implement, so it skips step 5 and its design pull request closes it.
 
+## Changes to an accepted design
+
+A later decision can change an accepted design. Then the pull request of that decision changes the text of the design and of its ADR. At each changed place it adds a note: `Amended on YYYY-MM-DD (#<issue>): <what changed>`. The owner decides the change when they merge the pull request. A test case row follows `testing.md` after its spec scenario exists.
+
+The ADR numbers and the tech design numbers are different. Cite an ADR with its subject, for example "ADR 0004 (job queue)". `docs/adr/README.md` lists each ADR with its tech design and its issue.
+
 ## Writing
 
 Write every tech design, ADR and OpenSpec artifact with the `asd-ste100` skill. The aim is simple, clear text that keeps every detail.

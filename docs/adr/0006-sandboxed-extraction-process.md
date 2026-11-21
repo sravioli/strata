@@ -45,5 +45,5 @@ The decision has these parts:
 * Bad, because the sandbox needs user namespaces, also inside containers. Implementation must check this on the development system and in CI.
 * Bad, because a fault in the kernel can let an exploit escape the sandbox. seccomp limits the system calls. A separate container or virtual machine is the next step if this risk becomes too high.
 * Bad, because two PDF parsers are more code and more dependencies.
-* Bad, because Poppler is GPL. Before the first release, the owner must check the effect on the distribution of the worker image.
+* Bad, because Poppler is GPL. Strata is GPL-2.0-or-later, so the worker image must hold the licence text of Poppler and an offer of its source (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))).
 * Not decided: the benchmark of the two parsers, which checks the default. Also the list of system calls for seccomp, the exact fields of the output, and OCR (M2).

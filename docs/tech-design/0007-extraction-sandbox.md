@@ -103,13 +103,13 @@ This design proposes nsjail as the sandbox tool. It applies each mechanism with 
 | Mechanism | Setting |
 |---|---|
 | Network namespace | A new, empty network namespace. The process has no network interface. |
-| Mount namespace | A read-only file system with only the `strata-extract` binary and its libraries. No `/proc` of the host, no home directories, no secrets. |
+| Mount namespace | A read-only file system with only the `strata-extract` binary, the program `pdftotext`, and their libraries. No `/proc` of the host, no home directories, no secrets. |
 | User namespace | The process runs as a user with no rights. |
 | PID namespace | The process sees no other process. |
 | Environment | Empty. No variable of the worker passes to the process. |
 | Resource limits | Address space, CPU time, open files. No new files (`RLIMIT_FSIZE` is 0). |
-| Control group | Memory, CPU and the count of processes. |
-| seccomp | A list of the system calls that a parser needs. Each other call stops the process. |
+| Control group | Memory, CPU and the count of processes: two at most, `strata-extract` and `pdftotext`. |
+| seccomp | A list of the system calls that a parser needs, and the calls that start `pdftotext`. Each other call stops the process. |
 | Time limit | nsjail stops the process at the wall-clock limit. |
 
 The worker also enforces the wall-clock limit and the output limit itself. Thus a fault in the sandbox configuration does not remove these limits.
@@ -134,7 +134,7 @@ Proposed limits:
 | XLSX | The crate `calamine` | One block of text for each sheet. |
 | CSV | The crate `csv` | One block of text for each file. |
 
-The reader of archives counts the expanded bytes and stops at the limit, before the control group must stop the process.
+For DOCX and PPTX, the reader of archives counts the expanded bytes and stops at the limit, before the control group must stop the process. `calamine` reads an XLSX archive itself. Thus, before `calamine` opens an XLSX file, `strata-extract` adds the expanded sizes in the directory of the archive, and rejects the file above the limit. An archive whose directory gives false sizes reaches the memory limit, and gets `ExtractionMemory`. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): before, the limit did not reach XLSX.
 
 Legacy formats (DOC, PPT, XLS) are not in v1 ([#76](https://github.com/sravioli/strata/issues/76)). A revision in a format that is not supported becomes `Failed` with the class `UnsupportedFormat`.
 
@@ -156,7 +156,8 @@ The comparison is one third-party test on invoices, with templates. It shows a c
 - The revision holds the value. The worker reads it when it starts the extraction, and gives the selected parser to the extraction process.
 - A new extraction of an old revision with a different parser is not in v1 ([#77](https://github.com/sravioli/strata/issues/77)). The tenant uploads a new revision.
 - Both parsers run in the same sandbox, with the same limits. The sandbox (E1 to E3) does not change with the parser.
-- `strata-extract` links PDFium. For Poppler, the sandbox runs the program `pdftotext`, and `strata-extract` does not link Poppler. Before the first release, the owner must check the effect of the GPL on the distribution of the worker image.
+- `strata-extract` links PDFium. For Poppler, `strata-extract` starts the program `pdftotext` in the same sandbox, reads its text, and writes the output format. `strata-extract` does not link Poppler.
+- Strata is GPL-2.0-or-later ([#50](https://github.com/sravioli/strata/pull/50)), and the `COPYING` file of Poppler is the text of the GPL version 2. Before the first release, the worker image must hold the licence text of Poppler and an offer of its source. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): before, the owner had to check the effect of the GPL. The licence of Strata answers that question.
 
 A benchmark in the implementation measures both parsers, and the owner uses the result to check the default:
 
@@ -266,7 +267,7 @@ The owner also decided on 2026-11-19 that the tenant selects the parser for each
 Implementation resolves these points:
 
 - The benchmark of PDFium and Poppler, to check the default.
-- The effect of the GPL of Poppler on the distribution of the worker image.
+- The licence text and the source offer of Poppler in the worker image.
 - A check of the licences of PDFium, `pdfium-render`, `calamine`, `zip`, `quick-xml` and `csv`.
 - A check that nsjail runs inside the container of the worker on the development system and in CI.
 - The list of system calls for seccomp.

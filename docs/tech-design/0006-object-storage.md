@@ -107,13 +107,13 @@ client               API                       storage          database
   |<------------------| 202 Accepted              |                 |
 ```
 
-1. **Start.** The client sends the file name, the content type and the size. The API calls `authorize` for `UploadDocument`. It checks the bound on `Waiting` jobs (ADR 0004). It creates the revision in the state `AwaitingUpload` and returns a signed PUT URL for the key of that revision. The URL expires after 15 minutes. The time limits the start of the PUT, not its length. The storage checks the expiry when the request arrives, and a transfer that starts in time continues to its end. Thus a slow transfer of 100 MB does not fail.
+1. **Start.** The client sends the file name, the content type and the size. It can also send the `document_id` of a document that exists. Then the revision is the next revision of that document. With no `document_id`, the API creates a new document, and the revision is revision 1. The API calls `authorize` for `UploadDocument`. A `document_id` of a different tenant gives the same answer as a document that does not exist. The API checks the bound on `Waiting` jobs (ADR 0004) and the bound on revisions in `AwaitingUpload` (see "Removal"). It creates the revision in the state `AwaitingUpload` and returns a signed PUT URL for the key of that revision. The URL expires after 15 minutes. The time limits the start of the PUT, not its length. The storage checks the expiry when the request arrives, and a transfer that starts in time continues to its end. Thus a slow transfer of 100 MB does not fail.
 2. **Send.** The client sends the bytes to the storage with the URL. The URL permits a PUT of one key only.
-3. **Finish.** The client tells the API that the upload is complete. The API reads the size of the object from the storage. If the object does not exist, the API answers with an error and changes nothing. If the size is above the maximum, the API removes the object and rejects the upload. Otherwise one transaction sets the revision to `Uploaded` and creates its `ProcessDocument` job (O6).
+3. **Finish.** The client tells the API that the upload is complete. The API reads the size of the object from the storage. If the object does not exist, the API answers with an error and changes nothing. If the size is above the maximum, the API removes the object, sets the revision to `Failed` with the class `FileTooLarge`, and rejects the upload. Otherwise one transaction sets the revision to `Uploaded` and creates its `ProcessDocument` job (O6).
 
 A second "finish" for the same revision changes nothing and gives the same answer. Thus a client can try again after a network failure.
 
-A signed URL cannot limit the size of an upload, on S3 and on Azure. Thus the check of step 3 is the limit (O7). A client can put a large object in its own key. That object never becomes part of the corpus, and step 3 or the cleanup removes it.
+The `Signer` of `object_store` signs no headers, so its signed URL cannot limit the size of an upload. The S3 API can sign a `content-length` header, but reports say that Garage rejects a signed `content-length`. Thus the check of step 3 is the limit (O7). A client can put a large object in its own key. That object never becomes part of the corpus, and step 3 or the cleanup removes it.
 
 ### Keys
 
@@ -127,7 +127,13 @@ The client asks the API for a file. The API calls `authorize` for `ReadDocument`
 
 `DeleteDocument` marks the document as removed in the database. The search stops to find it at once. In the same transaction, the API creates a job of a new kind, `RemoveFiles`, which removes each file of the document from the storage. A second run of `RemoveFiles` gives the same result, because the removal of a key that does not exist is not an error (ADR 0004, Q4).
 
-A cleanup task removes revisions in the state `AwaitingUpload` that are older than 24 hours, and their objects (O9).
+A cleanup task removes revisions in the state `AwaitingUpload` that are older than 2 hours, and their objects (O9). A PUT must start in the 15 minutes of its URL, so 2 hours leaves a margin for a slow transfer.
+
+The count of revisions in `AwaitingUpload` has a bound for all tenants (ADR 0003, S3). At the bound, the start of an upload gets 503 with `Retry-After`. Each such revision can hold an object of any size until the cleanup. Thus the bound and the cleanup time limit the storage of unfinished uploads. The bound is not for each tenant, because Strata does not limit the load of one tenant (ADR 0003).
+
+Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): the cleanup time was 24 hours, and the count had no bound. `FileTooLarge` and the field `document_id` are also new.
+
+`RemoveFiles` and the cleanup task need a principal and an action, and v1 has none for them. ADR 0002 gives a job only the action `ProcessDocument`, and the proved theorem `job_only_processes` states that rule. Issue [#69](https://github.com/sravioli/strata/issues/69) decides the action, the principal of the cleanup task, and the new theorem statement for the owner.
 
 ### Credentials
 
@@ -178,6 +184,7 @@ N/A. This design connects services and does not add a function with a rule. L1 t
 ### Data and migration
 
 - A new state of a revision: `AwaitingUpload`.
+- A new class of a `Failed` revision: `FileTooLarge`.
 - A new kind of job: `RemoveFiles`.
 - The table of revisions holds the size and the content type of each file.
 
@@ -194,12 +201,12 @@ L0: unit tests cover the key of each file and the rules of step 3.
 |---|---|---|---|---|
 | TC-6-01 | L1 | Given a signed PUT URL for one key. When a client uses it to write a different key. Then the storage refuses the write. | sravioli, 2026-11-18 | pending |
 | TC-6-02 | L1 | Given a signed PUT URL. When a client uses it after it expires. Then the storage refuses the write. | sravioli, 2026-11-18 | pending |
-| TC-6-03 | L1 | Given an upload of a file above the maximum size. When the client finishes the upload. Then the API rejects it, the object is removed, and no job exists. | sravioli, 2026-11-18 | pending |
+| TC-6-03 | L1 | Given an upload of a file above the maximum size. When the client finishes the upload. Then the API rejects it, the object is removed, the revision is `Failed` with `FileTooLarge`, and no job exists. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)). | sravioli, 2026-11-18 | pending |
 | TC-6-04 | L1 | Given an upload that the client started but did not send. When the client finishes the upload. Then the API answers with an error, and no job exists. | sravioli, 2026-11-18 | pending |
 | TC-6-05 | L1 | Given an upload that the client finished. When the client finishes it a second time. Then the API gives the same answer, and one job exists. | sravioli, 2026-11-18 | pending |
 | TC-6-06 | L1 | Given a document of tenant A. When an account of tenant B asks for its download URL. Then the API answers as for a document that does not exist. | sravioli, 2026-11-18 | pending |
 | TC-6-07 | L1 | Given a document with files. When an account removes the document. Then a search does not find it, and after the `RemoveFiles` job no file of the document is in the storage. | sravioli, 2026-11-18 | pending |
-| TC-6-08 | L1 | Given an upload that started 25 hours ago and did not finish. When the cleanup task runs. Then the revision and its object are removed. | sravioli, 2026-11-18 | pending |
+| TC-6-08 | L1 | Given an upload that started 3 hours ago and did not finish. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): it was 25 hours. When the cleanup task runs. Then the revision and its object are removed. | sravioli, 2026-11-18 | pending |
 | TC-6-09 | L2 | Given a deployed Strata with its storage server. When an account uploads a document through the public API and then downloads it. Then the bytes are the same, and the document becomes searchable. | sravioli, 2026-11-18 | pending |
 
 ## Unresolved questions
