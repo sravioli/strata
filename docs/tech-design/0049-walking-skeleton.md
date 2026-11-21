@@ -62,7 +62,7 @@ Libraries: axum 0.8 and tokio for HTTP, sqlx with `sqlx migrate` for PostgreSQL,
 
 ### Identifiers
 
-All identifiers are UUIDs that the database generates with `uuidv7()`. Version 7 UUIDs start with the time, so new rows go to the end of each B-tree index. PostgreSQL 18 has `uuidv7()`, and PostgreSQL 17 does not. Thus the skeleton moves the pins of `compose.yaml` and of the `sql` job of CI to PostgreSQL 18, in one change.
+All identifiers are UUIDs that the database generates with `uuidv7()`. Version 7 UUIDs start with the time, so new rows go to the end of each B-tree index. PostgreSQL 18 added `uuidv7()`, and PostgreSQL 17 does not have it. The skeleton moves the pins of `compose.yaml` and of the `sql` job of CI to PostgreSQL 19, the latest version (owner, 2026-11-21). One change moves both pins. PostgreSQL 19 was released on 2026-11-19. If an image, PgBouncer or sqlx does not work with it yet, the first change uses PostgreSQL 18 and records the reason.
 
 The proved functions of `core` use `u64` for the identifiers of a tenant and an account. A UUID has 128 bits. The first change of the skeleton changes these fields to `u128`, and the `strata` crate gives the 128 bits of the UUID. The proofs compare identifiers for equality only, so they do not change. The translation and the proofs change in the same pull request (`docs/agents/testing.md`).
 
@@ -193,7 +193,7 @@ The output of `strata-extract` is one JSON document:
 {"format": "pdf", "pages": 2, "blocks": [{"kind": "page", "index": 1, "text": "…"}]}
 ```
 
-The worker checks it as 0007 says. It splits a block above 64 KB at the last whitespace before 64 KB, or at 64 KB when the block has no whitespace there. A `tsvector` must be less than 1 MB, and it records positions only up to 16,383 (PostgreSQL 18, "Limitations" of text search). A part of 64 KB stays far below both limits.
+The worker checks it as 0007 says. It splits a block above 64 KB at the last whitespace before 64 KB, or at 64 KB when the block has no whitespace there. A `tsvector` must be less than 1 MB, and it records positions only up to 16,383 (PostgreSQL documentation, "Limitations" of text search). A part of 64 KB stays far below both limits.
 
 ### Search
 
@@ -244,7 +244,7 @@ The search must rank each match in the tenant. Thus its cost grows with the coun
 
 `make dev`:
 
-1. `docker compose up --wait`: PostgreSQL 18, PgBouncer and Garage.
+1. `docker compose up --wait`: PostgreSQL 19, PgBouncer and Garage.
 2. `sqlx migrate run` as `strata_owner`.
 3. Start `strata-dev serve`. It prints the commands that register its issuer (0021).
 4. `strata admin tenant create acme`, the same for `globex`, the registration of the issuer, and one binding for each tenant.
@@ -272,7 +272,7 @@ These are the tasks of 0003, 0005 and 0021.
 
 One OpenSpec change for each step, each in its own pull request, in this order:
 
-1. Schema, tenancy and identity. The tables of 0003 and 0021, the roles, `uuidv7()` and PostgreSQL 18, `u128` in `core`, the types of the transactions, `strata admin`, `strata-dev`, and the authentication of the API. Blocked by [#100](https://github.com/sravioli/strata/issues/100).
+1. Schema, tenancy and identity. The tables of 0003 and 0021, the roles, `uuidv7()` and PostgreSQL 19, `u128` in `core`, the types of the transactions, `strata admin`, `strata-dev`, and the authentication of the API. Blocked by [#100](https://github.com/sravioli/strata/issues/100).
 2. Upload. `documents`, `revisions`, `upload_slots`, `jobs`, the upload routes, the Garage checks, the cleanup of `jobs` and `upload_slots`, and `revision_step` with its proofs.
 3. The worker and extraction. The claim, the lease, `strata-extract` with `pdftotext` in nsjail, and the transaction that ends a job.
 4. Search and status. `text_parts`, the search route, the status routes of 0047, `make dev`, and TC-49-01.
@@ -336,7 +336,7 @@ TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on
 - The skeleton extracts only PDF. A client cannot use it for other formats until [#102](https://github.com/sravioli/strata/issues/102).
 - The cost of a search grows with the matches in one tenant, until [#73](https://github.com/sravioli/strata/issues/73).
 - Development needs Linux.
-- PostgreSQL 18 is newer than 17, and a managed service can offer it later than 17.
+- PostgreSQL 19 is new, and a managed service can offer it months later than 17 (M3, [#61](https://github.com/sravioli/strata/issues/61)).
 
 ## Rationale and alternatives
 
@@ -356,7 +356,7 @@ TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on
 
 **`GET /v1/search?q=…`.** `GET` works with each client. But the search text then goes in the URL and in access logs, and 0047 already uses `QUERY` for a read with a body.
 
-**UUIDs from the application.** PostgreSQL 17 then needs no upgrade. But 0003 decides that the database generates the identifiers, and `uuidv7()` of PostgreSQL 18 does that with no extension.
+**UUIDs from the application.** PostgreSQL 17 then needs no upgrade. But 0003 decides that the database generates the identifiers, and `uuidv7()` does that with no extension from PostgreSQL 18.
 
 ## Prior art
 
@@ -380,12 +380,14 @@ The owner answered these questions on 2026-11-21:
 11. The search rows of a `Superseded` revision go. Restore is [#101](https://github.com/sravioli/strata/issues/101).
 12. The test case TC-49-01, which also runs in CI.
 13. Each step reads or writes its rows with one statement.
+14. The skeleton uses PostgreSQL 19, the latest version, and `core` uses `u128` for identifiers.
+15. A global table `upload_slots` counts the revisions in `AwaitingUpload` for the bound of 0006.
 
 The owner must answer these questions:
 
-1. Approval of the values in "Values that the accepted designs left to implementation", of the move to PostgreSQL 18, and of the change of `core` to `u128`.
+1. Approval of the values in "Values that the accepted designs left to implementation".
 2. Approval of the route paths `POST /v1/uploads` and `POST /v1/uploads/{document_id}/revisions/{revision}/finish`, and of the limit of 1 to 1,000 characters on `q`.
-3. Approval of PgBouncer in `compose.yaml`, and of the global table `upload_slots` for the bound of 0006.
+3. Approval of PgBouncer in `compose.yaml`.
 4. Approval of the amended notes: the start of an upload rejects a declared size above 100 MB with `413` (0006). Also the job kinds and the classes of `last_error` (0005), the state names (0047 and ADR 0009) and the line on `FileTooLarge` (0048).
 5. The cleanup of revisions in `AwaitingUpload` waits for [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. Approval that the skeleton can wait for that cleanup.
 6. Approval of the test cases TC-49-02 to TC-49-09.
