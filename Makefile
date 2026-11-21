@@ -1,5 +1,6 @@
 # The checks of CI. Each target is one job of .github/workflows/ci.yml, and CI runs the target,
 # so a local run and a CI run are the same commands. `make` runs the fast set (check).
+# `make setup` installs every pinned tool into .tools/ and checks for the toolchains.
 
 # The shell of a GitHub Actions run step.
 SHELL := bash
@@ -9,25 +10,43 @@ MAKEFLAGS += --output-sync=target
 TOOLS := $(CURDIR)/.tools
 REQ := .github/requirements
 LINTERS := .github/linters
-export PATH := $(TOOLS)/venv/bin:$(TOOLS)/npm/node_modules/.bin:$(PATH)
+BIN := $(TOOLS)/bin
+AENEAS := $(TOOLS)/aeneas
+export PATH := $(BIN):$(AENEAS):$(TOOLS)/venv/bin:$(TOOLS)/npm/node_modules/.bin:$(PATH)
 
 # The range of `make commits`. CI sets it to the commits of the pull request.
 RANGE ?= origin/main..HEAD
 
-.PHONY: check tools lint prose rust deny verify sql test-cases l1 commits secrets
+.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 commits secrets
 .DEFAULT_GOAL := check
 
 check: lint prose test-cases rust
 
+# Toolchains that manage themselves stay out of .tools/: setup only checks for them.
+setup: tools $(BIN)/cargo-llvm-cov $(BIN)/cargo-deny $(BIN)/cog $(BIN)/betterleaks $(AENEAS)/charon
+	@for c in cargo rustup; do command -v $$c >/dev/null || { echo "missing: $$c (make check needs it)" >&2; exit 1; }; done
+	@for t in verify:lake l1:docker sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
+	@echo "setup ok"
+
 # The pinned lint and SQL tools (hashes in $(REQ)). Reinstalls when a pin changes.
 tools: $(TOOLS)/stamp
 $(TOOLS)/stamp: $(REQ)/tools.txt $(REQ)/package.json $(REQ)/package-lock.json
-	rm -rf $(TOOLS)
+	rm -rf $(TOOLS)/venv $(TOOLS)/npm
 	uv venv --quiet $(TOOLS)/venv
 	uv pip install --quiet --python $(TOOLS)/venv/bin/python --require-hashes --no-deps -r $(REQ)/tools.txt
 	mkdir -p $(TOOLS)/npm
 	cp $(REQ)/package.json $(REQ)/package-lock.json $(TOOLS)/npm/
 	npm ci --prefix $(TOOLS)/npm --ignore-scripts --no-audit --no-fund --silent
+	touch $@
+
+# The pinned release binaries (URL and SHA-256 in $(REQ)/tools.env).
+$(BIN)/%: $(REQ)/tools.env scripts/install-tool.sh
+	scripts/install-tool.sh $* $(BIN)
+
+# The pinned Aeneas and Charon (toolchain.env). Charon also needs the nightly CHARON_RUST of toolchain.env.
+$(AENEAS)/charon: toolchain.env scripts/install-aeneas.sh
+	scripts/install-aeneas.sh $(AENEAS)
+	. ./toolchain.env && $@ version | grep -F "$$CHARON_COMMIT"
 	touch $@
 
 # Linters get tracked files only, so local drafts and build output stay out.
@@ -45,18 +64,18 @@ prose:
 	  | xargs -r python3 .agents/skills/asd-ste100/scripts/ste-lint.py
 
 # L0 runs once, under coverage. The floor is in CONSTRAINTS.md.
-rust:
+rust: $(BIN)/cargo-llvm-cov
 	cargo fmt --all --check
 	cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 	cargo llvm-cov --workspace --locked --fail-under-lines 75
 	cargo test --workspace --doc --locked
 	scripts/check-toolchain.sh
 
-deny:
+deny: $(BIN)/cargo-deny
 	cargo deny check
 
-# The checks of tech design 0009. Needs Charon, Aeneas (scripts/install-aeneas.sh) and Lean.
-verify:
+# The checks of tech design 0009. Needs Lean (elan) and the nightly CHARON_RUST of toolchain.env.
+verify: $(AENEAS)/charon
 	scripts/translate.sh --check
 	cd lean && lake exe cache get
 	python3 scripts/check-proofs.py
@@ -79,8 +98,8 @@ l1:
 	scripts/dev-services-smoke.sh
 	cargo test --workspace --locked --all-features
 
-commits:
+commits: $(BIN)/cog
 	cog check $(RANGE)
 
-secrets:
+secrets: $(BIN)/betterleaks
 	betterleaks git .
