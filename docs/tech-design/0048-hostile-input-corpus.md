@@ -1,7 +1,7 @@
 - Issue: [#48](https://github.com/sravioli/strata/issues/48)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-21
-- Decided by:
+- Decided by: sravioli, 2026-11-21
 
 # Hostile-input corpus: generated files that each limit of the extraction sandbox must stop
 
@@ -29,7 +29,7 @@ Tech design 0007 decides these points:
 - A separate binary, `strata-extract`, parses one file in nsjail and writes one JSON document to standard output.
 - The limits are 1 GB of memory, 60 seconds of CPU time and 120 seconds of wall-clock time. The output limit is 50 MB, and the limit for the expanded content of an archive is 500 MB.
 - The reader of DOCX and PPTX counts the expanded bytes. Before `calamine` opens an XLSX file, `strata-extract` adds the expanded sizes in the directory of the archive.
-- The classes for a reason in the file are `ExtractionTimeout`, `ExtractionMemory`, `ExtractionCrash`, `ExtractionOutputTooLarge`, `ArchiveTooLarge`, `UnsupportedFormat` and `MalformedFile`. The worker gives `InvalidOutput` to output that fails its check.
+- The classes for a reason in the file are `ExtractionTimeout`, `ExtractionMemory`, `ExtractionCrash`, `ExtractionOutputTooLarge`, `ArchiveTooLarge`, `UnsupportedFormat`, `EncryptedFile` and `MalformedFile`. This design adds `EncryptedFile` to 0007. The worker gives `InvalidOutput` to output that fails its check.
 - The tenant selects the PDF parser for each upload: `accurate` (the program `pdftotext` of Poppler) or `fast` (PDFium).
 
 `docs/agents/testing.md` defines the levels. An L1 test runs against real local dependencies, and it fails when a dependency is not available. It does not skip. Issue #48 noted that this kind of test was outside L0 to L3. The owner decided on 2026-11-21 that it is an L1 test.
@@ -100,7 +100,7 @@ A crash file that fuzzing finds ([#93](https://github.com/sravioli/strata/issues
 | Entries that share data | Many entries of the central directory point to the same compressed data. | The sum of the directory sizes (XLSX). The count of the reader (DOCX, PPTX). |
 | False directory sizes | The headers say that each entry is small. The data expands to more than 500 MB. | The count of the reader (DOCX, PPTX). The memory limit, or the CRC check of the ZIP reader (XLSX). |
 | XML entity expansion | An XML part has a DTD with nested entities. | Office parts do not need a DTD. The reader of DOCX and PPTX rejects a DTD. No entity expands in XLSX. |
-| Encrypted files | A PDF with a user password, and a PDF with only an owner password. An Office file with a password, and a ZIP entry with the encryption flag. | Format detection, and the open step of the parser. |
+| Encrypted files | A PDF with a user password, and a PDF with only an owner password. An Office file with a password, and a ZIP entry with the encryption flag. | The search for the stream `EncryptedPackage` (Office), and the open step of the parser (PDF). |
 | Type that does not agree with the content | The declared type and the bytes do not agree, or the bytes are of no supported format. | Format detection from the bytes. |
 | Truncated and malformed files | A DOCX file with no central directory, and a PDF file cut in half. | The parser. |
 | Compressed PDF stream | A content stream expands to a very large count of text operators. | The output limit, the memory limit or the time limit. |
@@ -161,17 +161,17 @@ L0: the tests of the generator in `scripts/tests/` check the properties of each 
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-48-01 | L1 | Given the manifest. When the check runs. Then each entry has a file, an expected result and the limit or check that must stop it. At least one entry permits each class of 0007 for a reason in the file, except `ExtractionCrash`. No entry expects `ExtractionCrash`. | | pending |
-| TC-48-02 | L1 | Given a DOCX, a PPTX and an XLSX file with true sizes. Each has an XML part that expands to more than 500 MB of whitespace. When the check extracts each one. Then the class is `ArchiveTooLarge`. | | pending |
-| TC-48-03 | L1 | Given an XLSX file with 1,000 sheet entries. They point to the same compressed data of 1 MB. When the check extracts it. Then the class is `ArchiveTooLarge`. `calamine` does not open the file. | | pending |
-| TC-48-04 | L1 | Given a DOCX, a PPTX and an XLSX file. Their headers say that each entry is below 1 KB, but their data expands to more than 500 MB. When the check extracts each one. Then the DOCX and the PPTX get `ArchiveTooLarge`. The XLSX gets `ExtractionMemory` or `MalformedFile`. | | pending |
-| TC-48-05 | L1 | Given a DOCX, a PPTX and an XLSX file. Each has an XML part with a DTD of nested entities. When the check extracts each one. Then no entity expands. The DOCX and the PPTX get `MalformedFile`. The XLSX gets `MalformedFile`, or its text with no expanded entity. | | pending |
-| TC-48-06 | L1 | Given four files: a PDF with only an owner password, and a PDF with a user password. Also a DOCX file with a password, and a DOCX file with a ZIP entry that has the encryption flag. When the check extracts each one. Then the first PDF gives its text. The second PDF gets the class of open question 1. The DOCX with a password gets `UnsupportedFormat` (option B) or `EncryptedFile` (option A). The last DOCX gets `MalformedFile`. | | pending |
-| TC-48-07 | L1 | Given three files. The first has the declared type `application/pdf` and the bytes of a DOCX file. The second has bytes in no supported format. The third is a valid PDF that also has a ZIP central directory at the end. When the check extracts each one. Then the first gives the text of the DOCX. The second gets `UnsupportedFormat`. The third gives the text of the PDF. | | pending |
-| TC-48-08 | L1 | Given a CSV file of 60 MB of text. When the check extracts it. Then the class is `ExtractionOutputTooLarge`. | | pending |
-| TC-48-09 | L1 | Given a PDF with a compressed content stream that expands to more than 1 GB of text operators. When the check extracts it with each parser. Then the class is `ExtractionOutputTooLarge`, `ExtractionMemory` or `ExtractionTimeout`. | | pending |
-| TC-48-10 | L1 | Given four files: a DOCX file with no central directory, and a PDF cut in half. Also a DOCX file with 1,000,000 nested elements, and a PDF with 1,000,000 nested arrays. When the check extracts each one. Then each one gives text or gets `MalformedFile`. | | pending |
-| TC-48-11 | L1 | Given any entry. When its result is `ExtractionCrash`, or a class that its entry does not permit. Then the check fails, and the failure names the entry, the parser and the class. | | pending |
+| TC-48-01 | L1 | Given the manifest. When the check runs. Then each entry has a file, an expected result and the limit or check that must stop it. At least one entry permits each class of 0007 for a reason in the file, except `ExtractionCrash`. No entry expects `ExtractionCrash`. | sravioli, 2026-11-21 | pending |
+| TC-48-02 | L1 | Given a DOCX, a PPTX and an XLSX file with true sizes. Each has an XML part that expands to more than 500 MB of whitespace. When the check extracts each one. Then the class is `ArchiveTooLarge`. | sravioli, 2026-11-21 | pending |
+| TC-48-03 | L1 | Given an XLSX file with 1,000 sheet entries. They point to the same compressed data of 1 MB. When the check extracts it. Then the class is `ArchiveTooLarge`. `calamine` does not open the file. | sravioli, 2026-11-21 | pending |
+| TC-48-04 | L1 | Given a DOCX, a PPTX and an XLSX file. Their headers say that each entry is below 1 KB, but their data expands to more than 500 MB. When the check extracts each one. Then the DOCX and the PPTX get `ArchiveTooLarge`. The XLSX gets `ExtractionMemory` or `MalformedFile`. | sravioli, 2026-11-21 | pending |
+| TC-48-05 | L1 | Given a DOCX, a PPTX and an XLSX file. Each has an XML part with a DTD of nested entities. When the check extracts each one. Then no entity expands. The DOCX and the PPTX get `MalformedFile`. The XLSX gets `MalformedFile`, or its text with no expanded entity. | sravioli, 2026-11-21 | pending |
+| TC-48-06 | L1 | Given four files: a PDF with only an owner password, and a PDF with a user password. Also a DOCX file with a password, and a DOCX file with a ZIP entry that has the encryption flag. When the check extracts each one. Then the first PDF gives its text. The second PDF and the DOCX with a password get `EncryptedFile`. The last DOCX gets `MalformedFile`. | sravioli, 2026-11-21 | pending |
+| TC-48-07 | L1 | Given three files. The first has the declared type `application/pdf` and the bytes of a DOCX file. The second has bytes in no supported format. The third is a valid PDF that also has a ZIP central directory at the end. When the check extracts each one. Then the first gives the text of the DOCX. The second gets `UnsupportedFormat`. The third gives the text of the PDF. | sravioli, 2026-11-21 | pending |
+| TC-48-08 | L1 | Given a CSV file of 60 MB of text. When the check extracts it. Then the class is `ExtractionOutputTooLarge`. | sravioli, 2026-11-21 | pending |
+| TC-48-09 | L1 | Given a PDF with a compressed content stream that expands to more than 1 GB of text operators. When the check extracts it with each parser. Then the class is `ExtractionOutputTooLarge`, `ExtractionMemory` or `ExtractionTimeout`. | sravioli, 2026-11-21 | pending |
+| TC-48-10 | L1 | Given four files: a DOCX file with no central directory, and a PDF cut in half. Also a DOCX file with 1,000,000 nested elements, and a PDF with 1,000,000 nested arrays. When the check extracts each one. Then each one gives text or gets `MalformedFile`. | sravioli, 2026-11-21 | pending |
+| TC-48-11 | L1 | Given any entry. When its result is `ExtractionCrash`, or a class that its entry does not permit. Then the check fails, and the failure names the entry, the parser and the class. | sravioli, 2026-11-21 | pending |
 
 ## Unresolved questions
 
@@ -181,11 +181,8 @@ The owner answered these questions on 2026-11-21:
 2. CI runs it on each pull request and each push to `main` that changes extraction, with a path filter.
 3. A script generates the files. Real malformed files are a later decision ([#94](https://github.com/sravioli/strata/issues/94)).
 4. Fuzzing is a later decision ([#93](https://github.com/sravioli/strata/issues/93)).
-
-The owner must answer these questions:
-
-1. **A PDF with a user password.** 0007 has no class for an encrypted file. Option A: a new class `EncryptedFile`, so that a client can tell its user to remove the password. Option A also changes the results table of 0007 and the list of `error_class` in the readiness design ([#47](https://github.com/sravioli/strata/issues/47)). Option B: `MalformedFile`, with no change to other designs. This design recommends option A. With option A, a password-protected Office file can also get `EncryptedFile`, because `strata-extract` can find the encrypted package in the container.
-2. Approval of the test cases TC-48-01 to TC-48-11.
+5. A file that needs a password gets the new class `EncryptedFile`: a PDF with a user password, or an Office file with a password. Then a client can tell its user to remove the password. This pull request adds the class to 0007 and ADR 0006. The readiness design ([#47](https://github.com/sravioli/strata/issues/47)) shows the classes of 0007, so it does not change. Decryption is a much later decision ([#98](https://github.com/sravioli/strata/issues/98)).
+6. The owner approved the test cases TC-48-01 to TC-48-11.
 
 Implementation resolves these points:
 
