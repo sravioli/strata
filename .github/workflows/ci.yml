@@ -49,11 +49,15 @@ jobs:
               - 'CONSTRAINTS.md'
               - '.github/workflows/ci.yml'
               - 'Makefile'
+              - '.github/requirements/tools.env'
+              - 'scripts/install-tool.sh'
             deny:
               - '**/Cargo.toml'
               - '**/Cargo.lock'
               - 'deny.toml'
               - 'Makefile'
+              - '.github/requirements/tools.env'
+              - 'scripts/install-tool.sh'
             sql:
               - '**/*.sql'
               - '.github/requirements/**'
@@ -81,10 +85,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      # The cocogitto action installs cog 6.5.0, which rejects `pre` in cog.toml. Install the version used locally.
-      - run: |
-          curl -fsSL https://github.com/cocogitto/cocogitto/releases/download/7.0.0/cocogitto-7.0.0-x86_64-unknown-linux-musl.tar.gz | tar xz
-          find . -name cog -type f -exec install -m755 {} /usr/local/bin/cog \;
+      # make installs the pinned cog (.github/requirements/tools.env). The cocogitto action has cog 6.5.0,
+      # which rejects `pre` in cog.toml.
       - env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
@@ -97,9 +99,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - run: |
-          curl -fsSL https://github.com/betterleaks/betterleaks/releases/download/v1.10.1/betterleaks_1.10.1_linux_x64.tar.gz | tar xz -C "$RUNNER_TEMP" betterleaks
-          install -m755 "$RUNNER_TEMP/betterleaks" /usr/local/bin/betterleaks
       - run: make secrets
 
   config:
@@ -140,9 +139,6 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39  # v2.90.3
-        with:
-          tool: cargo-llvm-cov@0.9.1
       - run: make rust
 
   deny:
@@ -153,9 +149,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39  # v2.90.3
-        with:
-          tool: cargo-deny@0.20.2
       - run: make deny
 
   # The checks of tech design 0009 ("The definition of proved"). Any failure fails ci-ok.
@@ -167,13 +160,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Aeneas and Charon (pinned package, SHA-256 checked)
+      # make verify installs the pinned Aeneas and Charon. This step reads the nightly that Charon needs.
+      - name: Read the pins
         id: pins
         run: |
-          scripts/install-aeneas.sh "$RUNNER_TEMP/aeneas"
-          echo "$RUNNER_TEMP/aeneas" >> "$GITHUB_PATH"
           . ./toolchain.env
-          "$RUNNER_TEMP/aeneas/charon" version | grep -F "$CHARON_COMMIT"
           echo "charon-rust=$CHARON_RUST" >> "$GITHUB_OUTPUT"
       # Charon needs its pinned nightly with the compiler libraries. The crates still build on stable.
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11

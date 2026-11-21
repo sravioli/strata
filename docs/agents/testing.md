@@ -33,9 +33,14 @@ A test case with no automated test yet is listed as `pending`; a test case is ne
 
 The `Makefile` holds the commands of CI. Each CI job of `.github/workflows/ci.yml` runs one target, so a local run and a CI run use the same commands.
 
+- **First run:** `make setup`. It installs the pinned tools into `.tools/` and checks for the toolchains. Run it again after a pin changes.
 - **Before each commit:** run `make`. It runs `lint`, `prose`, `test-cases` and `rust`.
 - **Other targets:** `deny`, `verify`, `sql`, `l1`, `commits` and `secrets`. Each has the name of its CI job.
-- **Pinned tools.** `make tools` installs the lint and SQL tools into `.tools/`, at the versions and hashes of `.github/requirements/`. It needs `uv` and `npm`. `make lint` and `make sql` run it first. Install the other tools yourself: the Rust toolchain, `cargo-llvm-cov`, `cargo-deny`, `cog`, `betterleaks`, Lean, Charon and Aeneas. CI pins their versions in `ci.yml` and `toolchain.env`.
+- **Pinned tools.** Each target installs the pinned tools that it needs into `.tools/`, so CI and a local run use the same versions. A download whose SHA-256 is not the pin stops the run.
+  - Lint and SQL tools: `.github/requirements/tools.txt` (uv) and `package-lock.json` (npm). `make tools` installs them.
+  - `cargo-llvm-cov`, `cargo-deny`, `cog` and `betterleaks`: `.github/requirements/tools.env` (URL and SHA-256), with `scripts/install-tool.sh`.
+  - Aeneas and Charon: `toolchain.env`, with `scripts/install-aeneas.sh`.
+- **Toolchains.** Install these yourself: `uv`, `npm`, the Rust toolchain (`rustup`, with the `llvm-tools-preview` component), and for `make verify` Lean (`elan`) and the nightly `CHARON_RUST` of `toolchain.env`. `make l1` needs Docker, and `make sql` needs `psql` and an empty Postgres. `make setup` warns about each one that is missing.
 - **Linter configuration.** The configuration files are in `.github/linters/`. The targets give the path to each tool, so run a linter through `make`, not directly.
 
 ## Running the levels
@@ -51,7 +56,7 @@ Product code is Rust, and the levels above test it. Repo tooling (the checks and
 
 Tech design 0009 sets when a theorem is "proved". `make verify` runs its checks (steps 2 to 5 below, in check mode). Run them by hand in this sequence:
 
-1. Install the pinned tools: `scripts/install-aeneas.sh ~/.local/aeneas`, then add that folder to `PATH`. Charon also needs the nightly of `toolchain.env` with the components `rustc-dev`, `llvm-tools` and `rust-src`.
+1. Install the pinned tools: `make setup` puts Aeneas and Charon in `.tools/aeneas/`. Outside `make`, add that folder to `PATH`. Charon also needs the nightly of `toolchain.env` with the components `rustc-dev`, `llvm-tools` and `rust-src`.
 2. Translate the core crate: `scripts/translate.sh`. It writes `lean/Strata/Generated/`. `scripts/translate.sh --check` only compares.
 3. Build the Lean project: `cd lean && lake exe cache get && lake build`.
 4. Check the theorems: `python3 scripts/check-proofs.py`.
