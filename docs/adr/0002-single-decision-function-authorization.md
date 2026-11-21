@@ -29,7 +29,7 @@ The decision has these parts:
 * `authorized_scope(principal, action)` gives the set of resources that a principal can reach. Only this function creates a scope.
 * Each retrieval function takes a scope and filters by it in its query.
 * A tenant transaction opens only with an "allow" decision or a scope. Before the decision, the identity transaction reads only the issuer binding, the account and the statuses. Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): the identity transaction is new.
-* In v1 an active account of an active tenant can do each of the five account actions on the data of its tenant.
+* In v1 an active account of an active tenant can do each of the four account actions on the data of its tenant. A job can do only the job actions `ProcessDocument` and `RemoveDocumentFiles` (Amended on 2026-11-21 ([#69](https://github.com/sravioli/strata/issues/69)): `RemoveDocumentFiles` is new, and the count of account actions was wrong).
 * A worker reads the tenant status when it claims a job. It does not start a job of a tenant that is not active. A job that runs continues to its end.
 * If the status read uses a cache, a change of status removes the old status from the cache.
 

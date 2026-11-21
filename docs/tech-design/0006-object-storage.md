@@ -133,7 +133,7 @@ The count of revisions in `AwaitingUpload` has a bound for all tenants (ADR 0003
 
 Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85)): the cleanup time was 24 hours, and the count had no bound. `FileTooLarge` and the field `document_id` are also new.
 
-`RemoveFiles` and the cleanup task need a principal and an action, and v1 has none for them. ADR 0002 gives a job only the action `ProcessDocument`, and the proved theorem `job_only_processes` states that rule. Issue [#69](https://github.com/sravioli/strata/issues/69) decides the action, the principal of the cleanup task, and the new theorem statement for the owner.
+`RemoveFiles` and the cleanup task need a principal and an action. A `RemoveFiles` job is a job principal with the action `RemoveDocumentFiles` of ADR 0002 (Amended on 2026-11-21 ([#69](https://github.com/sravioli/strata/issues/69))). Issue [#69](https://github.com/sravioli/strata/issues/69) decides the principal of the cleanup task.
 
 ### Credentials
 

@@ -29,7 +29,7 @@ inductive authorization.Principal where
 | Job : Std.U64 → Bool → authorization.Principal
 
 /-- [strata_core::authorization::Action]
-    Source: 'crates/core/src/authorization.rs', lines 22:0-28:1
+    Source: 'crates/core/src/authorization.rs', lines 22:0-29:1
     Visibility: public -/
 @[discriminant isize]
 inductive authorization.Action where
@@ -38,15 +38,16 @@ inductive authorization.Action where
 | UploadDocument : authorization.Action
 | DeleteDocument : authorization.Action
 | ProcessDocument : authorization.Action
+| RemoveDocumentFiles : authorization.Action
 
 /-- [strata_core::authorization::Resource]
-    Source: 'crates/core/src/authorization.rs', lines 31:0-33:1
+    Source: 'crates/core/src/authorization.rs', lines 32:0-34:1
     Visibility: public -/
 structure authorization.Resource where
   tenant : Std.U64
 
 /-- [strata_core::authorization::DenyReason]
-    Source: 'crates/core/src/authorization.rs', lines 37:0-41:1
+    Source: 'crates/core/src/authorization.rs', lines 38:0-42:1
     Visibility: public -/
 @[discriminant isize]
 inductive authorization.DenyReason where
@@ -55,7 +56,7 @@ inductive authorization.DenyReason where
 | OtherTenant : authorization.DenyReason
 
 /-- [strata_core::authorization::Decision]
-    Source: 'crates/core/src/authorization.rs', lines 44:0-47:1
+    Source: 'crates/core/src/authorization.rs', lines 45:0-48:1
     Visibility: public -/
 @[discriminant isize]
 inductive authorization.Decision where
@@ -63,20 +64,20 @@ inductive authorization.Decision where
 | Deny : authorization.DenyReason → authorization.Decision
 
 /-- [strata_core::authorization::ScopeKind]
-    Source: 'crates/core/src/authorization.rs', lines 54:0-57:1 -/
+    Source: 'crates/core/src/authorization.rs', lines 55:0-58:1 -/
 @[discriminant isize]
 inductive authorization.ScopeKind where
 | Nothing : authorization.ScopeKind
 | Tenant : Std.U64 → authorization.ScopeKind
 
 /-- [strata_core::authorization::Scope]
-    Source: 'crates/core/src/authorization.rs', lines 51:0-51:28
+    Source: 'crates/core/src/authorization.rs', lines 52:0-52:28
     Visibility: public -/
 @[reducible]
 def authorization.Scope := authorization.ScopeKind
 
 /-- [strata_core::authorization::principal_tenant]:
-    Source: 'crates/core/src/authorization.rs', lines 69:0-74:1 -/
+    Source: 'crates/core/src/authorization.rs', lines 70:0-75:1 -/
 def authorization.principal_tenant
   (p : authorization.Principal) : Result Std.U64 := do
   match p with
@@ -84,7 +85,7 @@ def authorization.principal_tenant
   | authorization.Principal.Job tenant _ => ok tenant
 
 /-- [strata_core::authorization::is_active]:
-    Source: 'crates/core/src/authorization.rs', lines 76:0-85:1 -/
+    Source: 'crates/core/src/authorization.rs', lines 77:0-86:1 -/
 def authorization.is_active (p : authorization.Principal) : Result Bool := do
   match p with
   | authorization.Principal.Account _ _ account_active tenant_active =>
@@ -93,30 +94,29 @@ def authorization.is_active (p : authorization.Principal) : Result Bool := do
     else ok false
   | authorization.Principal.Job _ tenant_active => ok tenant_active
 
+/-- [strata_core::authorization::is_job_action]:
+    Source: 'crates/core/src/authorization.rs', lines 89:0-91:1 -/
+def authorization.is_job_action (a : authorization.Action) : Result Bool := do
+  match a with
+  | authorization.Action.Search => ok false
+  | authorization.Action.ReadDocument => ok false
+  | authorization.Action.UploadDocument => ok false
+  | authorization.Action.DeleteDocument => ok false
+  | authorization.Action.ProcessDocument => ok true
+  | authorization.Action.RemoveDocumentFiles => ok true
+
 /-- [strata_core::authorization::action_allowed]:
-    Source: 'crates/core/src/authorization.rs', lines 87:0-92:1 -/
+    Source: 'crates/core/src/authorization.rs', lines 93:0-98:1 -/
 def authorization.action_allowed
   (p : authorization.Principal) (a : authorization.Action) : Result Bool := do
   match p with
   | authorization.Principal.Account _ _ _ _ =>
-    let b ←
-      match a with
-      | authorization.Action.Search => ok false
-      | authorization.Action.ReadDocument => ok false
-      | authorization.Action.UploadDocument => ok false
-      | authorization.Action.DeleteDocument => ok false
-      | authorization.Action.ProcessDocument => ok true
+    let b ← authorization.is_job_action a
     ok (¬ b)
-  | authorization.Principal.Job _ _ =>
-    match a with
-    | authorization.Action.Search => ok false
-    | authorization.Action.ReadDocument => ok false
-    | authorization.Action.UploadDocument => ok false
-    | authorization.Action.DeleteDocument => ok false
-    | authorization.Action.ProcessDocument => ok true
+  | authorization.Principal.Job _ _ => authorization.is_job_action a
 
 /-- [strata_core::authorization::authorize]:
-    Source: 'crates/core/src/authorization.rs', lines 96:0-106:1
+    Source: 'crates/core/src/authorization.rs', lines 102:0-112:1
     Visibility: public -/
 def authorization.authorize
   (p : authorization.Principal) (a : authorization.Action)
@@ -138,7 +138,7 @@ def authorization.authorize
   else ok (authorization.Decision.Deny authorization.DenyReason.NotActive)
 
 /-- [strata_core::authorization::authorized_scope]:
-    Source: 'crates/core/src/authorization.rs', lines 109:0-115:1
+    Source: 'crates/core/src/authorization.rs', lines 115:0-121:1
     Visibility: public -/
 def authorization.authorized_scope
   (p : authorization.Principal) (a : authorization.Action) :

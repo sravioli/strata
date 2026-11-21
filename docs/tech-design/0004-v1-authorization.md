@@ -74,6 +74,7 @@ The operator command is not a principal. It does not use the API, and the tenanc
 | `UploadDocument` | Account | Add a document or a new revision. |
 | `DeleteDocument` | Account | Remove a document. |
 | `ProcessDocument` | Job | Extract and index a revision. |
+| `RemoveDocumentFiles` | Job | Remove the stored files of a removed document. The `RemoveFiles` job of ADR 0005 (object storage) uses it. Amended on 2026-11-21 ([#69](https://github.com/sravioli/strata/issues/69)). |
 
 A later design that adds an operation adds an action to this list. An operation with no action cannot reach data.
 
@@ -88,7 +89,7 @@ Part 1, the rule permits the action for the principal:
 | Principal | Condition |
 |---|---|
 | Account | The account is active, the tenant is active, and the action is an account action. |
-| Job | The tenant is active, and the action is `ProcessDocument`. |
+| Job | The tenant is active, and the action is a job action: `ProcessDocument` or `RemoveDocumentFiles`. |
 
 Part 2, the resource belongs to the tenant of the principal.
 
@@ -173,12 +174,14 @@ Each theorem is about the Rust functions `authorize` and `authorized_scope` in t
 | `allow_same_tenant` | Tenant boundary | If the decision is "allow", the resource belongs to the tenant of the principal. | `authorize p a r = true → r.tenant = p.tenant` | `authorize` |
 | `allow_account_active` | The v1 rule | If the decision is "allow" for an account, the account is active and its tenant is active. | `authorize (.account t c aa ta) a r = true → aa = true ∧ ta = true` | `authorize` |
 | `active_account_allowed` | Tenant-wide visibility in v1 | An active account of an active tenant gets "allow" for each account action on each resource of its tenant. | `a.forAccount = true → r.tenant = t → authorize (.account t c true true) a r = true` | `authorize` |
-| `account_never_processes` | Separation of accounts and jobs | An account never gets "allow" for `ProcessDocument`. | `authorize (.account t c aa ta) .processDocument r = false` | `authorize` |
-| `job_only_processes` | Separation of accounts and jobs | If the decision is "allow" for a job, the action is `ProcessDocument` and the resource belongs to the tenant of the job. | `authorize (.job t ta) a r = true → a = .processDocument ∧ r.tenant = t` | `authorize` |
+| `account_never_processes` | Separation of accounts and jobs | An account never gets "allow" for a job action (`ProcessDocument` or `RemoveDocumentFiles`). | `a.forAccount = false → authorize (.account t c aa ta) a r = false` | `authorize` |
+| `job_only_processes` | Separation of accounts and jobs | If the decision is "allow" for a job, the action is a job action (`ProcessDocument` or `RemoveDocumentFiles`), and the resource belongs to the tenant of the job. | `authorize (.job t ta) a r = true → (a = .processDocument ∨ a = .removeDocumentFiles) ∧ r.tenant = t` | `authorize` |
 | `allow_job_active` | A tenant that is not active starts no new job | If the decision is "allow" for a job, the tenant of the job is active. | `authorize (.job t ta) a r = true → ta = true` | `authorize` |
 | `scope_agrees` | Scope and decision are one rule | A resource is in the authorized scope exactly when the decision for that resource is "allow". | `(authorizedScope p a).contains r = authorize p a r` | `authorized_scope`, `authorize` |
 | `scope_one_tenant` | Tenant boundary | Each resource in an authorized scope belongs to the tenant of the principal. | `(authorizedScope p a).contains r = true → r.tenant = p.tenant` | `authorized_scope` |
 | `authorize_total` | No failure | The two functions give a result for each input and never stop with an error. | Part of the proof that the Rust code agrees with the model | `authorize`, `authorized_scope` |
+
+Amended on 2026-11-21 ([#69](https://github.com/sravioli/strata/issues/69)): the owner approved the new statements of `account_never_processes` and `job_only_processes`. Before, the only job action was `ProcessDocument`.
 
 A draft Lean model of the rule proves the first seven statements. The model has no tenant status for a job yet. It must get that status before it proves `allow_job_active`. The model is not in the repository. Implementation writes the model again in the repository and proves the statements on the Rust code.
 

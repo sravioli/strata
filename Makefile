@@ -48,7 +48,7 @@ prose:
 rust:
 	cargo fmt --all --check
 	cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-	cargo llvm-cov --workspace --locked --fail-under-lines 75
+	cargo llvm-cov --workspace --locked --fail-under-lines 80
 	cargo test --workspace --doc --locked
 	scripts/check-toolchain.sh
 
