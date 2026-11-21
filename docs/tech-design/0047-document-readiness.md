@@ -26,7 +26,7 @@ The owner asked which mechanism other services use. Services that process docume
 ### Terms
 
 - **Public status**: the status of a revision that the API shows to a client. It is one of five values.
-- **Final status**: a public status after which the processing of the revision stops. `ready`, `failed` and `superseded` are final.
+- **Final status**: a public status that does not change, except from `ready` to `superseded`. `ready`, `failed` and `superseded` are final.
 - **Current revision**: the revision of a document that a search uses.
 
 ### The five public statuses
@@ -35,13 +35,13 @@ The owner asked which mechanism other services use. Services that process docume
 |---|---|---|
 | `uploading` | The API gave a signed URL. The client did not finish the upload. | No |
 | `processing` | The upload is complete. A worker did not finish the revision. | No |
-| `ready` | The text of the revision is in the lexical index, and the revision is the current revision. | Yes |
+| `ready` | The worker wrote the text of the revision to the lexical index, and the revision is the current revision. For a `NoText` revision, the text is empty. | Yes |
 | `failed` | The revision cannot be processed because of its file. The response gives the error class. | Yes |
 | `superseded` | A newer revision of the same document is ready. A search does not use this revision. | Yes |
 
 A `ready` revision becomes `superseded` when a newer revision of the same document becomes ready. A client that stops at `ready` does not see this change.
 
-`failed` always means a cause in the file, for example `UnsupportedFormat` ([#7](https://github.com/sravioli/strata/issues/7)). A problem of Strata never shows as `failed`. If the job of a revision is `Parked`, the revision stays `processing`, and an operator requeues the job.
+`failed` means that the revision ended with a class of the extraction design ([#7](https://github.com/sravioli/strata/issues/7)), or with `FileTooLarge` of the object storage design ([#6](https://github.com/sravioli/strata/issues/6)). Most classes have a cause in the file, for example `UnsupportedFormat`. `ExtractionCrash`, `ExtractionTimeout` and `InvalidOutput` can also come from a fault in Strata, for example a bug in `strata-extract` or a slow machine. A problem outside the extraction never shows as `failed`. If the job of a revision is `Parked`, the revision stays `processing`, and an operator requeues the job.
 
 ### Example: one upload
 
@@ -79,7 +79,7 @@ The action is `ReadDocument` ([#4](https://github.com/sravioli/strata/issues/4))
 }
 ```
 
-- `error_class` exists only when `state` is `failed`. Its values are the classes of the extraction design ([#7](https://github.com/sravioli/strata/issues/7)).
+- `error_class` exists only when `state` is `failed`. Its values are the classes of the extraction design ([#7](https://github.com/sravioli/strata/issues/7)), and `FileTooLarge` ([#6](https://github.com/sravioli/strata/issues/6)).
 - `updated_at` is the time of the last change of the public status.
 - The API answers `404` in these cases. The `404` responses are equal ([#3](https://github.com/sravioli/strata/issues/3)).
   - The revision does not exist, or it belongs to a different tenant.
@@ -123,21 +123,25 @@ The "finish upload" step of the object storage design ([#6](https://github.com/s
 | Internal state | Public status |
 |---|---|
 | Revision `AwaitingUpload` | `uploading` |
-| Revision `Uploaded`, its job `Waiting`, `Running` or `Parked` | `processing` |
+| Revision `Uploaded`. Its job can be `Waiting`, `Running` or `Parked`. | `processing` |
 | Text in the lexical index, and the revision is the current revision | `ready` |
 | Revision `Failed` | `failed` |
-| A newer revision of the same document is ready | `superseded` |
+| A newer revision of the same document became ready while this revision was not `failed` | `superseded` |
 
-More than one row can agree with a revision. Example: revision 1 is `processing` or `failed`, and revision 2 is ready. The API uses this order:
+A final status does not change, except from `ready` to `superseded`. Thus the revision stores its final status when it gets it. These rules apply when a revision becomes ready:
 
-1. `failed` stays `failed`.
-2. Otherwise, `superseded` comes before `uploading`, `processing` and `ready`.
+1. Each older revision of the same document that is `uploading`, `processing` or `ready` becomes `superseded`.
+2. An older revision that is `failed` stays `failed`.
+3. The job of a revision that became `superseded` does no extraction. A "finish" of a `superseded` revision creates no job, and answers `202` with the same `Location`. Thus a file can never change `superseded` to `failed`.
+4. The cleanup of uploads that did not finish ([#6](https://github.com/sravioli/strata/issues/6)) removes the object of a `superseded` revision, and keeps the revision.
+
+An order of precedence between `failed` and `superseded` is not sufficient. With either order, the status of revision 1 changes from one final status to the other when its job ends after revision 2 becomes ready.
 
 For a `superseded` revision, `updated_at` is the time when the newer revision became ready.
 
 The design of the walking skeleton ([#49](https://github.com/sravioli/strata/issues/49)) defines the revision lifecycle and its internal state names. This map then uses those names. The five public statuses do not change.
 
-A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)). See "Unresolved questions".
+A revision with the class `NoText` is `ready` ([#7](https://github.com/sravioli/strata/issues/7)). If it is the newest revision, it supersedes an older revision that has text. Then a search finds no text of the document. See "Unresolved questions".
 
 ### Retry-After
 
@@ -161,7 +165,8 @@ Other rules:
 
 - An empty bucket gives `429 Too Many Requests`, with `Retry-After`.
 - The number of buckets has a bound in the configuration. When the count reaches the bound, the API removes the bucket that it used least recently ([#2](https://github.com/sravioli/strata/issues/2), S3).
-- With N instances, an account can read one revision up to N times the limit. The limit protects the API. It is not exact. A limit for all routes comes later ([#53](https://github.com/sravioli/strata/issues/53)).
+- With N instances, an account can read one revision up to N times the limit. The limit protects the API. It is not exact.
+- The buckets are an exception to rule S1 of the capacity design (ADR 0003). The answer `429` depends on the copy that gets the request. The loss of a bucket only makes the limit less strict, so no status changes. A limit for all routes comes later ([#53](https://github.com/sravioli/strata/issues/53)).
 
 ### Reads from a replica
 
@@ -208,7 +213,7 @@ N/A. This design is an HTTP interface and a map from internal states. The rules 
 
 ### Data and migration
 
-No schema change. The routes read the revision and its job.
+The routes read the revisions of the document. They do not read the job. The API role can read only the column `state` of `jobs` (ADR 0004, job queue), and each state of a job maps to `processing`. The revision stores its final status and the time of that status. The design of [#49](https://github.com/sravioli/strata/issues/49) defines these columns.
 
 ## Test cases
 
@@ -221,16 +226,17 @@ L0: the map from internal states to public statuses, the parse of the batch body
 | TC-47-03 | L1 | Given revision 1 and revision 2 of one document, and revision 2 is ready. When a client reads revision 1. Then the status is `superseded`. | | pending |
 | TC-47-04 | L1 | Given a revision that is not final. When a client reads its status. Then the response has `Retry-After` with the configured value. Given a revision that is final. Then the response has no `Retry-After`. | | pending |
 | TC-47-05 | L1 | Given an account that read the status of revision R 3 times in less than one `Retry-After` interval. When it reads R again. Then the API answers `429` with `Retry-After`. When it reads a different revision. Then the API answers with its status. | | pending |
+| TC-47-06 | L1 | Given a revision of tenant B. When an account of tenant A reads its status. Then the response is equal to the response for a revision that does not exist. When the account names it in a batch request. Then the list omits it. | | pending |
+| TC-47-07 | L1 | Given a batch request with 101 identifiers, or with an identifier that is not valid. When a client sends it. Then the API answers `400`. | | pending |
+| TC-47-08 | L1 | Given a batch request with one revision that is `processing` and one that is `ready`. When a client sends it. Then the response has two entries and `Retry-After`. | | pending |
+| TC-47-09 | L1 | Given an upload that the client finished. When the client finishes it a second time. Then each answer is `202` with the same `Location`. | | pending |
+| TC-47-10 | L1 | Given a revision that is `failed`. When a client reads its status. Then `error_class` is a value from the list of the extraction design or `FileTooLarge`, and the body holds no other error text. | | pending |
+| TC-47-11 | L2 | Given the walking skeleton on a laptop. When a client uploads a document and reads the `Location` URL until the status is final. Then the status is `ready`, and a search finds the document. | | pending |
 | TC-47-12 | L1 | Given one account that waits for 300 revisions. When it sends 3 batch requests of 100 revisions in each `Retry-After` interval, for 10 intervals. Then no response is `429`. | | pending |
 | TC-47-13 | L1 | Given revision 1 is `failed` and revision 2 of the same document is ready. When a client reads revision 1. Then the status is `failed`. Given revision 1 is `processing` and revision 2 is ready. Then the status of revision 1 is `superseded`. | | pending |
 | TC-47-14 | L1 | Given an account that sends 21 status requests in less than one second, each for a different revision. When it sends one more. Then the API answers `429`. | | pending |
-| TC-47-06 | L1 | Given a revision of tenant B. When an account of tenant A reads its status. Then the response is equal to the response for a revision that does not exist. When the account names it in a batch request. Then the list omits it. | | pending |
-| TC-47-07 | L1 | Given a batch request with 101 identifiers, or with an identifier that is not valid. When a client sends it. Then the API answers `400`. | | pending |
 | TC-47-15 | L1 | Given a batch request with no `Content-Type`. When a client sends it. Then the API answers `400`. Given a batch request with `Content-Type: text/plain`. Then the API answers `415` with `Accept-Query: application/json`. Given a batch request with a body larger than 16 KB. Then the API answers `413`. | | pending |
-| TC-47-08 | L1 | Given a batch request with one revision that is `processing` and one that is `ready`. When a client sends it. Then the response has two entries and `Retry-After`. | | pending |
-| TC-47-09 | L1 | Given an upload that the client finished. When the client finishes it a second time. Then each answer is `202` with the same `Location`. | | pending |
-| TC-47-10 | L1 | Given a revision that is `failed`. When a client reads its status. Then `error_class` is a value from the list of the extraction design, and the body holds no other error text. | | pending |
-| TC-47-11 | L2 | Given the walking skeleton on a laptop. When a client uploads a document and reads the `Location` URL until the status is final. Then the status is `ready`, and a search finds the document. | | pending |
+| TC-47-16 | L1 | Given revision 1 is `processing` or `uploading`, and revision 2 of the same document becomes ready. When the job of revision 1 runs, or the client finishes revision 1. Then the job does no extraction, no new job exists, and revision 1 stays `superseded`. | | pending |
 
 L3: none in this design. TC-2-01 of the capacity design measures the read load. A later L3 test case can add status reads to that load.
 
@@ -277,7 +283,8 @@ L3: none in this design. TC-2-01 of the capacity design measures the read load. 
 The owner must decide:
 
 - The test cases above.
-- If a `ready` revision with the class `NoText` shows that class to the client. A client cannot see now that the revision has no text. A marker adds a field to the public contract.
+- If a `ready` revision with the class `NoText` shows that class to the client. A client cannot see now that the revision has no text. A marker adds a field to the public contract. Also, a `NoText` revision supersedes an older revision that has text, so the document loses its searchable text. The owner decides if Strata accepts that, or if a `NoText` revision supersedes no revision.
+- If the classes `ExtractionCrash`, `ExtractionTimeout` and `InvalidOutput` retry one time before the revision becomes `failed`. These classes can come from a fault in Strata. A retry changes the extraction design ([#7](https://github.com/sravioli/strata/issues/7)). With no retry, the client must upload a new revision.
 
 Implementation resolves these points:
 
