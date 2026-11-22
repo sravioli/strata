@@ -48,6 +48,7 @@ The owner decided these points on 2026-11-22. This change amends 0049 with them:
   - Locally, `make l1` runs the tests in `systemd-run --user --scope -p Delegate=yes`.
   - In CI, the step that runs `make l1` creates `/sys/fs/cgroup/strata` with `sudo`, gives it to the user `runner`, and moves its shell into a leaf child. The move is in the same step, because each step starts a new shell.
   - The image of the worker needs a delegated cgroup ([#43](https://github.com/sravioli/strata/issues/43)).
+- **The match is leakproof.** Under the policy of 0003, PostgreSQL 19 never used the GIN index for `tsv @@ query`, because the function `ts_match_vq` is not `leakproof`. A search then reads each text part of the tenant. Thus `dev/roles.sql` marks `ts_match_vq(tsvector, tsquery)` as `leakproof`. Only a superuser can set the mark, in each database, so the setup of each deploy must run it ([#43](https://github.com/sravioli/strata/issues/43)).
 - **A failure of nsjail.** nsjail exits with 255 when it cannot start the sandbox. The cause is not in the file. Thus it is a normal failure of the job: the backoff, no change to the revision and no retry mark. After 5 attempts, the job is `Parked` with `JobFailed`.
 
 The agent decided these points. The owner reviews them in the pull request:
@@ -64,6 +65,7 @@ The agent decided these points. The owner reviews them in the pull request:
 - **`pdftotext` from the system.** The worker and the tests use the `pdftotext` of the package of the system (`poppler-utils`). `make setup` warns when it is missing. A pinned version comes with the image of the worker (M3, [#43](https://github.com/sravioli/strata/issues/43)).
 - **Three paths in the settings.** `STRATA_NSJAIL` names the nsjail binary, `STRATA_EXTRACT` names the `strata-extract` binary, and `STRATA_CGROUP` names the delegated cgroup. With a path that is missing, or a cgroup that the worker cannot write, `strata worker` stops with an error that names the variable.
 - **One thread in `strata-extract`.** `pids.max` counts threads, so with the limit of 2, `strata-extract` cannot start a thread while `pdftotext` runs. `pdftotext -` reads all of standard input before it writes output. Thus `strata-extract` writes the bytes, closes the pipe, and then reads the output. Its exit codes are below 128 and are not 255, so that they are different from a signal and from a failure of nsjail. The process is PID 1, so `strata-extract` turns a child that stops on a signal into its crash exit code.
+- **Two column names.** `sqlfluff` rejects the keywords `location` and `text` as column names (RF04). Thus the columns of `text_parts` are `location_number` and `part_text`, not the `location` and `text` of 0049.
 - **The storage settings of the worker** are the six variables of change 2. The worker reads them in the same way as the API.
 
 ## Test cases

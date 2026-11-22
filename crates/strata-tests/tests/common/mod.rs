@@ -61,6 +61,17 @@ pub fn api_pool() -> Pool {
     .unwrap()
 }
 
+/// A pool of `strata_worker` through PgBouncer, as `strata worker` has it.
+pub fn worker_pool() -> Pool {
+    migrated();
+    db::pool(
+        config("strata_worker", PGBOUNCER),
+        db::POOL_SIZE,
+        db::POOL_WAIT,
+    )
+    .unwrap()
+}
+
 /// A new name that no earlier run used: a valid tenant name.
 pub fn unique(prefix: &str) -> String {
     static N: AtomicU32 = AtomicU32::new(0);

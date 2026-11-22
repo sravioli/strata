@@ -8,16 +8,16 @@ Keeps the extracted text of each `Ready` revision as text parts of at most 64 KB
 
 ### Requirement: A text part holds one page
 
-`text_parts` SHALL be a tenant-owned table with the primary key `(tenant_id, document_id, revision, part)` and a foreign key to the revision. `part` SHALL count from 1 in the order of the text. `location_kind` SHALL be `page`, `sheet` or `slide`, and `location` SHALL be its number from 1. `text` SHALL hold at most 64 KB.
+`text_parts` SHALL be a tenant-owned table with the primary key `(tenant_id, document_id, revision, part)` and a foreign key to the revision. `part` SHALL count from 1 in the order of the text. `location_kind` SHALL be `page`, `sheet` or `slide`, and `location_number` SHALL be its number from 1. `part_text` SHALL hold at most 64 KB.
 
 #### Scenario: A value out of range
 
-- **WHEN** a transaction writes a `part` of 0, a `location_kind` that is not in the list, a `location` of 0 or a `text` above 64 KB
+- **WHEN** a transaction writes a `part` of 0, a `location_kind` that is not in the list, a `location_number` of 0 or a `part_text` above 64 KB
 - **THEN** PostgreSQL rejects the write
 
 ### Requirement: The index starts with the tenant
 
-`text_parts` SHALL have a generated and stored column `tsv` equal to `to_tsvector('simple', text)`. It SHALL have one GIN index on `(tenant_id, tsv)`, with the extension `btree_gin`.
+`text_parts` SHALL have a generated and stored column `tsv` equal to `to_tsvector('simple', part_text)`. It SHALL have one GIN index on `(tenant_id, tsv)`, with the extension `btree_gin`. The setup of the database SHALL mark `ts_match_vq(tsvector, tsquery)` as `leakproof`, as a superuser. Without the mark, PostgreSQL does not use the index for a match under the policy of 0003.
 
 #### Scenario: The index exists
 
@@ -28,7 +28,7 @@ Keeps the extracted text of each `Ready` revision as text parts of at most 64 KB
 
 - **GIVEN** text parts of tenants A and B
 - **WHEN** a test runs `explain` on a match of `tsv` with the tenant context of A
-- **THEN** the plan reads the GIN index with the condition on `tenant_id`
+- **THEN** the plan reads the GIN index with the condition on `tenant_id` and the match of `tsv`
 
 ### Requirement: A block above 64 KB goes in parts
 

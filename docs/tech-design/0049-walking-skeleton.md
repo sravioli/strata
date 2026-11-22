@@ -115,11 +115,11 @@ These tables are new. Each table that a tenant owns follows the three rules of 0
 | Column | Meaning |
 |---|---|
 | `tenant_id`, `document_id`, `revision`, `part` | The primary key. `part` counts from 1 in the order of the text. |
-| `location_kind`, `location` | `page`, `sheet` or `slide`, and its number from 1 |
-| `text` | At most 64 KB of text |
-| `tsv` | `tsvector`, generated and stored: `to_tsvector('simple', text)` |
+| `location_kind`, `location_number` | `page`, `sheet` or `slide`, and its number from 1 |
+| `part_text` | At most 64 KB of text |
+| `tsv` | `tsvector`, generated and stored: `to_tsvector('simple', part_text)` |
 
-Index: `create index on text_parts using gin (tenant_id, tsv)`, with the extension `btree_gin`, which has an operator class for `uuid`. Thus a search reads only the index entries of one tenant, and its cost does not depend on the count of tenants (S5 of 0002). Text parts exist only for a revision in the state `Ready`. The worker writes them in the transaction that sets `Ready`. The transaction that sets `Superseded` removes them.
+Index: `create index on text_parts using gin (tenant_id, tsv)`, with the extension `btree_gin`, which has an operator class for `uuid`. Thus a search reads only the index entries of one tenant, and its cost does not depend on the count of tenants (S5 of 0002). Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): under the policy of 0003, PostgreSQL uses the index for `tsv @@ query` only when the function `ts_match_vq` is `leakproof`. Thus the setup of the database marks `ts_match_vq(tsvector, tsquery)` as `leakproof`, as a superuser (owner, 2026-11-22). The columns `location` and `text` became `location_number` and `part_text`, because they are SQL keywords. Text parts exist only for a revision in the state `Ready`. The worker writes them in the transaction that sets `Ready`. The transaction that sets `Superseded` removes them.
 
 `upload_slots` is a global table, as `jobs` is (0005). It holds no tenant content, only a random key and a time:
 

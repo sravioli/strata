@@ -38,6 +38,9 @@ const GRANTS: &[(&str, &str, &str)] = &[
     ("strata_worker", "documents", "SELECT"),
     ("strata_worker", "revisions", "SELECT"),
     ("strata_worker", "revisions", "UPDATE"),
+    ("strata_worker", "text_parts", "SELECT"),
+    ("strata_worker", "text_parts", "INSERT"),
+    ("strata_worker", "text_parts", "DELETE"),
     ("strata_worker", "jobs", "SELECT"),
     ("strata_worker", "jobs", "UPDATE"),
     ("strata_worker", "jobs", "DELETE"),
@@ -699,4 +702,149 @@ async fn the_api_role_reads_only_the_state_of_a_job() {
         .unwrap()
         .get(0);
     assert_eq!(waiting, 2);
+}
+
+/// A text part of revision 1 of `doc`, written by the superuser.
+async fn text_part(su: &Client, tenant: Uuid, doc: Uuid, part: i32, text: &str) {
+    su.execute(
+        "insert into text_parts (tenant_id, document_id, revision, part, location_kind, location_number, part_text) \
+         values ($1, $2, 1, $3, 'page', 1, $4)",
+        &[&tenant, &doc, &part, &text],
+    )
+    .await
+    .unwrap();
+}
+
+/// Scenario "A value out of range" (spec document-text).
+#[tokio::test]
+async fn a_text_part_out_of_range_fails() {
+    let t = two_tenants().await;
+    let (doc, _) = document(&t.su, t.a, "Ready").await;
+    let big = "a".repeat(64 * 1024 + 1);
+    let insert = "insert into text_parts (tenant_id, document_id, revision, part, location_kind, \
+                  location_number, part_text) values ($1, $2, 1, $3, $4, $5, $6)";
+    let fails: [(i32, &str, i32, &str); 4] = [
+        (0, "page", 1, "a"),
+        (1, "cell", 1, "a"),
+        (1, "page", 0, "a"),
+        (1, "page", 1, &big),
+    ];
+    for (part, kind, location, text) in fails {
+        let r =
+            t.su.execute(insert, &[&t.a, &doc, &part, &kind, &location, &text])
+                .await;
+        assert_eq!(
+            sqlstate(r),
+            "23514",
+            "{part} {kind} {location} {}",
+            text.len()
+        );
+    }
+    let max = "é".repeat(32 * 1024);
+    t.su.execute(insert, &[&t.a, &doc, &1, &"page", &1, &max])
+        .await
+        .unwrap();
+}
+
+/// Scenario "The index exists" (spec document-text).
+#[tokio::test]
+async fn the_index_of_text_parts_exists() {
+    migrated();
+    let c = connect(&superuser()).await;
+    let rows = c
+        .query(
+            "select am.amname::text, pg_get_indexdef(i.indexrelid) from pg_index i \
+             join pg_class x on x.oid = i.indexrelid join pg_am am on am.oid = x.relam \
+             where i.indrelid = 'text_parts'::regclass and not i.indisprimary",
+            &[],
+        )
+        .await
+        .unwrap();
+    let indexes: Vec<(String, String)> = rows.iter().map(|r| (r.get(0), r.get(1))).collect();
+    assert_eq!(indexes.len(), 1, "{indexes:?}");
+    assert_eq!(indexes[0].0, "gin");
+    assert!(
+        indexes[0].1.ends_with("USING gin (tenant_id, tsv)"),
+        "{indexes:?}"
+    );
+}
+
+/// Scenario "A word query uses the index of one tenant" (spec document-text).
+#[tokio::test]
+async fn a_word_query_uses_the_index_of_one_tenant() {
+    let t = two_tenants().await;
+    let (doc_a, _) = document(&t.su, t.a, "Ready").await;
+    let (doc_b, _) = document(&t.su, t.b, "Ready").await;
+    text_part(&t.su, t.a, doc_a, 1, "quarterly revenue of alpha").await;
+    text_part(&t.su, t.b, doc_b, 1, "quarterly revenue of bravo").await;
+    // Enough rows that the planner has a choice between the indexes.
+    t.su.execute(
+        "insert into text_parts (tenant_id, document_id, revision, part, location_kind, location_number, part_text) \
+         select $1, $2, 1, g, 'page', 1, 'filler words ' || g from generate_series(2, 2001) g",
+        &[&t.a, &doc_a],
+    )
+    .await
+    .unwrap();
+    t.su.batch_execute("analyze text_parts").await.unwrap();
+    // dev/roles.sql marks the match leakproof: else no index serves it under the policy.
+    let leakproof: bool =
+        t.su.query_one(
+            "select proleakproof from pg_proc where oid = 'ts_match_vq'::regproc",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert!(leakproof);
+    let tx = tenant_tx(&worker_pool(), t.a).await.unwrap();
+    // The rows of all tests share the table, so the test does not depend on their count.
+    tx.client()
+        .batch_execute("set local enable_seqscan = off")
+        .await
+        .unwrap();
+    let plan: Vec<String> = tx
+        .client()
+        .query(
+            "explain (costs off) select document_id from text_parts \
+             where tsv @@ to_tsquery('simple', 'revenue')",
+            &[],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get(0))
+        .collect();
+    let plan = plan.join("\n");
+    assert!(plan.contains("text_parts_tsv"), "{plan}");
+    let cond = plan
+        .lines()
+        .find(|l| l.contains("Index Cond"))
+        .unwrap_or_default();
+    assert!(cond.contains("tenant_id") && cond.contains("tsv"), "{plan}");
+    let found: Vec<Uuid> = tx
+        .client()
+        .query(
+            "select document_id from text_parts where tsv @@ to_tsquery('simple', 'revenue')",
+            &[],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get(0))
+        .collect();
+    assert_eq!(found, [doc_a]);
+}
+
+/// Scenario "The worker cannot change a text part" (spec tenant-isolation).
+#[tokio::test]
+async fn the_worker_cannot_change_a_text_part() {
+    let t = two_tenants().await;
+    let (doc, _) = document(&t.su, t.a, "Ready").await;
+    text_part(&t.su, t.a, doc, 1, "alpha").await;
+    let tx = tenant_tx(&worker_pool(), t.a).await.unwrap();
+    let update = tx
+        .client()
+        .execute("update text_parts set part_text = 'other'", &[])
+        .await;
+    assert_eq!(sqlstate(update), "42501");
 }
