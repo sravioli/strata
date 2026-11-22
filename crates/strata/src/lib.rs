@@ -5,6 +5,7 @@ pub mod api;
 pub mod auth;
 pub mod db;
 pub mod migrate;
+pub mod storage;
 
 /// The one source of the database URL of each subcommand.
 pub const DATABASE_URL: &str = "STRATA_DATABASE_URL";

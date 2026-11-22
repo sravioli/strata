@@ -8,11 +8,13 @@ use axum::extract::FromRef;
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
+use crate::storage::Storage;
 
 /// The state of the router.
 #[derive(Clone)]
 pub struct AppState {
     pub auth: Auth,
+    pub storage: Arc<Storage>,
 }
 
 impl FromRef<AppState> for Auth {
@@ -21,13 +23,17 @@ impl FromRef<AppState> for Auth {
     }
 }
 
+/// The state of `strata api`. The storage settings come from the environment, so a missing
+/// variable stops the process before it serves a request.
 pub fn state(cfg: tokio_postgres::Config) -> Result<AppState, String> {
+    let storage = Arc::new(Storage::from_env()?);
     let pool = db::pool(cfg, POOL_SIZE, POOL_WAIT)?;
     Ok(AppState {
         auth: Auth {
             pool,
             keys: Arc::new(KeyCache::new()),
         },
+        storage,
     })
 }
 

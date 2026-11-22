@@ -52,3 +52,8 @@ tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 uuid = "=1.29.3"
+# Signs the S3 requests only (owner, 2026-11-22). hyper sends them.
+rusty-s3 = { version = "=0.12.0", default-features = false, features = [
+  "rustcrypto",
+] }
+url = "=2.5.9"
