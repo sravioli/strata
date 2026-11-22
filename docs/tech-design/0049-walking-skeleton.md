@@ -297,8 +297,10 @@ One OpenSpec change for each step, each in its own pull request, in this order:
 
 1. Schema, tenancy and identity. The tables of 0003 and 0021, the roles, `uuidv7()` and PostgreSQL 19, `u128` in `core`, the types of the transactions, `strata admin`, `strata-dev`, and the authentication of the API. The prototype [#100](https://github.com/sravioli/strata/issues/100) chose tokio-postgres.
 2. Upload. `documents`, `revisions`, `upload_slots`, `jobs`, the upload routes, the Garage checks, the cleanup of `jobs` and `upload_slots`, and `revision_step` with its proofs.
-3. The worker and extraction. The claim, the lease, `strata-extract` with `pdftotext` in nsjail, and the transaction that ends a job.
-4. Search and status. `text_parts`, the search route, the status routes of 0047, `make dev`, and TC-49-01.
+3. The worker and extraction. The claim, the lease, `strata-extract` with `pdftotext` in nsjail, `text_parts` with its index and its grants, the transaction that ends a job, and `strata admin job requeue`.
+4. Search and status. The search route, the status routes of 0047, `make dev`, and TC-49-01.
+
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `text_parts` moves from the fourth change to the third change. The transaction that ends a job writes the text parts when a revision becomes `Ready`. Without the table, the third change sets `Ready` with no text. `strata admin job requeue` is also in the third change, because it belongs to the job lifecycle of 0005 (owner, 2026-11-22).
 
 ## Proof obligations
 
@@ -354,6 +356,8 @@ L0: unit tests cover the split of blocks, the check of the request body and the 
 | TC-49-10 | L1 | Given the nsjail configuration of `strata-extract`. When the extraction process calls `io_uring_setup`, `io_uring_enter` or `io_uring_register`. Then each call fails, and the process does no I/O through a ring. Reason: seccomp does not see the operations of a ring, so a ring can bypass the seccomp list of 0007. | sravioli, 2026-11-22 | pending |
 
 TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on 2026-11-21. It runs in CI also, not only before a release. That is a change to `docs/agents/testing.md` for this one test, and the fourth change makes it.
+
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the third change has TC-49-03. It also checks the clauses of TC-49-02 and TC-49-06 on text parts, with a `select` on `text_parts`. The clauses of TC-49-02 and TC-49-06 on the search come with the search route in the fourth change (owner, 2026-11-22).
 
 ## Drawbacks
 
@@ -423,6 +427,7 @@ Implementation resolves these points:
 - The exact SQL of the migrations, the grants and the policies, with the policy text of 0003 and 0021 (TC-3-06).
 - The PgBouncer image and its pin.
 - The nsjail configuration and the seccomp list for `pdftotext` ([#103](https://github.com/sravioli/strata/issues/103) completes the list).
+  Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): nsjail has no release binaries. A script builds nsjail 3.6, the latest tag, from source at the pinned commit `f78475530b46d0186111a9096b30725f816b55fe`. `make setup` and CI use the same script. If the CI runner blocks the user namespaces of nsjail, CI loads an AppArmor profile that permits user namespaces for the nsjail binary only. CI does not set `kernel.apparmor_restrict_unprivileged_userns` to 0 (owner, 2026-11-22).
 - The checks of Garage (0006).
 
 These questions belong to later designs:
