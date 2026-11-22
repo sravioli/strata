@@ -171,3 +171,58 @@ pub async fn document(su: &Client, tenant_id: Uuid, state: &str) -> (Uuid, Uuid)
         .unwrap();
     (row.get(0), row.get(1))
 }
+
+/// The storage client with the development values of compose.yaml.
+pub fn storage() -> strata::storage::Storage {
+    use strata::storage::*;
+    let vars = [
+        (ENDPOINT, "http://localhost:3900"),
+        (ACCESS_KEY, "GK000000000000000000000000"),
+        (
+            SECRET_KEY,
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        ),
+        (REGION, "garage"),
+        (BUCKET, "strata"),
+        (ALLOW_HTTP, "true"),
+    ];
+    Storage::from_vars(|name| {
+        vars.iter()
+            .find(|(k, _)| *k == name)
+            .map(|(_, v)| v.to_string())
+    })
+    .unwrap()
+}
+
+/// A PUT of `body` to a signed URL over plain HTTP/1.1. The first `first` bytes go at once; the
+/// rest go after `pause`. Returns the status code.
+pub async fn put(url: &url::Url, body: &[u8], first: usize, pause: std::time::Duration) -> u16 {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let host = format!(
+        "{}:{}",
+        url.host_str().unwrap(),
+        url.port_or_known_default().unwrap()
+    );
+    let mut s = tokio::net::TcpStream::connect(&host).await.unwrap();
+    let target = match url.query() {
+        Some(q) => format!("{}?{q}", url.path()),
+        None => url.path().to_owned(),
+    };
+    let head = format!(
+        "PUT {target} HTTP/1.1\r\nHost: {host}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    s.write_all(head.as_bytes()).await.unwrap();
+    s.write_all(&body[..first]).await.unwrap();
+    s.flush().await.unwrap();
+    tokio::time::sleep(pause).await;
+    // The storage can answer and close before the rest arrives: the status is the result.
+    let _ = s.write_all(&body[first..]).await;
+    let mut resp = Vec::new();
+    let _ = s.read_to_end(&mut resp).await;
+    let line = String::from_utf8_lossy(&resp);
+    line.split(' ')
+        .nth(1)
+        .and_then(|c| c.parse().ok())
+        .unwrap_or(0)
+}

@@ -160,14 +160,12 @@ The storage SHALL accept a PUT with a signed URL of the API before the URL expir
 - **GIVEN** a signed PUT URL for one key
 - **WHEN** a client uses it to write a different key
 - **THEN** the storage refuses the write
-- **PENDING** Task 4.2 adds the test.
 
 #### Scenario: TC-6-02 An expired URL cannot write
 
 - **GIVEN** a signed PUT URL
 - **WHEN** a client uses it after it expires
 - **THEN** the storage refuses the write
-- **PENDING** Task 4.2 adds the test.
 
 #### Scenario: A slow transfer that starts in time completes
 

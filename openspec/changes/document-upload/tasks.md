@@ -23,8 +23,8 @@
 
 ## 4. Storage
 
-- [ ] 4.1 Add the storage module of `strata`. It holds the key of 0006 as a pure function, the signature of a PUT URL with an expiry of 15 minutes, the read of the size of an object, and the removal of an object. `rusty-s3` signs each request. The HTTP client of `strata` sends the HEAD and the DELETE with a signed URL that expires after 60 seconds. A removal of a key that does not exist is not an error. Add L0 tests for the key. Verify: `cargo test -p strata` passes.
-- [ ] 4.2 Before each other L1 test that uses Garage, add the L1 tests TC-6-01 and TC-6-02, and the scenario "A slow transfer that starts in time completes". The slow transfer uses an expiry of a few seconds and a body that stops before the expiry and continues after it. If Garage refuses a signed URL of `rusty-s3`, or refuses the slow transfer, stop and tell the owner. Verify: the tests pass. Remove the pending markers of TC-6-01 and TC-6-02.
+- [x] 4.1 Add the storage module of `strata`. It holds the key of 0006 as a pure function, the signature of a PUT URL with an expiry of 15 minutes, the read of the size of an object, and the removal of an object. `rusty-s3` signs each request. The HTTP client of `strata` sends the HEAD and the DELETE with a signed URL that expires after 60 seconds. A removal of a key that does not exist is not an error. Add L0 tests for the key. Verify: `cargo test -p strata` passes.
+- [x] 4.2 Before each other L1 test that uses Garage, add the L1 tests TC-6-01 and TC-6-02, and the scenario "A slow transfer that starts in time completes". The slow transfer uses an expiry of a few seconds and a body that stops before the expiry and continues after it. If Garage refuses a signed URL of `rusty-s3`, or refuses the slow transfer, stop and tell the owner. Verify: the tests pass. Remove the pending markers of TC-6-01 and TC-6-02.
 
 ## 5. Upload routes
 
