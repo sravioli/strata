@@ -4,9 +4,9 @@
 //! policy of 0003 hide each document of a different tenant, and the route answers `404`.
 
 use axum::Json;
-use axum::body::{Body, to_bytes};
+use axum::body::to_bytes;
 use axum::extract::{FromRequestParts, Path, Request, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 use strata_core::authorization::{Action, authorized_scope};
@@ -125,29 +125,24 @@ fn storage_error(e: storage::Error) -> Reject {
 }
 
 /// The tenant transaction of an upload route.
-async fn tenant_tx(id: IdentityTx) -> Result<TenantTx, Reject> {
+async fn upload_tx(id: IdentityTx) -> Result<TenantTx, Reject> {
     let scope = authorized_scope(id.principal(), Action::UploadDocument);
     id.into_tenant(scope).await?.ok_or(Reject::Forbidden)
 }
 
 /// The body first, so no request holds a connection while its body arrives. Then steps 1 to 10
 /// of 0021, and the tenant transaction.
-async fn start_tx(
-    s: &AppState,
-    req: Request,
-) -> Result<Result<(StartBody, TenantTx), StatusCode>, Reject> {
+async fn start_tx(s: &AppState, req: Request) -> Result<(StartBody, TenantTx), Stop> {
     let (mut parts, body) = req.into_parts();
-    let body = match read_body(body, &parts.headers).await {
-        Ok(b) => b,
-        Err(status) => return Ok(Err(status)),
-    };
-    let start = match check_start(parts.headers.get(header::CONTENT_TYPE), &body) {
-        Ok(b) => b,
-        Err(status) => return Ok(Err(status)),
-    };
+    // A body of more than the limit stops at the limit.
+    let body = to_bytes(body, MAX_BODY_BYTES + 1)
+        .await
+        .map_err(|_| Stop::Status(StatusCode::PAYLOAD_TOO_LARGE))?;
+    let start =
+        check_start(parts.headers.get(header::CONTENT_TYPE), &body).map_err(Stop::Status)?;
     let Caller(id) = Caller::from_request_parts(&mut parts, s).await?;
-    let mut tx = tenant_tx(id).await?;
-    let (waiting, slots) = q::bound_counts(&mut tx).await?;
+    let mut tx = upload_tx(id).await?;
+    let (waiting, slots) = q::bound_counts(&mut tx).await.map_err(Reject::from)?;
     let bound = if waiting >= s.bounds.waiting_jobs {
         Some("waiting_jobs")
     } else if slots >= s.bounds.upload_slots {
@@ -156,22 +151,32 @@ async fn start_tx(
         None
     };
     if let Some(bound) = bound {
-        tx.rollback().await?;
         tracing::warn!(bound, "start of an upload rejected at a bound");
-        return Err(Reject::Bound);
+        tx.rollback().await.map_err(Reject::from)?;
+        return Err(Stop::Reject(Reject::Bound));
     }
-    Ok(Ok((start, tx)))
+    Ok((start, tx))
 }
 
-/// A body of more than the limit stops at the limit.
-async fn read_body(body: Body, headers: &HeaderMap) -> Result<Vec<u8>, StatusCode> {
-    if headers.get(header::CONTENT_TYPE).is_none() {
-        return Err(StatusCode::BAD_REQUEST);
+/// Why a start stops before its write: a rule of the body, or a rejection of the request.
+enum Stop {
+    Status(StatusCode),
+    Reject(Reject),
+}
+
+impl From<Reject> for Stop {
+    fn from(r: Reject) -> Self {
+        Stop::Reject(r)
     }
-    to_bytes(body, MAX_BODY_BYTES + 1)
-        .await
-        .map(|b| b.to_vec())
-        .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE)
+}
+
+impl IntoResponse for Stop {
+    fn into_response(self) -> Response {
+        match self {
+            Stop::Status(s) => s.into_response(),
+            Stop::Reject(r) => r.into_response(),
+        }
+    }
 }
 
 /// The answer to a start after its commit.
@@ -189,9 +194,9 @@ fn created(s: &AppState, tenant: Uuid, started: Started) -> Response {
 
 /// `POST /v1/documents`: the start of an upload of a new document.
 pub async fn start_document(State(s): State<AppState>, req: Request) -> Result<Response, Reject> {
-    let (start, tx) = match start_tx(&s, req).await? {
+    let (start, tx) = match start_tx(&s, req).await {
         Ok(v) => v,
-        Err(status) => return Ok(status.into_response()),
+        Err(stop) => return Ok(stop.into_response()),
     };
     let tenant = tx.tenant_id();
     let started = q::start_document(tx, &start.as_new()).await?;
@@ -204,9 +209,9 @@ pub async fn start_revision(
     Path(document_id): Path<Uuid>,
     req: Request,
 ) -> Result<Response, Reject> {
-    let (start, tx) = match start_tx(&s, req).await? {
+    let (start, tx) = match start_tx(&s, req).await {
         Ok(v) => v,
-        Err(status) => return Ok(status.into_response()),
+        Err(stop) => return Ok(stop.into_response()),
     };
     let tenant = tx.tenant_id();
     Ok(
@@ -223,21 +228,22 @@ pub async fn finish(
     Path((document_id, revision)): Path<(Uuid, i32)>,
     Caller(id): Caller,
 ) -> Result<Response, Reject> {
-    let mut tx = tenant_tx(id).await?;
+    let mut tx = upload_tx(id).await?;
     let Some(locked) = q::lock_revision(&mut tx, document_id, revision).await? else {
         tx.rollback().await?;
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
     let r = locked.revision;
+    let key = storage::key(tx.tenant_id(), document_id, revision);
     if r.state != RevisionState::AwaitingUpload {
         tx.rollback().await?;
-        return Ok(if r.error_class == Some(FailureClass::FileTooLarge) {
-            StatusCode::PAYLOAD_TOO_LARGE.into_response()
-        } else {
-            accepted(document_id, revision)
-        });
+        if r.error_class == Some(FailureClass::FileTooLarge) {
+            // Each finish tries the removal again, so a failed removal does not stay.
+            remove_too_large(&s, &key).await;
+            return Ok(StatusCode::PAYLOAD_TOO_LARGE.into_response());
+        }
+        return Ok(accepted(document_id, revision));
     }
-    let key = storage::key(tx.tenant_id(), document_id, revision);
     let size = match s.storage.size(&key).await {
         Ok(Some(n)) => n,
         Ok(None) => {
@@ -258,13 +264,18 @@ pub async fn finish(
     let next = revision_step(r, event);
     q::write_finish(tx, document_id, revision, next, locked.slot_id, true).await?;
     if too_large {
-        // A failed removal leaves the object for the cleanup of #69.
-        if let Err(e) = s.storage.remove(&key).await {
-            tracing::warn!(error = %e, "removal of an object above the maximum failed");
-        }
+        remove_too_large(&s, &key).await;
         return Ok(StatusCode::PAYLOAD_TOO_LARGE.into_response());
     }
     Ok(accepted(document_id, revision))
+}
+
+/// The removal of an object above the maximum, after the commit. A failure goes to the log, and
+/// the next finish of the revision tries again.
+async fn remove_too_large(s: &AppState, key: &str) {
+    if let Err(e) = s.storage.remove(key).await {
+        tracing::warn!(error = %e, "removal of an object above the maximum failed");
+    }
 }
 
 #[cfg(test)]

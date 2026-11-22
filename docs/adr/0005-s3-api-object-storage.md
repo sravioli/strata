@@ -22,7 +22,7 @@ Strata keeps the original file of each revision. The storage must be free and op
 
 ## Decision Outcome
 
-Chosen option: "The S3 API through `object_store`, with Garage as the first server", because Garage is free and open-source. Each S3-compatible server can then replace it with a change of configuration.
+Chosen option: "The S3 API through `object_store`, with Garage as the first server", because Garage is free and open-source. Each S3-compatible server can then replace it with a change of configuration. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the crate `rusty-s3` replaces `object_store`. See the first part of the decision below.
 
 The decision has these parts:
 

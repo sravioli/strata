@@ -29,7 +29,7 @@ Review checks these rules. No tool checks them yet.
 
 ### Coverage
 
-- **The number.** The ratchet raised it from 85 to 90 on 2026-11-22, with change 2 of #49. The value was then 90.97%. The owner set 85 on 2026-11-22 (#49), when the scope moved to the L0 and L1 tests. The value was then 86.52%. Before, the number was 80, with the L0 tests only (80.34% on 2026-11-21). It holds the current line. It is not a target.
+- **The number.** The ratchet raised it from 85 to 90 on 2026-11-22, with change 2 of #49. The value was then 90.71%. The owner set 85 on 2026-11-22 (#49), when the scope moved to the L0 and L1 tests. The value was then 86.52%. Before, the number was 80, with the L0 tests only (80.34% on 2026-11-21). It holds the current line. It is not a target.
 - **The ratchet.** When a change raises the coverage by one point or more, the same change raises the number to the new value, rounded down.
 - **The scope.** The number counts the L0 and L1 tests together, in the `l1` job of each pull request. The owner moved the scope from L0 to L0 and L1 on 2026-11-22 (#49). The reason: the database and HTTP code of the crate `strata` runs only in L1 tests. With L0 tests only, the workspace was at 47%.
 - **Known gap.** Six arms of `job_step` (in `crates/core/src/job.rs`) have no L0 test. The Lean proofs cover them, but no Rust test runs them.

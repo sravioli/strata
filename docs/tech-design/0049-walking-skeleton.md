@@ -185,7 +185,7 @@ The types in the `strata` crate make the rules of 0004 hold at compile time:
 - `IdentityTx` wraps a transaction on the primary. Its only methods read the issuer binding, read or create the account, and read the two statuses (0021, steps 7 to 10).
 - `Allowed` is a value that only `allowed(decision: Decision) -> Option<Allowed>` makes, and only from `Decision::Allow`. A `Scope` comes only from `authorized_scope` (0004).
 - `IdentityTx::into_tenant(self, Allowed or Scope) -> TenantTx` is the one way to open a tenant transaction. It sets `app.tenant_id` with `set_config(…, true)` (0003).
-- Each query function takes `&mut TenantTx`. No query function takes a pool or a connection.
+- Each query function takes `&mut TenantTx`. No query function takes a pool or a connection. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): a query function that ends the transaction with its statement takes `TenantTx` by value. It sends `commit` with the statement (the pipelining rule). The rule applies to the tenant-owned tables. The cleanup of the global tables `jobs` and `upload_slots` takes a connection of its role, because it needs no tenant context.
 - The worker has `ClaimTx`. It reads the job, sets the tenant context of the job and reads the tenant status. Then `job_step` and `authorize` decide, and `ClaimTx::into_tenant` gives the `TenantTx` of the job (0004).
 
 The test helper `tenant_tx(tenant)` opens a tenant transaction for tests through the same function. Tests do not open one another way (0003).

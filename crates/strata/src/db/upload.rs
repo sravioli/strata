@@ -33,14 +33,15 @@ const LOCK_REVISION: &str = "select state, retry_mark, error_class, no_text, slo
      from revisions where tenant_id = $1 and document_id = $2 and revision = $3 for update";
 
 /// The write of a finish that leaves `AwaitingUpload`: the result of `revision_step`, the removal
-/// of the row of `upload_slots`, and the job only for `Uploaded` (0005). `strata_api` can read
-/// only `state` of `jobs`, so the insert has no `returning` and no `on conflict`.
+/// of the row of `upload_slots`, and the job when `$9` is true (0005). The Rust code decides `$9`.
+/// `strata_api` can read only `state` of `jobs`, so the insert has no `returning` and no
+/// `on conflict`.
 pub const WRITE_FINISH: &str = "with u as (update revisions set state = $4, retry_mark = $5, \
      error_class = $6, no_text = $7, status_at = now() \
      where tenant_id = $1 and document_id = $2 and revision = $3), \
      s as (delete from upload_slots where slot_id = $8) \
      insert into jobs (tenant_id, kind, document_id, revision) \
-     select $1, 'ProcessDocument', $2, $3 where $4 = 'Uploaded'";
+     select $1, 'ProcessDocument', $2, $3 where $9";
 
 /// What the client sent at the start (0006).
 pub struct NewRevision<'a> {
@@ -143,6 +144,8 @@ pub async fn write_finish(
     let tenant = tx.tenant_id;
     let state = format!("{:?}", r.state);
     let class = r.error_class.map(|c| format!("{c:?}"));
+    // Only the change from `AwaitingUpload` to `Uploaded` makes a job.
+    let job = r.state == RevisionState::Uploaded;
     let p: Params = &[
         &tenant,
         &document_id,
@@ -152,6 +155,7 @@ pub async fn write_finish(
         &class,
         &r.no_text,
         &slot_id,
+        &job,
     ];
     tx.query_and_end(WRITE_FINISH, p, commit).await?;
     Ok(())

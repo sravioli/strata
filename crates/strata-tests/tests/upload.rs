@@ -213,7 +213,7 @@ impl World {
             .get(0)
     }
 
-    /// The rows of a tenant in `documents`, `revisions` and `upload_slots`.
+    /// The rows of a tenant in `documents` and `revisions`.
     async fn rows(&self, t: &Tenant) -> (i64, i64) {
         let row = self
             .su
@@ -567,6 +567,7 @@ async fn a_finish_of_a_revision_of_a_different_tenant() {
         (other.status, missing.status),
         (StatusCode::NOT_FOUND, StatusCode::NOT_FOUND)
     );
+    assert_eq!(other.body, missing.body);
     assert_eq!(w.state(d, r).await, ("AwaitingUpload".into(), None));
     assert_eq!(w.jobs(d, r).await, 0);
 }
