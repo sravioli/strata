@@ -302,7 +302,7 @@ async fn a_different_algorithm_fails() {
 #[tokio::test]
 async fn claims_of_time_and_audience() {
     let (_su, _a, p1, api) = setup().await;
-    let t = now();
+    // Each case reads the clock when it builds its token, so a slow run does not move the bounds.
     let cases: Vec<(&str, Change)> = vec![
         (
             "aud",
@@ -312,19 +312,19 @@ async fn claims_of_time_and_audience() {
         ("no iat", Box::new(|c| drop(c.remove("iat")))),
         (
             "exp past",
-            Box::new(move |c| drop(c.insert("exp".into(), json!(t - 61)))),
+            Box::new(|c| drop(c.insert("exp".into(), json!(now() - 61)))),
         ),
         (
             "nbf future",
-            Box::new(move |c| drop(c.insert("nbf".into(), json!(t + 61)))),
+            Box::new(|c| drop(c.insert("nbf".into(), json!(now() + 61)))),
         ),
         (
             "iat future",
-            Box::new(move |c| drop(c.insert("iat".into(), json!(t + 61)))),
+            Box::new(|c| drop(c.insert("iat".into(), json!(now() + 61)))),
         ),
         (
             "lifetime",
-            Box::new(move |c| drop(c.insert("exp".into(), json!(t - 5 + 3601)))),
+            Box::new(|c| drop(c.insert("exp".into(), json!(now() - 5 + 3601)))),
         ),
     ];
     for (what, change) in cases {
