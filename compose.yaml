@@ -16,7 +16,8 @@ services:
       - postgres:/var/lib/postgresql
       - ./dev/roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "strata", "-d", "strata"]
+      # TCP, not the socket: during init the server listens only on the socket.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "strata", "-d", "strata"]
       interval: 2s
       timeout: 5s
       retries: 30

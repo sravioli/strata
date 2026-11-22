@@ -35,7 +35,7 @@ PgBouncer SHALL run in transaction mode, with `max_prepared_statements` set to 2
 
 ### Requirement: The roles exist when PostgreSQL starts
 
-A new data folder of PostgreSQL SHALL get the four roles of 0003 at its first start: `strata_owner`, `strata_api`, `strata_worker` and `strata_operator`. Each role SHALL log in with a development password that is the name of the role. No tracked file SHALL hold a password as the value of a setting. Only `strata_operator` SHALL bypass row-level security.
+A new data folder of PostgreSQL SHALL get the four roles of 0003 at its first start: `strata_owner`, `strata_api`, `strata_worker` and `strata_operator`. Each role SHALL log in with a development password that is the name of the role. `dev/roles.sql` SHALL set these passwords. No tracked file SHALL hold a database URL with a password. Only `strata_operator` SHALL bypass row-level security.
 
 #### Scenario: The roles exist after the first start
 
