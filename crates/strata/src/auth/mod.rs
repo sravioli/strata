@@ -36,6 +36,8 @@ pub enum Reject {
     Unauthorized,
     Forbidden,
     Unavailable,
+    /// A start of an upload at a bound (0049): `503` with `Retry-After: 60`.
+    Bound,
     Internal,
 }
 
@@ -45,6 +47,11 @@ impl IntoResponse for Reject {
             Reject::Unauthorized => (StatusCode::UNAUTHORIZED, header::WWW_AUTHENTICATE, "Bearer"),
             Reject::Forbidden => return StatusCode::FORBIDDEN.into_response(),
             Reject::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, header::RETRY_AFTER, "1"),
+            Reject::Bound => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                header::RETRY_AFTER,
+                crate::upload::BOUND_RETRY_AFTER,
+            ),
             Reject::Internal => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         };
         (status, [(name, HeaderValue::from_static(value))]).into_response()

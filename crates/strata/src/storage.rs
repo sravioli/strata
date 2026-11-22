@@ -86,11 +86,19 @@ impl Storage {
         })
     }
 
-    /// A URL that permits one PUT of `key`, until `expiry` from now.
-    pub fn sign_put(&self, key: &str, expiry: Duration) -> Url {
-        self.bucket
+    /// A URL that permits one PUT of `key` until `expiry` from now, and the time of its end.
+    pub fn sign_put(&self, key: &str, expiry: Duration) -> (Url, jiff::Timestamp) {
+        // Whole seconds, as `X-Amz-Date` of the signature: the end is then exact.
+        let now = jiff::Timestamp::from_second(jiff::Timestamp::now().as_second())
+            .expect("the time now is a valid timestamp");
+        let url = self
+            .bucket
             .put_object(Some(&self.credentials), key)
-            .sign(expiry)
+            .sign_with_time(expiry, &now);
+        let end = now
+            .checked_add(expiry)
+            .expect("an expiry of minutes stays in the range of a timestamp");
+        (url, end)
     }
 
     /// The size of the object in bytes, or `None` when no object has the key.
@@ -222,7 +230,9 @@ mod tests {
     #[test]
     fn a_put_url_names_one_key_and_its_expiry() {
         let s = Storage::from_vars(vars(ALL)).unwrap();
-        let url = s.sign_put("a/b", PUT_EXPIRY);
+        let (url, end) = s.sign_put("a/b", PUT_EXPIRY);
+        let left = end.duration_since(jiff::Timestamp::now());
+        assert!(left.as_secs() > 890 && left.as_secs() <= 900, "{left:?}");
         assert_eq!(url.path(), "/strata/a/b");
         let q: Vec<(String, String)> = url.query_pairs().into_owned().collect();
         assert!(q.contains(&("X-Amz-Expires".into(), "900".into())), "{q:?}");

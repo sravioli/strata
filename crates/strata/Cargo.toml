@@ -13,6 +13,7 @@ testing = []
 strata-core = { path = "../core" }
 axum = { version = "=0.8.9", default-features = false, features = [
   "http1",
+  "json",
   "tokio",
 ] }
 base64 = "=0.22.1"
@@ -51,9 +52,10 @@ tokio = { version = "=1.54.1", features = [
 tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
-uuid = "=1.29.3"
+uuid = { version = "=1.29.3", features = ["serde"] }
 # Signs the S3 requests only (owner, 2026-11-22). hyper sends them.
 rusty-s3 = { version = "=0.12.0", default-features = false, features = [
   "rustcrypto",
 ] }
 url = "=2.5.9"
+jiff = { version = "=1.0.2", default-features = false, features = ["std"] }

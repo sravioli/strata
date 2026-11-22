@@ -44,7 +44,6 @@ The transaction that sets a revision to `Uploaded` SHALL insert one `ProcessDocu
 - **THEN** one `Waiting` job exists for the revision
 - **WHEN** its transaction rolls back
 - **THEN** no job exists
-- **PENDING** Task 5.6 adds the test.
 
 ### Requirement: The API reads only the state of a job
 

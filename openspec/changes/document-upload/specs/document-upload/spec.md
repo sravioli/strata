@@ -40,7 +40,6 @@ Lets an account put the bytes of a document into the object storage of ADR 0005 
 - **GIVEN** two starts of an upload for the same `document_id` at the same time
 - **WHEN** both complete
 - **THEN** they get two different revision numbers, one after the other
-- **PENDING** Task 5.4 adds the test.
 
 ### Requirement: The API checks the start body
 
@@ -75,7 +74,6 @@ Before it creates a row, the start SHALL count the `Waiting` jobs and the rows o
 - **GIVEN** a count of `Waiting` jobs at the bound
 - **WHEN** a client starts an upload
 - **THEN** the API answers `503` with `Retry-After: 60`, and no revision and no job exist for the upload
-- **PENDING** Task 5.5 adds the test.
 
 #### Scenario: Too many unfinished uploads reject the start
 
@@ -115,35 +113,30 @@ Before it creates a row, the start SHALL count the `Waiting` jobs and the rows o
 - **AND** the row of `upload_slots` of the revision is removed
 - **WHEN** the client finishes the upload a second time
 - **THEN** the API answers `413` again, and no job exists
-- **PENDING** Task 5.6 adds the test.
 
 #### Scenario: TC-6-04 A finish with no object
 
 - **GIVEN** an upload that the client started but did not send
 - **WHEN** the client finishes the upload
 - **THEN** the API answers `409`, the revision stays in `AwaitingUpload`, and no job exists
-- **PENDING** Task 5.6 adds the test.
 
 #### Scenario: TC-6-05 A second finish changes nothing
 
 - **GIVEN** an upload that the client finished
 - **WHEN** the client finishes it a second time
 - **THEN** the API gives the same answer, and one job exists
-- **PENDING** Task 5.6 adds the test.
 
 #### Scenario: TC-47-09 Each finish gives the same Location
 
 - **GIVEN** an upload that the client finished
 - **WHEN** the client finishes it a second time
 - **THEN** each answer is `202` with the same `Location`
-- **PENDING** Task 5.6 adds the test.
 
 #### Scenario: TC-49-09 Two finishes at the same time create one job
 
 - **GIVEN** a revision in `AwaitingUpload` with its object in the storage
 - **WHEN** the client sends two finishes at the same time, and then a third
 - **THEN** the revision is `Uploaded`, it has exactly one job, and each finish answers `202` with the same `Location`
-- **PENDING** Task 5.6 adds the test.
 
 #### Scenario: A finish of a revision of a different tenant
 
