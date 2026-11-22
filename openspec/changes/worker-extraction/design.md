@@ -1,0 +1,1 @@
+Tech design: [docs/tech-design/0049-walking-skeleton.md](../../../docs/tech-design/0049-walking-skeleton.md), change 3 of "How the work lands" (amended on 2026-11-22), with tech designs 0004, 0005, 0006 and 0007.
