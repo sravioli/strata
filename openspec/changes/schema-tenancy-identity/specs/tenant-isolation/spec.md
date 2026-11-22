@@ -75,7 +75,6 @@ The code SHALL set `app.tenant_id`, `app.issuer_id` and `app.tenant_value` only 
 - **GIVEN** a pooler in transaction mode with one server connection
 - **WHEN** a transaction of A ends and a transaction of B starts on that connection
 - **THEN** the transaction of B reads only rows of B
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: Prepared statements work through the pooler
 

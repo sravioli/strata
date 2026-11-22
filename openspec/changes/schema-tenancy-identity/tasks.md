@@ -27,8 +27,8 @@
 
 ## 5. Transactions in Rust
 
-- [ ] 5.1 Add the pool of deadpool-postgres with 20 connections and a wait of 2 seconds. Add `TenantTx`, `IdentityTx` and `Allowed`, with `allowed(Decision) -> Option<Allowed>` and `IdentityTx::into_tenant`. `into_tenant` takes `Allowed` or a `Scope`, and sets `app.tenant_id` with `set_config(…, true)`. Follow the pipelining rule of 0049. Add the test helper `tenant_tx`. Verify: a `compile_fail` doc test in the library of `strata` shows that a query function does not accept a pool or a connection.
-- [ ] 5.2 Add the L1 test TC-3-05 through the pool of one connection, and the test of prepared statements through PgBouncer. Verify: the tests pass. Remove the pending marker of TC-3-05.
+- [x] 5.1 Add the pool of deadpool-postgres with 20 connections and a wait of 2 seconds. Add `TenantTx`, `IdentityTx` and `Allowed`, with `allowed(Decision) -> Option<Allowed>` and `IdentityTx::into_tenant`. `into_tenant` takes `Allowed` or a `Scope`, and sets `app.tenant_id` with `set_config(…, true)`. Follow the pipelining rule of 0049. Add the test helper `tenant_tx`. Verify: a `compile_fail` doc test in the library of `strata` shows that a query function does not accept a pool or a connection.
+- [x] 5.2 Add the L1 test TC-3-05 through the pool of one connection, and the test of prepared statements through PgBouncer. Verify: the tests pass. Remove the pending marker of TC-3-05.
 
 ## 6. Operator command
 

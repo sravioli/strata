@@ -34,3 +34,7 @@ name = "dependency_graph"
 [[test]]
 name = "schema"
 required-features = ["l1"]
+
+[[test]]
+name = "transactions"
+required-features = ["l1"]
