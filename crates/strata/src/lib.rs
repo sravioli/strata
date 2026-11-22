@@ -5,6 +5,7 @@ pub mod api;
 pub mod auth;
 pub mod cleanup;
 pub mod db;
+pub mod extraction;
 pub mod migrate;
 pub mod storage;
 pub mod upload;

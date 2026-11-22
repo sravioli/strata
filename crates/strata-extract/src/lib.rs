@@ -44,13 +44,15 @@ pub fn detect(bytes: &[u8]) -> Format {
 }
 
 /// The JSON document of 0049 for the text of `pdftotext`. `pdftotext` ends each page with a form
-/// feed. A page with no text gets no block, so a PDF with no text gives an empty list.
+/// feed. A page with no text gets no block, so a PDF with no text gives an empty list. The text
+/// loses each NUL character, because PostgreSQL cannot store it in a `text` value.
 pub fn pdf_document(text: &str) -> serde_json::Value {
     let pages = text.matches('\u{c}').count();
     let blocks: Vec<_> = text
         .split('\u{c}')
         .take(pages)
         .enumerate()
+        .map(|(i, page)| (i, page.replace('\0', "")))
         .filter(|(_, page)| !page.trim().is_empty())
         .map(|(i, page)| serde_json::json!({"kind": "page", "index": i + 1, "text": page.trim()}))
         .collect();
@@ -140,6 +142,15 @@ mod tests {
                 {"kind": "page", "index": 1, "text": "alpha"},
                 {"kind": "page", "index": 3, "text": "bravo"},
             ]})
+        );
+    }
+
+    #[test]
+    fn a_text_loses_its_nul_characters() {
+        let document = pdf_document("a\0b\u{c}\0\u{c}");
+        assert_eq!(
+            document["blocks"],
+            serde_json::json!([{"kind": "page", "index": 1, "text": "ab"}])
         );
     }
 
