@@ -37,8 +37,8 @@
 
 ## 6. Cleanup
 
-- [ ] 6.1 Add the cleanup function of `Done` jobs. It connects as `strata_worker` and removes at most 1,000 rows in each batch. Change 3 calls it from the loop of the worker. The tests run in a new database, because other tests write `jobs`. Verify: the L1 test TC-5-10 and the scenario "Jobs in other states stay" pass. Remove the pending marker of TC-5-10.
-- [ ] 6.2 Add the task of `strata api` that removes the rows of `upload_slots` older than 2 hours, each 60 seconds, at most 1,000 rows in each batch. A failure of one run goes to the log, and the next run continues. The task gets its own handle of the pool in `api::serve`. Verify: the scenario "Old rows go and new rows stay" passes as an L1 test that calls one run in a new database.
+- [x] 6.1 Add the cleanup function of `Done` jobs. It connects as `strata_worker` and removes at most 1,000 rows in each batch. Change 3 calls it from the loop of the worker. The tests run in a new database, because other tests write `jobs`. Verify: the L1 test TC-5-10 and the scenario "Jobs in other states stay" pass. Remove the pending marker of TC-5-10.
+- [x] 6.2 Add the task of `strata api` that removes the rows of `upload_slots` older than 2 hours, each 60 seconds, at most 1,000 rows in each batch. A failure of one run goes to the log, and the next run continues. The task gets its own handle of the pool in `api::serve`. Verify: the scenario "Old rows go and new rows stay" passes as an L1 test that calls one run in a new database.
 
 ## 7. Route checks
 

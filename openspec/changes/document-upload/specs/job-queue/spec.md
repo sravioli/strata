@@ -66,7 +66,6 @@ The cleanup of jobs SHALL run as `strata_worker`. It SHALL remove the `Done` job
 - **GIVEN** a `Done` job that ended 23 hours ago and one that ended 25 hours ago
 - **WHEN** the cleanup task runs
 - **THEN** the first job stays and the second job is removed
-- **PENDING** Task 6.1 adds the test.
 
 #### Scenario: Jobs in other states stay
 

@@ -58,7 +58,10 @@ pub fn router(state: AppState) -> Router {
 }
 
 pub async fn serve(cfg: tokio_postgres::Config, listen: &str) -> Result<(), String> {
-    let app = router(state(cfg)?);
+    let state = state(cfg)?;
+    // The cleanup of upload_slots has its own handle of the pool.
+    tokio::spawn(crate::cleanup::old_slots_task(state.auth.pool.clone()));
+    let app = router(state);
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .map_err(|e| format!("bind {listen}: {e}"))?;

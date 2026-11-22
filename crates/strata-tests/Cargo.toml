@@ -69,3 +69,7 @@ required-features = ["l1"]
 [[test]]
 name = "upload"
 required-features = ["l1"]
+
+[[test]]
+name = "cleanup"
+required-features = ["l1"]

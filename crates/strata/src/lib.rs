@@ -3,6 +3,7 @@
 pub mod admin;
 pub mod api;
 pub mod auth;
+pub mod cleanup;
 pub mod db;
 pub mod migrate;
 pub mod storage;
