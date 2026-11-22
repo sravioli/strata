@@ -101,10 +101,11 @@ test-cases:
 
 # L1: tests against the services of compose.yaml. The services stay up, so local data stays.
 # L0 and L1 run together under coverage. The floor is in CONSTRAINTS.md.
-l1: $(BIN)/cargo-llvm-cov
+# The tests run in a delegated cgroup (scripts/in-cgroup.sh), for the limits of the sandbox.
+l1: $(BIN)/cargo-llvm-cov $(BIN)/nsjail
 	docker compose up --wait
 	scripts/dev-services-smoke.sh
-	cargo llvm-cov --workspace --locked --all-features --fail-under-lines 90
+	scripts/in-cgroup.sh cargo llvm-cov --workspace --locked --all-features --fail-under-lines 90
 
 commits: $(BIN)/cog
 	cog check $(RANGE)
