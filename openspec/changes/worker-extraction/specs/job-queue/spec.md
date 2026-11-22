@@ -11,7 +11,6 @@ A worker SHALL claim one `ProcessDocument` job with `for update skip locked`: a 
 - **GIVEN** one `Waiting` job and two workers
 - **WHEN** the two workers claim at the same time
 - **THEN** one worker gets the job, and the other gets no job
-- **PENDING** Task 5.2 adds the test.
 
 #### Scenario: A job that is not due
 

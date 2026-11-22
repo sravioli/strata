@@ -68,4 +68,3 @@ A job that runs when its tenant becomes not active SHALL continue to its end. Th
 - **THEN** the job continues to its end
 - **WHEN** a worker claims the next job of A
 - **THEN** the decision is "deny" and the worker does not start the job
-- **PENDING** Task 5.2 adds the test.
