@@ -1,0 +1,2 @@
+"strata_api" "strata_api"
+"strata_worker" "strata_worker"

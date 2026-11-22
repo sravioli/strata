@@ -85,7 +85,8 @@ verify: $(AENEAS)/charon
 sql: tools
 	files=$$(git ls-files '*.sql' | sort); \
 	echo "$$files" | xargs -r sqlfluff lint --dialect postgres; \
-	for f in $$files; do psql -v ON_ERROR_STOP=1 -q -f "$$f"; done
+	psql -v ON_ERROR_STOP=1 -q -f dev/roles.sql; \
+	for f in $$(echo "$$files" | grep -vx dev/roles.sql); do psql -v ON_ERROR_STOP=1 -q -f "$$f"; done
 
 # Each test case ID has a test or a PENDING marker.
 test-cases:

@@ -186,7 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:19
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ["5432:5432"]
