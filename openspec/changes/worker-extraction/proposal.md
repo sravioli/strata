@@ -55,7 +55,7 @@ The agent decided these points. The owner reviews them in the pull request:
 
   `strata-extract` has no code for tests. The tests with real files (TC-7-07, TC-7-08, the PDF of TC-7-09) run the real `strata-extract` and `pdftotext`.
 - **The limits in the tests.** The worker takes its limits as one value. The values of 0007 are the default. The L1 tests of the time limit use shorter limits, so a test does not wait 120 seconds. Each test of a limit checks the class that the limit gives.
-- **`pdftotext` from the system.** The worker and the tests use the `pdftotext` of the package of the system (`poppler-utils`). `make setup` warns when it is missing. A pinned version comes with the image of the worker (M3, [#105](https://github.com/sravioli/strata/issues/105)).
+- **`pdftotext` from the system.** The worker and the tests use the `pdftotext` of the package of the system (`poppler-utils`). `make setup` warns when it is missing. A pinned version comes with the image of the worker (M3, [#43](https://github.com/sravioli/strata/issues/43)).
 - **Two paths in the settings.** `STRATA_NSJAIL` names the nsjail binary, and `STRATA_EXTRACT` names the `strata-extract` binary. With a path that is missing, `strata worker` stops with an error that names the variable.
 - **The storage settings of the worker** are the six variables of change 2. The worker reads them in the same way as the API.
 
