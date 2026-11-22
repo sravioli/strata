@@ -177,13 +177,19 @@ The storage SHALL accept a PUT with a signed URL of the API before the URL expir
 
 ### Requirement: The API reads its storage settings from the environment
 
-`strata api` SHALL read the storage settings only from the variables `AWS_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET_NAME` and `AWS_ALLOW_HTTP`. With no access key or no secret key, it SHALL stop before it serves a request, with an error that names the variable. It SHALL not ask a metadata service for credentials.
+`strata api` SHALL read the storage settings only from the variables `AWS_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET_NAME` and `AWS_ALLOW_HTTP`. With no access key or no secret key, it SHALL stop before it serves a request, with an error that names the variable. It SHALL not ask a metadata service for credentials. When `AWS_ENDPOINT` starts with `http://` and `AWS_ALLOW_HTTP` is not `true`, it SHALL stop before it serves a request, with an error that names `AWS_ALLOW_HTTP`.
 
 #### Scenario: No secret key
 
 - **GIVEN** the storage variables with no `AWS_SECRET_ACCESS_KEY`
 - **WHEN** an operator starts `strata api`
 - **THEN** the process stops with an error that names `AWS_SECRET_ACCESS_KEY`
+
+#### Scenario: An http endpoint needs AWS_ALLOW_HTTP
+
+- **GIVEN** an `AWS_ENDPOINT` that starts with `http://` and no `AWS_ALLOW_HTTP`
+- **WHEN** an operator starts `strata api`
+- **THEN** the process stops with an error that names `AWS_ALLOW_HTTP`
 
 ### Requirement: The API removes old rows of upload_slots
 

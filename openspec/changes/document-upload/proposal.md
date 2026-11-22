@@ -13,8 +13,8 @@ Tech design 0049 builds the walking skeleton in four changes. This is change 2. 
   - `POST /v1/documents` starts the upload of a new document.
   - `POST /v1/documents/{document_id}/revisions` starts the upload of the next revision.
   - `POST /v1/documents/{document_id}/revisions/{revision}/finish` finishes an upload.
-- Add the storage client with `object_store` and the S3 API (0006). The API signs a PUT URL for one key, with an expiry of 15 minutes. At the finish, the API reads the size of the object.
-- Check two facts about Garage before the first L1 test that uses Garage (0006). Garage must accept the signed URLs of `object_store`. Garage must check the expiry only when a request arrives.
+- Add the storage client with `rusty-s3` and the S3 API (0006). `rusty-s3` signs each request. The HTTP client of `strata` (hyper with rustls and ring) sends the requests of the API. The API signs a PUT URL for one key, with an expiry of 15 minutes. At the finish, the API reads the size of the object.
+- Check two facts about Garage before the first L1 test that uses Garage (0006). Garage must accept the signed URLs of `rusty-s3`. Garage must check the expiry only when a request arrives.
 - Add the two bounds of the start of an upload: 20,000 `Waiting` jobs (0005) and 5,000 rows in `upload_slots` (0006). At a bound, the API answers `503` with `Retry-After: 60` and logs the rejection.
 - Add a task in `strata api` that removes the rows of `upload_slots` that are older than 2 hours, each 60 seconds, 1,000 rows in each batch.
 - Add the cleanup function for `Done` jobs that are older than 24 hours, 1,000 rows in each batch. It runs as `strata_worker`. Change 3 calls it from the loop of the worker.
@@ -38,6 +38,7 @@ The owner decided these points on 2026-11-22:
 - **A finish with no object** gets `409 Conflict`, and changes nothing (TC-6-04). This change amends 0006 with this decision.
 - **The start body.** `file_name` and `content_type` each have 1 to 1,024 characters. `size` is an integer from 0 to 100 MB. A size above 100 MB gets `413`. Each other value gets `400`. A size of 0 is valid.
 - **`Retry-After` at an upload bound** is 60 seconds.
+- **The storage client.** `rusty-s3` 0.12.0, with no default features and the feature `rustcrypto`, replaces `object_store`. With the feature `aws`, `object_store` adds `aws-lc-rs`, a second crypto backend. With each set of features, `make deny` fails, because `object_store` depends on `chrono` and `humantime`. Each of them has an advisory that it is not maintained (RUSTSEC-2026-0542, RUSTSEC-2026-0543), and no fix exists. `rusty-s3` only signs requests, and the crates that it adds pass `make deny`. `hmac` and `sha2` are already in the workspace. A consequence: Azure Blob Storage now needs its own client. Each S3-compatible server stays a change of configuration. This change amends ADR 0005 (object storage), ADR 0011 (walking skeleton), 0006 and 0049 with this decision.
 
 The agent decided these points. The owner reviews them in the pull request:
 
@@ -45,7 +46,7 @@ The agent decided these points. The owner reviews them in the pull request:
 - The start body follows the body rules of 0047: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16 KB gives `413`. Thus each route with a JSON body has one rule.
 - The three routes get their tenant transaction from `authorized_scope(principal, UploadDocument)`. A route with a `document_id` cannot know the tenant of the document before the query. The scope and the policy of 0003 then hide each document of a different tenant, so the route answers `404`.
 - A finish that sets `Failed` with `FileTooLarge` also removes the row of `upload_slots`, because the revision is no longer in `AwaitingUpload`. A second finish of that revision answers `413` again. A finish of a revision in each other state, except `AwaitingUpload`, answers `202` with the same `Location`.
-- The storage settings come from six environment variables, with the names that `object_store` uses: `AWS_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET_NAME` and `AWS_ALLOW_HTTP`. With no access key or no secret key, `strata api` stops with an error that names the variable. Strata reads only these six and gives each one to the builder, so the client never asks the metadata service of a cloud for credentials.
+- The storage settings come from six environment variables, `AWS_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET_NAME` and `AWS_ALLOW_HTTP`. With no access key or no secret key, `strata api` stops with an error that names the variable. Strata reads only these six. The client has no other source of credentials, so it never asks the metadata service of a cloud for credentials. An endpoint with `http://` is permitted only when `AWS_ALLOW_HTTP` is `true`.
 - `upload_slots` holds only `slot_id` and `created_at`. No query reads its other identifiers, and the API role cannot read them. Thus the table keeps no identifier of a tenant or a document.
 - The target of a job is two columns, `document_id` and `revision`. `jobs` has no foreign key, because it is a global table and `revisions` is tenant-owned.
 
@@ -89,6 +90,6 @@ These test cases stay `pending` in their designs, and a later change or issue ca
 - `crates/strata/src/`: the upload routes, the storage client, the cleanup task and the router of `strata api`.
 - `crates/core/src/revision.rs`: new. `lean/Strata/Generated/`, `lean/Strata/Model/Revision.lean` and `lean/Strata/Proofs/Revision.lean` change with it.
 - `crates/strata-tests/`: L1 tests against PostgreSQL and Garage. The list of global tables in the test code gets `jobs` and `upload_slots`.
-- New dependency: `object_store` with the feature `aws`. `cargo deny` checks it and the crates that it adds.
-- `docs/tech-design/0049-walking-skeleton.md` and `docs/tech-design/0006-object-storage.md`: amended notes.
+- New dependency: `rusty-s3` 0.12.0 with the feature `rustcrypto`. It adds `jiff`, `url`, `percent-encoding`, `zeroize` and their crates. `cargo deny` checks them.
+- `docs/tech-design/0049-walking-skeleton.md`, `docs/tech-design/0006-object-storage.md`, `docs/adr/0005-s3-api-object-storage.md` and `docs/adr/0011-walking-skeleton-postgres-search.md`: amended notes.
 - No data exists, so no migration of data is necessary.

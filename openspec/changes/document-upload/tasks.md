@@ -2,8 +2,8 @@
 
 ## 1. Dependencies and settings
 
-- [ ] 1.1 Add `object_store` at an exact version with the feature `aws` only. Use the TLS and crypto backend that the workspace already has (rustls with ring), if the crate permits it. Verify: `cargo build --workspace --locked` and `make deny` pass. If `make deny` fails, or the crate adds a second TLS or crypto backend, stop and tell the owner.
-- [ ] 1.2 Read the six storage variables of the `document-upload` spec, and give each one to its setter of `AmazonS3Builder::new()`. Do not use `AmazonS3Builder::from_env`: it reads each `AWS_*` variable, for example a session token or a metadata endpoint. A missing `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` gives an error that names the variable. Add the settings of Garage to the environment of the L1 tests and of the `l1` job of CI, from the development values in `compose.yaml`. Verify: the scenario "No secret key" passes in an L1 test of the binary, and `make secrets` passes with no new entry in `.betterleaksignore`.
+- [ ] 1.1 Add `rusty-s3` at the exact version 0.12.0, with no default features and the feature `rustcrypto` (owner, 2026-11-22). Verify: `cargo build --workspace --locked` and `make deny` pass, and `cargo tree -i aws-lc-rs` finds no crate. If `make deny` fails, stop and tell the owner.
+- [ ] 1.2 Read the six storage variables of the `document-upload` spec into the settings of the storage client. Read no other `AWS_*` variable. A missing `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` gives an error that names the variable. An `http://` endpoint with no `AWS_ALLOW_HTTP=true` gives an error that names `AWS_ALLOW_HTTP`. Add the settings of Garage to the environment of the L1 tests and of the `l1` job of CI, from the development values in `compose.yaml`. Verify: the scenarios "No secret key" and "An http endpoint needs AWS_ALLOW_HTTP" pass in L1 tests of the binary, and `make secrets` passes with no new entry in `.betterleaksignore`.
 
 ## 2. Revision state in core
 
@@ -23,8 +23,8 @@
 
 ## 4. Storage
 
-- [ ] 4.1 Add the storage module of `strata`. It holds the key of 0006 as a pure function, the signature of a PUT URL with an expiry of 15 minutes, the read of the size of an object, and the removal of an object. A removal of a key that does not exist is not an error. Add L0 tests for the key. Verify: `cargo test -p strata` passes.
-- [ ] 4.2 Before each other L1 test that uses Garage, add the L1 tests TC-6-01 and TC-6-02, and the scenario "A slow transfer that starts in time completes". The slow transfer uses an expiry of a few seconds and a body that stops before the expiry and continues after it. If Garage refuses a signed URL of `object_store`, or refuses the slow transfer, stop and tell the owner. Verify: the tests pass. Remove the pending markers of TC-6-01 and TC-6-02.
+- [ ] 4.1 Add the storage module of `strata`. It holds the key of 0006 as a pure function, the signature of a PUT URL with an expiry of 15 minutes, the read of the size of an object, and the removal of an object. `rusty-s3` signs each request. The HTTP client of `strata` sends the HEAD and the DELETE with a signed URL that expires after 60 seconds. A removal of a key that does not exist is not an error. Add L0 tests for the key. Verify: `cargo test -p strata` passes.
+- [ ] 4.2 Before each other L1 test that uses Garage, add the L1 tests TC-6-01 and TC-6-02, and the scenario "A slow transfer that starts in time completes". The slow transfer uses an expiry of a few seconds and a body that stops before the expiry and continues after it. If Garage refuses a signed URL of `rusty-s3`, or refuses the slow transfer, stop and tell the owner. Verify: the tests pass. Remove the pending markers of TC-6-01 and TC-6-02.
 
 ## 5. Upload routes
 
@@ -47,8 +47,9 @@
 
 ## 8. Design amendments
 
-- [ ] 8.1 Amend 0049, "Data model" and "Roles and grants": `upload_slots` holds `slot_id` and `created_at`, the revision stores `slot_id`, and `strata_api` gets `select (slot_id, created_at)`. Give the reason: a `delete` needs `select` on each column in its `where`. Also amend two more sentences: a finish that sets `FileTooLarge` also removes the row of `upload_slots`, and `slot_id` is a version 4 UUID, an exception to "All identifiers are UUIDs that the database generates with `uuidv7()`". Add rows to "Values that the accepted designs left to implementation" for the limits of the start body and for `Retry-After: 60`. Add the note `Amended on <date> (#49)`. Verify: `make lint prose` passes.
-- [ ] 8.2 Amend 0006, "Upload", step 3: a finish with no object answers `409 Conflict` and changes nothing. Add the note `Amended on <date> (#49)`. Verify: `make lint prose` passes.
+- [ ] 8.1 Amend 0049, "Data model" and "Roles and grants": `upload_slots` holds `slot_id` and `created_at`, the revision stores `slot_id`, and `strata_api` gets `select (slot_id, created_at)`. Give the reason: a `delete` needs `select` on each column in its `where`. Also amend two more sentences: a finish that sets `FileTooLarge` also removes the row of `upload_slots`, and `slot_id` is a version 4 UUID, an exception to "All identifiers are UUIDs that the database generates with `uuidv7()`". Add rows to "Values that the accepted designs left to implementation" for the limits of the start body and for `Retry-After: 60`. Replace `object_store` with `rusty-s3` at each place that names it, and give the reason of the proposal. Add the note `Amended on <date> (#49)`. Verify: `make lint prose` passes.
+- [ ] 8.2 Amend 0006, "Upload", step 3: a finish with no object answers `409 Conflict` and changes nothing. Amend each place that names `object_store`: the section "One interface", the reason of O7, the reason about Azure, the new dependency and the Garage check. `rusty-s3` signs the requests, and Azure Blob Storage needs its own client. Add the note `Amended on <date> (#49)`. Verify: `make lint prose` passes.
+- [ ] 8.3 Amend ADR 0005 (object storage) and ADR 0011 (walking skeleton) with the `domain-modeling` skill: `rusty-s3` replaces `object_store`, with the reason of the proposal. A change to Azure Blob Storage is no longer a change of configuration. Add the note `Amended on <date> (#49)` at each changed place. Verify: `make lint prose` passes.
 
 ## 9. Integration and gates
 
