@@ -2,7 +2,7 @@
 # Runs CMD in a delegated cgroup v2, and gives an empty child cgroup for the jails of the worker
 # in STRATA_CGROUP (tech design 0049, change 3). nsjail needs it for the limits of 0007 with no root.
 # With CGROUP_ROOT unset, the script starts a delegated scope of the systemd user manager.
-# CI sets CGROUP_ROOT to a cgroup that it gave to the user, with the shell of the step in it.
+# CI sets CGROUP_ROOT to a cgroup that it gave to the user, with the shell of the step in its leaf main/.
 # Usage: scripts/in-cgroup.sh CMD...
 set -euo pipefail
 if [ -z "${CGROUP_ROOT:-}" ]; then

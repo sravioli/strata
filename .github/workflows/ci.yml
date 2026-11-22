@@ -241,7 +241,8 @@ jobs:
         run: |
           sudo mkdir /sys/fs/cgroup/strata
           sudo chown -R "$USER" /sys/fs/cgroup/strata
-          echo $$ | sudo tee /sys/fs/cgroup/strata/cgroup.procs >/dev/null
+          mkdir /sys/fs/cgroup/strata/main
+          echo $$ | sudo tee /sys/fs/cgroup/strata/main/cgroup.procs >/dev/null
           CGROUP_ROOT=/sys/fs/cgroup/strata make l1
 
   # Make only this job a required check. A skipped job counts as passed.
