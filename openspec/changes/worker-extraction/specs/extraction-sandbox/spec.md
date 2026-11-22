@@ -31,7 +31,7 @@ Runs the parse of each hostile file in a separate process with no credentials, n
 
 ### Requirement: The extraction process writes one JSON document
 
-For a PDF, `strata-extract` SHALL write on standard output one JSON document with the fields `format`, `pages` and `blocks`. Each block SHALL have `kind` `page`, its `index` from 1, and its `text`. A PDF with no text SHALL give an empty list of blocks.
+For a PDF, `strata-extract` SHALL write on standard output one JSON document with the fields `format`, `pages` and `blocks`. Each block SHALL have `kind` `page`, its `index` from 1, and its `text`. A PDF with no text SHALL give an empty list of blocks. `strata-extract` SHALL use one thread. Its exit codes SHALL be below 128 and SHALL NOT be 255. When `pdftotext` stops on a signal, `strata-extract` SHALL exit with its crash code.
 
 #### Scenario: The known text of a PDF
 
@@ -130,6 +130,26 @@ Each extraction SHALL have the limits of 0007. They are 1 GB of memory, 60 secon
 - **WHEN** the worker extracts it the second time
 - **THEN** the revision is `Failed` with `ExtractionTimeout`, and the job is `Done`
 - **PENDING** Task 5.5 adds the test.
+
+### Requirement: Each extraction has its own control group
+
+Each extraction SHALL run in its own child cgroup of the delegated cgroup of `STRATA_CGROUP`. After the run, the worker SHALL read `oom_kill` in `memory.events` of that child before it reads the exit code, and SHALL remove the child. An `oom_kill` above 0 SHALL be the result `ExtractionMemory`, also when the exit code is 0.
+
+#### Scenario: The kernel stops the child of the process for memory
+
+- **GIVEN** an extraction process whose child uses more than 1 GB, and which exits with 0 after the kernel stops the child
+- **WHEN** the worker reads the result
+- **THEN** the result is `ExtractionMemory`, and the child cgroup of the run does not exist
+
+### Requirement: A failure of the sandbox is a normal failure
+
+When nsjail exits with 255, the worker SHALL end the job with `Fail`. The revision SHALL NOT change and SHALL NOT get the retry mark.
+
+#### Scenario: nsjail cannot start the sandbox
+
+- **GIVEN** an `Uploaded` revision with no retry mark, and a run where nsjail exits with 255
+- **WHEN** the job ends
+- **THEN** the revision does not change, and the job is `Waiting` with its backoff
 
 ### Requirement: The worker checks the output
 

@@ -427,7 +427,7 @@ Implementation resolves these points:
 - The exact SQL of the migrations, the grants and the policies, with the policy text of 0003 and 0021 (TC-3-06).
 - The PgBouncer image and its pin.
 - The nsjail configuration and the seccomp list for `pdftotext` ([#103](https://github.com/sravioli/strata/issues/103) completes the list).
-  Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): nsjail has no release binaries. A script builds nsjail 3.6, the latest tag, from source at the pinned commit `f78475530b46d0186111a9096b30725f816b55fe`. `make setup` and CI use the same script. If the CI runner blocks the user namespaces of nsjail, CI loads an AppArmor profile that permits user namespaces for the nsjail binary only. CI does not set `kernel.apparmor_restrict_unprivileged_userns` to 0 (owner, 2026-11-22).
+  Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): nsjail has no release binaries. A script builds nsjail 3.6, the latest tag, from source at the pinned commit `f78475530b46d0186111a9096b30725f816b55fe`. `make setup` and CI use the same script. If the CI runner blocks the user namespaces of nsjail, CI loads an AppArmor profile that permits user namespaces for the nsjail binary only. CI does not set `kernel.apparmor_restrict_unprivileged_userns` to 0 (owner, 2026-11-22). The control group limits of 0007 work with no root only in a delegated cgroup that holds no process. Thus the worker runs each extraction in a child cgroup of the delegated cgroup of the setting `STRATA_CGROUP`. A failure of nsjail itself (exit 255) is a normal failure of the job, with no change to the revision (owner, 2026-11-22).
 - The checks of Garage (0006).
 
 These questions belong to later designs:

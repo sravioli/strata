@@ -119,5 +119,5 @@ The worker SHALL read the object of the revision from the storage with its crede
 
 #### Scenario: A setting that is missing
 
-- **WHEN** `strata worker` starts with no `STRATA_NSJAIL`, no `STRATA_EXTRACT`, or a path that does not exist
+- **WHEN** `strata worker` starts with no `STRATA_NSJAIL`, no `STRATA_EXTRACT` or no `STRATA_CGROUP`, with a path that does not exist, or with a cgroup that it cannot write
 - **THEN** it stops with an error that names the variable

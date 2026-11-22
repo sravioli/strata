@@ -30,3 +30,12 @@ The `l1` job of CI SHALL run the L1 tests of the sandbox with nsjail. If the run
 
 - **WHEN** a test reads `.github/workflows/ci.yml` and the scripts that it runs
 - **THEN** no step sets `kernel.apparmor_restrict_unprivileged_userns` to 0
+
+### Requirement: The L1 tests run in a delegated cgroup
+
+`make l1` SHALL run the tests in a delegated cgroup, and SHALL give its path in `STRATA_CGROUP`. Locally, it SHALL use `systemd-run --user --scope -p Delegate=yes`. In CI, the step that runs `make l1` SHALL create `/sys/fs/cgroup/strata` with `sudo`, give it to the user of the job, and move its shell into a leaf child.
+
+#### Scenario: The memory limit works in the tests
+
+- **WHEN** `make l1` runs the test of the memory limit, locally or in CI
+- **THEN** the test runs with the control group limits, and it does not skip

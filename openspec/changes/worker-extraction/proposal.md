@@ -25,6 +25,7 @@ Tech design 0049 builds the walking skeleton in four changes. This is change 3. 
   - the write of the revision, and the end of the job with the check of `lease_token`.
 - Add `strata admin job requeue --tenant <name>` (0005, 0049).
 - Add a script that builds nsjail 3.6 from source at the pinned commit of 0049. `make setup` and the `l1` job of CI use it. If the CI runner blocks the user namespaces of nsjail, CI loads an AppArmor profile for the nsjail binary only.
+- Run each extraction in a child cgroup of a delegated cgroup, so that the control group limits of 0007 work with no root. `make l1` and the `l1` job of CI run the tests in a delegated cgroup.
 
 Not in this change:
 
@@ -43,6 +44,11 @@ The owner decided these points on 2026-11-22. This change amends 0049 with them:
 - **TC-49-02 and TC-49-06.** This change checks their clauses on text parts with a `select` on `text_parts`. Their clauses on the search come with the search route in change 4.
 - **nsjail.** A script builds nsjail 3.6, the latest tag, from source at the pinned commit `f78475530b46d0186111a9096b30725f816b55fe`. nsjail has no release binaries.
 - **CI and AppArmor.** If the runner blocks the user namespaces of nsjail, CI loads an AppArmor profile that permits them for the nsjail binary only. CI does not set `kernel.apparmor_restrict_unprivileged_userns` to 0.
+- **A delegated cgroup.** Task 1.2 showed that the control group v2 limits of 0007 work with no root only in a delegated cgroup that holds no process ([#49](https://github.com/sravioli/strata/issues/49#issuecomment-7082691219)). The setting `STRATA_CGROUP` names that cgroup. The worker makes one child cgroup in it for each extraction, and removes the child after the run. The worker reads `oom_kill` in `memory.events` of the child before it reads the exit code, because a process can exit with 0 after the kernel stops its child for memory.
+  - Locally, `make l1` runs the tests in `systemd-run --user --scope -p Delegate=yes`.
+  - In CI, the step that runs `make l1` creates `/sys/fs/cgroup/strata` with `sudo`, gives it to the user `runner`, and moves its shell into a leaf child. The move is in the same step, because each step starts a new shell.
+  - The image of the worker needs a delegated cgroup ([#43](https://github.com/sravioli/strata/issues/43)).
+- **A failure of nsjail.** nsjail exits with 255 when it cannot start the sandbox. The cause is not in the file. Thus it is a normal failure of the job: the backoff, no change to the revision and no retry mark. After 5 attempts, the job is `Parked` with `JobFailed`.
 
 The agent decided these points. The owner reviews them in the pull request:
 
@@ -56,7 +62,8 @@ The agent decided these points. The owner reviews them in the pull request:
   `strata-extract` has no code for tests. The tests with real files (TC-7-07, TC-7-08, the PDF of TC-7-09) run the real `strata-extract` and `pdftotext`.
 - **The limits in the tests.** The worker takes its limits as one value. The values of 0007 are the default. The L1 tests of the time limit use shorter limits, so a test does not wait 120 seconds. Each test of a limit checks the class that the limit gives.
 - **`pdftotext` from the system.** The worker and the tests use the `pdftotext` of the package of the system (`poppler-utils`). `make setup` warns when it is missing. A pinned version comes with the image of the worker (M3, [#43](https://github.com/sravioli/strata/issues/43)).
-- **Two paths in the settings.** `STRATA_NSJAIL` names the nsjail binary, and `STRATA_EXTRACT` names the `strata-extract` binary. With a path that is missing, `strata worker` stops with an error that names the variable.
+- **Three paths in the settings.** `STRATA_NSJAIL` names the nsjail binary, `STRATA_EXTRACT` names the `strata-extract` binary, and `STRATA_CGROUP` names the delegated cgroup. With a path that is missing, or a cgroup that the worker cannot write, `strata worker` stops with an error that names the variable.
+- **One thread in `strata-extract`.** `pids.max` counts threads, so with the limit of 2, `strata-extract` cannot start a thread while `pdftotext` runs. `pdftotext -` reads all of standard input before it writes output. Thus `strata-extract` writes the bytes, closes the pipe, and then reads the output. Its exit codes are below 128 and are not 255, so that they are different from a signal and from a failure of nsjail. The process is PID 1, so `strata-extract` turns a child that stops on a signal into its crash exit code.
 - **The storage settings of the worker** are the six variables of change 2. The worker reads them in the same way as the API.
 
 ## Test cases
