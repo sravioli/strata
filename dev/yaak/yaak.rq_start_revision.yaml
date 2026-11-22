@@ -1,0 +1,22 @@
+type: http_request
+model: http_request
+id: rq_start_revision
+workspaceId: wk_strata
+folderId: fl_new_revision
+name: Start revision
+description: 201 with the next revision of the document of 'Start document'. 404 for a document of a different tenant.
+sortPriority: 0
+method: POST
+url: ${[ base_url ]}/v1/documents/${[ response.body.path(request='rq_start_document', path='$.document_id') ]}/revisions
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+bodyType: application/json
+body:
+  text: |-
+    {
+      "file_name": "sample-v2.pdf",
+      "content_type": "application/pdf",
+      "size": 1024
+    }

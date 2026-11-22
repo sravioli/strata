@@ -1,0 +1,22 @@
+type: environment
+model: environment
+id: ev_strata_base
+workspaceId: wk_strata
+createdAt: 2026-11-22T17:18:20.589011021
+updatedAt: 2026-11-22T17:19:51.592982688
+name: Global Variables
+public: true
+base: true
+parentModel: workspace
+parentId: null
+variables:
+- enabled: true
+  name: base_url
+  value: ${[ secure(value='YENC_eUE0azNuQwHqYl9wbhNNWIkS7jWxDjr1ZQwa4IKuZRAqlg71sG0r9HLRrB2umaz0qMGC4G566747aEWsd75GATc/HPkr') ]}
+  id: mSMmhtbeuu
+- enabled: true
+  name: token
+  value: ''
+  id: ugjHAsB0R0
+color: null
+sortPriority: 0.0

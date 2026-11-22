@@ -1,0 +1,20 @@
+type: workspace
+model: workspace
+id: wk_strata
+createdAt: 2026-11-22T17:18:20.587719969
+updatedAt: 2026-11-22T17:19:41.882253170
+authentication:
+  token: ${[ token ]}
+authenticationType: bearer
+description: The public API of Strata. See dev/yaak/README.md.
+headers: []
+name: Strata
+encryptionKeyChallenge: eUE0azNuQwHMgDi1Uwia+NVMQ3K7JCtjlohpkbxpyhm0W+6iiP+Q1D8zMw4E6yIG8jykVOEHBHcAZX/9I+YCBY5AkrPu0R58iQzjNXDjY++6fAYuFIRUkGu99/6zmp4YZtA=
+settingValidateCertificates: true
+settingFollowRedirects: true
+settingRequestTimeout: 0
+settingRequestMessageSize: 67108864
+settingDnsOverrides: []
+settingSendCookies: true
+settingStoreCookies: true
+settingHttpVersion: auto

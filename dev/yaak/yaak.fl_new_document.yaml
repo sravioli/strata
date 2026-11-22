@@ -1,0 +1,8 @@
+type: folder
+model: folder
+id: fl_new_document
+workspaceId: wk_strata
+folderId: null
+name: New document
+description: 'Send in order: start, upload the file, finish.'
+sortPriority: 0

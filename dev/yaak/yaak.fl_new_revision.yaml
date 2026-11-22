@@ -1,0 +1,8 @@
+type: folder
+model: folder
+id: fl_new_revision
+workspaceId: wk_strata
+folderId: null
+name: New revision
+description: 'The next revision of the document of ''New document''. Send in order: start, upload the file, finish.'
+sortPriority: 1

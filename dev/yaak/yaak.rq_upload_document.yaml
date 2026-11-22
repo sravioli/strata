@@ -1,0 +1,15 @@
+type: http_request
+model: http_request
+id: rq_upload_document
+workspaceId: wk_strata
+folderId: fl_new_document
+name: Upload file
+description: 'PUT to the signed URL of ''Start document''. No bearer token: the URL carries the signature. Choose the file in the Body tab.'
+sortPriority: 1
+method: PUT
+url: ${[ response.body.path(request='rq_start_document', path='$.upload_url') ]}
+authenticationType: none
+authentication: {}
+bodyType: binary
+body:
+  filePath: ''

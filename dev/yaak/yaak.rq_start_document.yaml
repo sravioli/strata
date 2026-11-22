@@ -1,0 +1,22 @@
+type: http_request
+model: http_request
+id: rq_start_document
+workspaceId: wk_strata
+folderId: fl_new_document
+name: Start document
+description: 201 with document_id, revision, upload_url and expires_at. Set size to the size of the file you upload.
+sortPriority: 0
+method: POST
+url: ${[ base_url ]}/v1/documents
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+bodyType: application/json
+body:
+  text: |-
+    {
+      "file_name": "sample.pdf",
+      "content_type": "application/pdf",
+      "size": 1024
+    }

@@ -1,2 +1,6 @@
 # Development password of compose.yaml (local services, bound to 127.0.0.1). Not a real secret.
 a99e91fe300443ca40c319f892d6360a675d70f6:compose.yaml:generic-password:11
+# Development URL of strata_api in the Yaak README: the password of dev/roles.sql. Not a real secret.
+92bbb0873b76dae0a72ae8cb94d23f5cbe0a8517:dev/yaak/README.md:generic-credential-uri:14
+# The Yaak template ${[ token ]}: a variable name, not a token.
+92bbb0873b76dae0a72ae8cb94d23f5cbe0a8517:dev/yaak/yaak.wk_strata.yaml:generic-api-key:12
