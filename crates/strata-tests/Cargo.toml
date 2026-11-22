@@ -16,6 +16,8 @@ l1 = []
 strata = { path = "../strata", features = ["testing"] }
 strata-core = { path = "../core" }
 strata-dev = { path = "../strata-dev" }
+clap = { version = "=4.6.9", features = ["derive"] }
+base64 = "=0.22.1"
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 getrandom = "=0.3.4"
 jsonwebtoken = { version = "=12.0.0", default-features = false, features = ["rust_crypto"] }
@@ -37,4 +39,12 @@ required-features = ["l1"]
 
 [[test]]
 name = "transactions"
+required-features = ["l1"]
+
+[[test]]
+name = "admin"
+required-features = ["l1"]
+
+[[test]]
+name = "auth"
 required-features = ["l1"]

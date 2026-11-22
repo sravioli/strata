@@ -32,19 +32,19 @@
 
 ## 6. Operator command
 
-- [ ] 6.1 Add `strata admin` with the commands for tenants, issuers, bindings and accounts of 0049. It connects directly as `strata_operator`. Put the rule for a tenant name and the verification of the options in pure functions with L0 tests. Verify: `cargo test -p strata` passes, and the L1 tests of the `operator-command` spec pass.
+- [x] 6.1 Add `strata admin` with the commands for tenants, issuers, bindings and accounts of 0049. It connects directly as `strata_operator`. Put the rule for a tenant name and the verification of the options in pure functions with L0 tests. Verify: `cargo test -p strata` passes, and the L1 tests of the `operator-command` spec pass.
 
 ## 7. Development issuer
 
-- [ ] 7.1 In `strata-dev`, add the key pair in a file with mode `0600`, `serve` on `127.0.0.1`, `token`, and the printed commands that register the issuer. The token functions are in the library, so the L1 tests of `strata` can sign tokens in their process. Verify: the L1 tests of the `dev-issuer` spec pass.
+- [x] 7.1 In `strata-dev`, add the key pair in a file with mode `0600`, `serve` on `127.0.0.1`, `token`, and the printed commands that register the issuer. The token functions are in the library, so the L1 tests of `strata` can sign tokens in their process. Verify: the L1 tests of the `dev-issuer` spec pass.
 
 ## 8. Authentication of the API
 
-- [ ] 8.1 Add the claim verification of step 6 of 0021 as pure functions, with L0 tests for each claim and each limit. Verify: `cargo test -p strata` passes.
-- [ ] 8.2 Add the key cache of each issuer, with the rules of "Signing keys" in 0021. A fake JWKS server in the tests counts its requests. Verify: the L1 tests TC-21-10, TC-21-11 and TC-21-12 pass. Remove their pending markers.
-- [ ] 8.3 Add the authentication layer of `strata api` with steps 1 to 10 of 0021. Steps 1 to 9 give `401` with `WWW-Authenticate: Bearer`. An account or a tenant that is not active gives `403`. Each has an empty body. The end of the pool wait gives `503` with `Retry-After: 1`. Log `act.sub`. Steps 4 to 6 hold no connection. Verify: the L1 tests of the `request-authentication` spec pass with a router that exists only in the tests. Remove each pending marker except the one of TC-21-18.
-- [ ] 8.4 For TC-3-13 and TC-3-09, the test must show that no query on a tenant-owned table runs. Use the statistics of PostgreSQL for each table, or a log of statements, and record the method in the test. Verify: the test fails when the layer reads `accounts` before it verifies the signature.
-- [ ] 8.5 Amend 0021, "Verification of a token": a failure of steps 1 to 9 gives `401` with `WWW-Authenticate: Bearer`, and step 10 gives `403`, each with an empty body. Add the note `Amended on <date> (#49)`. Verify: `make lint prose` passes.
+- [x] 8.1 Add the claim verification of step 6 of 0021 as pure functions, with L0 tests for each claim and each limit. Verify: `cargo test -p strata` passes.
+- [x] 8.2 Add the key cache of each issuer, with the rules of "Signing keys" in 0021. A fake JWKS server in the tests counts its requests. Verify: the L1 tests TC-21-10, TC-21-11 and TC-21-12 pass. Remove their pending markers.
+- [x] 8.3 Add the authentication layer of `strata api` with steps 1 to 10 of 0021. Steps 1 to 9 give `401` with `WWW-Authenticate: Bearer`. An account or a tenant that is not active gives `403`. Each has an empty body. The end of the pool wait gives `503` with `Retry-After: 1`. Log `act.sub`. Steps 4 to 6 hold no connection. Verify: the L1 tests of the `request-authentication` spec pass with a router that exists only in the tests. Remove each pending marker except the one of TC-21-18.
+- [x] 8.4 For TC-3-13 and TC-3-09, the test must show that no query on a tenant-owned table runs. The method: a new database in which `strata_api` has no grant on a tenant-owned table, so a query on one gives `500`. The statistics of PostgreSQL were not used, because other tests write the same tables at the same time. The test records the method. Verify: the test fails when the layer reads `accounts` before it verifies the signature.
+- [x] 8.5 Amend 0021, "Verification of a token": a failure of steps 1 to 9 gives `401` with `WWW-Authenticate: Bearer`, and step 10 gives `403`, each with an empty body. Add the note `Amended on <date> (#49)`. Verify: `make lint prose` passes.
 
 ## 9. Integration and gates
 

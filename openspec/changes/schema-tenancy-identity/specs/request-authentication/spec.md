@@ -14,21 +14,18 @@ The API SHALL do steps 1 to 10 of 0021 for each request, in that order. Each fai
 
 - **WHEN** a test sends one request that fails at each step that rejects a token
 - **THEN** the status code and the body of the response are equal
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-16 A large token is rejected before the parse
 
 - **GIVEN** a token larger than 8 KiB
 - **WHEN** a client sends it
 - **THEN** the API rejects the request before it parses the token
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-03 A token of an issuer that is not registered fails
 
 - **GIVEN** a token signed by a key pair that is not registered, with an `iss` that is not registered
 - **WHEN** a client sends it
 - **THEN** the API rejects the request
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The signature uses the algorithm of the issuer only
 
@@ -39,21 +36,18 @@ The API SHALL verify the signature with the algorithm of the row of the issuer o
 - **GIVEN** issuer P1 with algorithm ES256
 - **WHEN** a client sends a P1 token with `alg` = `none`, with HS256 signed with the public key of P1, or with RS256
 - **THEN** the API rejects each request
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-12 A key in the header is not used
 
 - **GIVEN** a P1 token signed by an attacker key, with a `jku`, `jwk`, `x5u` or `x5c` header that gives that key
 - **WHEN** a client sends it
 - **THEN** the API rejects the request and makes no request to the URL
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-13 A changed or expired token runs no tenant query
 
 - **GIVEN** an access token of an account of A
 - **WHEN** a client changes the tenant in the token, breaks its signature, names a different algorithm or uses it after its expiry time
 - **THEN** the API rejects the request and runs no query on a tenant-owned table
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The API verifies the claims
 
@@ -68,14 +62,12 @@ The API SHALL verify the claims of step 6 of 0021. They are `iss`, `aud`, `exp`,
 - **THEN** the API rejects each request
 - **WHEN** `exp` minus `iat` is above `max_lifetime_s`
 - **THEN** the API rejects the request
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-06 Claims of tenant and account
 
 - **GIVEN** a valid P1 token
 - **WHEN** the tenant claim or the account claim is missing, empty, an array, a number, or longer than 256 bytes
 - **THEN** the API rejects each request
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The tenant comes from the binding of the issuer
 
@@ -86,14 +78,12 @@ The API SHALL find the tenant only through the binding of the issuer and the ten
 - **GIVEN** issuer P1 with a binding from `acme-corp` to tenant A
 - **WHEN** a client sends a valid P1 token with tenant value `acme-corp`
 - **THEN** the API acts for tenant A
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-02 A binding of a different issuer does not apply
 
 - **GIVEN** issuers P1 and P2, and a binding of P2 from `t-2` to tenant B
 - **WHEN** a client sends a valid P1 token with tenant value `t-2`
 - **THEN** the API rejects the request
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-15 A runtime role cannot list the bindings
 
@@ -106,7 +96,6 @@ The API SHALL find the tenant only through the binding of the issuer and the ten
 - **GIVEN** an access token of an account of A
 - **WHEN** a request carries the `tenant_id` of B in a header, in a query parameter, in the path or in the body
 - **THEN** the API acts for A in each case
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-16 SQL text in a parameter stays data
 
@@ -114,7 +103,6 @@ The API SHALL find the tenant only through the binding of the issuer and the ten
 - **WHEN** a string parameter of a request contains SQL text that sets the tenant context to B
 - **THEN** the API uses the text as data
 - **AND** the tenant context stays A
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The first request creates the account
 
@@ -125,14 +113,12 @@ In the identity transaction, the API SHALL read the account for `(tenant_id, iss
 - **GIVEN** no account for (P1, `u-1`) in tenant A
 - **WHEN** two requests with valid tokens for (P1, `u-1`) arrive at the same time
 - **THEN** the two requests succeed, and tenant A has exactly one account for (P1, `u-1`)
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-08 One subject of two issuers gives two accounts
 
 - **GIVEN** issuers P1 and P2 bound to tenant A
 - **WHEN** P1 and P2 tokens with the same subject arrive
 - **THEN** tenant A has two different accounts
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: A status that is not active stops the request
 
@@ -143,21 +129,18 @@ The API SHALL read the status of the issuer, the binding, the tenant and the acc
 - **GIVEN** a valid P1 token
 - **WHEN** an operator sets P1 to not active, or removes the binding of its tenant value
 - **THEN** the next request with that token fails
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-09 A tenant that is not active
 
 - **GIVEN** a tenant that is not active
 - **WHEN** one of its accounts sends a request
 - **THEN** the API rejects the request and runs no further query
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-4-04 An account that the operator stops
 
 - **GIVEN** an active account with an access token that is not expired
 - **WHEN** an operator sets the account to not active, and the account sends a request
 - **THEN** the API rejects the request
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The key cache of each issuer
 
@@ -172,7 +155,6 @@ Each API process SHALL keep the keys of each issuer in memory, with the rules of
 - **GIVEN** keys in the cache of P1
 - **WHEN** 100 tokens with unknown `kid` values arrive in one minute
 - **THEN** the API fetches the JWKS of P1 at most one time in that minute
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-11 A failed fetch keeps the keys
 
@@ -181,7 +163,6 @@ Each API process SHALL keep the keys of each issuer in memory, with the rules of
 - **THEN** the API accepts valid P1 tokens with the keys that it has
 - **GIVEN** an issuer whose keys the API never fetched
 - **THEN** the API rejects all its tokens
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-21-18 The development issuer works end to end
 
@@ -199,7 +180,6 @@ If a token has an `act` claim, the API SHALL write `act.sub`, cut to 256 bytes, 
 - **GIVEN** a valid P1 token with an `act` claim
 - **WHEN** a client sends it
 - **THEN** the request log contains `act.sub`, and the response is equal to the response for the same token without `act`
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: A full pool gives 503
 
@@ -210,4 +190,3 @@ The pool of each API process SHALL hold 20 connections. A request SHALL wait at 
 - **GIVEN** a database pool that is full, and a request that waits for a connection
 - **WHEN** the wait reaches its time limit
 - **THEN** the API answers 503 with `Retry-After`, and it does not wait longer
-- **PENDING** change 1 of #49 adds the test

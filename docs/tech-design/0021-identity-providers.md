@@ -113,6 +113,8 @@ A runtime role thus reads a binding only when the transaction gives the exact is
 
 The API does these steps for each request. Each step that fails stops the request. The API gives the same response for each failure. That response does not show which step failed.
 
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the owner decided the status codes. Each failure of steps 1 to 9 gives `401` with the header `WWW-Authenticate: Bearer`. A tenant or an account that is not active (step 10) gives `403`. Each response has an empty body.
+
 1. The API rejects a token that is larger than 8 KiB.
 2. The API reads `iss` and `kid` from the token. These values are not verified yet. If `kid` is missing, the API rejects the token.
 3. The API reads the row of `issuers` for `iss` in one statement, with no open transaction. If no row exists, or the issuer is not active, the API rejects the token.
