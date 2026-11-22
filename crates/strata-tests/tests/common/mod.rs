@@ -131,3 +131,43 @@ pub fn sqlstate<T: std::fmt::Debug>(r: Result<T, tokio_postgres::Error>) -> Stri
         .map(|c| c.code().to_owned())
         .unwrap_or_default()
 }
+
+/// A new database with the migrations, for a test that counts the rows of a global table. Other
+/// tests write those tables at the same time in the shared database.
+pub async fn new_database(su: &Client) -> String {
+    migrated();
+    let name = unique("strata_new").replace('-', "_");
+    su.batch_execute(&format!("create database {name} owner strata_owner"))
+        .await
+        .unwrap();
+    let mut owner = config("strata_owner", POSTGRES);
+    owner.dbname(&name);
+    strata::migrate::run(&owner).await.unwrap();
+    name
+}
+
+/// The settings of `role` in the database `db`, directly on PostgreSQL.
+pub fn config_in(role: &str, db: &str) -> Config {
+    let mut c = config(role, POSTGRES);
+    c.dbname(db);
+    c
+}
+
+/// A new document of a tenant with one revision in `state`, as the superuser. Returns the
+/// `document_id` and the `slot_id` of the revision.
+pub async fn document(su: &Client, tenant_id: Uuid, state: &str) -> (Uuid, Uuid) {
+    let error_class = (state == "Failed").then_some("MalformedFile");
+    let row = su
+        .query_one(
+            "with d as (insert into documents (tenant_id, last_revision) values ($1, 1) \
+             returning document_id) \
+             insert into revisions (tenant_id, document_id, revision, state, file_name, \
+             content_type, size, error_class, slot_id) \
+             select $1, document_id, 1, $2, 'a.pdf', 'application/pdf', 10, $3, gen_random_uuid() \
+             from d returning document_id, slot_id",
+            &[&tenant_id, &state, &error_class],
+        )
+        .await
+        .unwrap();
+    (row.get(0), row.get(1))
+}

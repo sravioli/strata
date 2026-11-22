@@ -57,7 +57,6 @@ The transaction that sets a revision to `Uploaded` SHALL insert one `ProcessDocu
 - **THEN** the database refuses the read
 - **WHEN** it counts the `Waiting` jobs
 - **THEN** the count agrees with the table
-- **PENDING** Task 3.2 adds the test.
 
 ### Requirement: The cleanup removes old Done jobs
 

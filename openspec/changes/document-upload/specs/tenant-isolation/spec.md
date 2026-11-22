@@ -29,7 +29,6 @@ Each tenant-owned table SHALL have a `tenant_id` column that is not null. Its pr
 - **GIVEN** the tenant context of A and a document of B
 - **WHEN** a transaction inserts a revision of A that points at the document of B
 - **THEN** PostgreSQL rejects the insert
-- **PENDING** Task 3.2 adds the test.
 
 ### Requirement: Each table has one policy or is a global table
 

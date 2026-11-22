@@ -11,7 +11,7 @@ use tokio_postgres::Client;
 use uuid::Uuid;
 
 /// Tables that have no row-level security and hold no tenant content (tech design 0003).
-const GLOBAL_TABLES: &[&str] = &["issuers", "refinery_schema_history"];
+const GLOBAL_TABLES: &[&str] = &["issuers", "jobs", "upload_slots", "refinery_schema_history"];
 
 /// The policy expressions, copied from tech designs 0003 and 0021 with no change (TC-3-06).
 const TENANT_EXPR: &str = "tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid";
@@ -25,7 +25,22 @@ const GRANTS: &[(&str, &str, &str)] = &[
     ("strata_api", "issuer_bindings", "SELECT"),
     ("strata_api", "accounts", "SELECT"),
     ("strata_api", "accounts", "INSERT"),
+    ("strata_api", "documents", "SELECT"),
+    ("strata_api", "documents", "INSERT"),
+    ("strata_api", "documents", "UPDATE"),
+    ("strata_api", "revisions", "SELECT"),
+    ("strata_api", "revisions", "INSERT"),
+    ("strata_api", "revisions", "UPDATE"),
+    ("strata_api", "jobs", "INSERT"),
+    ("strata_api", "upload_slots", "INSERT"),
+    ("strata_api", "upload_slots", "DELETE"),
     ("strata_worker", "tenants", "SELECT"),
+    ("strata_worker", "documents", "SELECT"),
+    ("strata_worker", "revisions", "SELECT"),
+    ("strata_worker", "revisions", "UPDATE"),
+    ("strata_worker", "jobs", "SELECT"),
+    ("strata_worker", "jobs", "UPDATE"),
+    ("strata_worker", "jobs", "DELETE"),
     ("strata_operator", "tenants", "SELECT"),
     ("strata_operator", "tenants", "INSERT"),
     ("strata_operator", "tenants", "UPDATE"),
@@ -37,6 +52,16 @@ const GRANTS: &[(&str, &str, &str)] = &[
     ("strata_operator", "issuer_bindings", "DELETE"),
     ("strata_operator", "accounts", "SELECT"),
     ("strata_operator", "accounts", "UPDATE"),
+    ("strata_operator", "jobs", "SELECT"),
+    ("strata_operator", "jobs", "UPDATE"),
+];
+
+/// The column grants of the spec tenant-isolation: (role, table, column, privilege).
+const COLUMN_GRANTS: &[(&str, &str, &str, &str)] = &[
+    ("strata_api", "jobs", "state", "SELECT"),
+    ("strata_api", "upload_slots", "slot_id", "SELECT"),
+    ("strata_api", "upload_slots", "created_at", "SELECT"),
+    ("strata_worker", "documents", "ready_revision", "UPDATE"),
 ];
 
 const RUNTIME_ROLES: &[&str] = &["strata_api", "strata_worker"];
@@ -260,17 +285,25 @@ async fn grants_are_exactly_the_list() {
         .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()))
         .collect();
     assert_eq!(got, want);
-    let columns: i64 = c
-        .query_one(
-            "select count(*) from pg_attribute a join pg_class c on c.oid = a.attrelid, aclexplode(a.attacl) x \
+    let rows = c
+        .query(
+            "select x.grantee::regrole::text, c.relname::text, a.attname::text, x.privilege_type \
+             from pg_attribute a join pg_class c on c.oid = a.attrelid, aclexplode(a.attacl) x \
              where c.relnamespace = 'public'::regnamespace \
              and x.grantee::regrole::text in ('strata_api', 'strata_worker', 'strata_operator')",
             &[],
         )
         .await
-        .unwrap()
-        .get(0);
-    assert_eq!(columns, 0, "column grants that the list does not give");
+        .unwrap();
+    let got: BTreeSet<(String, String, String, String)> = rows
+        .iter()
+        .map(|r| (r.get(0), r.get(1), r.get(2), r.get(3)))
+        .collect();
+    let want: BTreeSet<(String, String, String, String)> = COLUMN_GRANTS
+        .iter()
+        .map(|(a, b, c, d)| (a.to_string(), b.to_string(), c.to_string(), d.to_string()))
+        .collect();
+    assert_eq!(got, want, "column grants");
 }
 
 struct Two {
@@ -467,4 +500,203 @@ async fn the_api_cannot_change_the_status_of_an_account() {
         .execute("update accounts set status = 'not-active'", &[])
         .await;
     assert_eq!(sqlstate(n), "42501");
+}
+
+/// TC-3-04
+#[tokio::test]
+async fn a_child_row_of_a_cannot_point_at_a_parent_row_of_b() {
+    let t = two_tenants().await;
+    let (doc_b, _) = document(&t.su, t.b, "AwaitingUpload").await;
+    let tx = tenant_tx(&api_pool(), t.a).await.unwrap();
+    let insert = tx
+        .client()
+        .execute(
+            "insert into revisions (tenant_id, document_id, revision, file_name, content_type, \
+             size, slot_id) values ($1, $2, 2, 'a.pdf', 'application/pdf', 1, gen_random_uuid())",
+            &[&t.a, &doc_b],
+        )
+        .await;
+    assert_eq!(
+        sqlstate(insert),
+        "23503",
+        "the foreign key includes tenant_id"
+    );
+}
+
+/// The check constraints of the specs revision-lifecycle and job-queue: a value that is not in
+/// its list fails.
+#[tokio::test]
+async fn a_value_that_is_not_in_its_list_fails() {
+    let t = two_tenants().await;
+    let (doc, _) = document(&t.su, t.a, "AwaitingUpload").await;
+    let fails = [
+        format!("update revisions set state = 'Deleted' where document_id = '{doc}'"),
+        format!("update revisions set error_class = 'Other' where document_id = '{doc}'"),
+        // A class for a state other than Failed, and Failed with no class.
+        format!("update revisions set error_class = 'MalformedFile' where document_id = '{doc}'"),
+        format!("update revisions set state = 'Failed' where document_id = '{doc}'"),
+        format!("update revisions set size = 104857601 where document_id = '{doc}'"),
+        format!("update revisions set file_name = '' where document_id = '{doc}'"),
+        format!(
+            "insert into jobs (tenant_id, kind, document_id, revision) values ('{}', 'Other', '{doc}', 1)",
+            t.a
+        ),
+        format!(
+            "insert into jobs (tenant_id, kind, document_id, revision, state) \
+             values ('{}', 'ProcessDocument', '{doc}', 1, 'Lost')",
+            t.a
+        ),
+        format!(
+            "insert into jobs (tenant_id, kind, document_id, revision, last_error) \
+             values ('{}', 'ProcessDocument', '{doc}', 1, 'some text')",
+            t.a
+        ),
+    ];
+    for sql in &fails {
+        assert_eq!(
+            sqlstate(t.su.execute(sql.as_str(), &[]).await),
+            "23514",
+            "{sql}"
+        );
+    }
+    t.su.execute(
+        "update revisions set state = 'Failed', error_class = 'MalformedFile' where document_id = $1",
+        &[&doc],
+    )
+    .await
+    .unwrap();
+}
+
+async fn columns(c: &Client, table: &str) -> Vec<String> {
+    c.query(
+        "select column_name::text from information_schema.columns \
+         where table_schema = 'public' and table_name = $1 order by ordinal_position",
+        &[&table],
+    )
+    .await
+    .unwrap()
+    .iter()
+    .map(|r| r.get(0))
+    .collect()
+}
+
+/// The columns of `jobs` (spec job-queue) and of `upload_slots`, and the three indexes of 0005.
+#[tokio::test]
+async fn the_global_tables_hold_no_tenant_content() {
+    migrated();
+    let c = connect(&superuser()).await;
+    assert_eq!(
+        columns(&c, "jobs").await,
+        [
+            "job_id",
+            "tenant_id",
+            "kind",
+            "document_id",
+            "revision",
+            "state",
+            "attempts",
+            "run_after",
+            "lease_until",
+            "lease_token",
+            "ended_at",
+            "last_error"
+        ]
+    );
+    assert_eq!(columns(&c, "upload_slots").await, ["slot_id", "created_at"]);
+    let indexes: BTreeSet<String> = c
+        .query(
+            "select indexdef from pg_indexes where tablename = 'jobs' and indexdef like '%WHERE%'",
+            &[],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get(0))
+        .collect();
+    for (column, state) in [
+        ("run_after", "Waiting"),
+        ("lease_until", "Running"),
+        ("ended_at", "Done"),
+    ] {
+        assert!(
+            indexes
+                .iter()
+                .any(|d| d.contains(&format!("({column})"))
+                    && d.contains(&format!("'{state}'::text"))),
+            "{column}: {indexes:?}"
+        );
+    }
+}
+
+/// The API removes a row of upload_slots by its key, and reads only the key and the time.
+#[tokio::test]
+async fn the_api_removes_a_row_of_upload_slots_by_its_key_only() {
+    migrated();
+    let api = connect(&config("strata_api", PGBOUNCER)).await;
+    let slot: Uuid = api
+        .query_one(
+            "insert into upload_slots default values returning slot_id",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(
+        api.execute("delete from upload_slots where slot_id = $1", &[&slot])
+            .await
+            .unwrap(),
+        1
+    );
+    let su = connect(&superuser()).await;
+    let left: i64 = su
+        .query_one(
+            "select count(*) from upload_slots where slot_id = $1",
+            &[&slot],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(left, 0);
+    // The table has no other column, and the API has no right to change a row.
+    assert_eq!(
+        sqlstate(
+            api.execute("update upload_slots set created_at = now()", &[])
+                .await
+        ),
+        "42501"
+    );
+}
+
+/// TC-5-08. It counts the rows of `jobs`, so it runs in a new database.
+#[tokio::test]
+async fn the_api_role_reads_only_the_state_of_a_job() {
+    let su = connect(&superuser()).await;
+    let db = new_database(&su).await;
+    let su = connect(&config_in("strata", &db)).await;
+    let t = tenant(&su).await;
+    su.execute(
+        "insert into jobs (tenant_id, kind, document_id, revision, state) values \
+         ($1, 'ProcessDocument', uuidv7(), 1, 'Waiting'), ($1, 'ProcessDocument', uuidv7(), 1, 'Waiting'), \
+         ($1, 'ProcessDocument', uuidv7(), 1, 'Done')",
+        &[&t],
+    )
+    .await
+    .unwrap();
+    let api = connect(&config_in("strata_api", &db)).await;
+    for column in [
+        "job_id",
+        "tenant_id",
+        "document_id",
+        "revision",
+        "last_error",
+    ] {
+        let r = api.query(&format!("select {column} from jobs"), &[]).await;
+        assert_eq!(sqlstate(r), "42501", "{column}");
+    }
+    let waiting: i64 = api
+        .query_one("select count(*) from jobs where state = 'Waiting'", &[])
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(waiting, 2);
 }

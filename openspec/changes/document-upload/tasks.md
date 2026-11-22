@@ -3,7 +3,7 @@
 ## 1. Dependencies and settings
 
 - [x] 1.1 Add `rusty-s3` at the exact version 0.12.0, with no default features and the feature `rustcrypto` (owner, 2026-11-22). Verify: `cargo build --workspace --locked` and `make deny` pass, and `cargo tree -i aws-lc-rs` finds no crate. If `make deny` fails, stop and tell the owner.
-- [ ] 1.2 Read the six storage variables of the `document-upload` spec into the settings of the storage client. Read no other `AWS_*` variable. A missing `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` gives an error that names the variable. An `http://` endpoint with no `AWS_ALLOW_HTTP=true` gives an error that names `AWS_ALLOW_HTTP`. Add the settings of Garage to the environment of the L1 tests and of the `l1` job of CI, from the development values in `compose.yaml`. Verify: the scenarios "No secret key" and "An http endpoint needs AWS_ALLOW_HTTP" pass in L1 tests of the binary, and `make secrets` passes with no new entry in `.betterleaksignore`.
+- [x] 1.2 Read the six storage variables of the `document-upload` spec into the settings of the storage client. Read no other `AWS_*` variable. A missing `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` gives an error that names the variable. An `http://` endpoint with no `AWS_ALLOW_HTTP=true` gives an error that names `AWS_ALLOW_HTTP`. Add the settings of Garage to the environment of the L1 tests and of the `l1` job of CI, from the development values in `compose.yaml`. Verify: the scenarios "No secret key" and "An http endpoint needs AWS_ALLOW_HTTP" pass in L1 tests of the binary, and `make secrets` passes with no new entry in `.betterleaksignore`.
 
 ## 2. Revision state in core
 
@@ -12,14 +12,14 @@
 
 ## 3. Schema
 
-- [ ] 3.1 Add `crates/strata/migrations/V2__documents_and_jobs.sql`:
+- [x] 3.1 Add `crates/strata/migrations/V2__documents_and_jobs.sql`:
   - `documents` and `revisions` with the columns of 0049, plus `slot_id` on `revisions`. Each follows the three rules of 0003 and has the policy of 0003. The foreign key of `revisions` is `(tenant_id, document_id)`. Check constraints hold the list of states and the list of classes. A class is not null only for `Failed`.
   - `upload_slots` with `slot_id` (a version 4 UUID, the primary key) and `created_at`.
   - `jobs` with the fields and the three indexes of the `job-queue` spec, with check constraints for `kind`, `state` and `last_error`.
   - The grants of the `tenant-isolation` spec.
 
   Verify: `make sql` passes, and `strata migrate` applies V2 on a database with V1.
-- [ ] 3.2 Add `jobs` and `upload_slots` to the one list of global tables in the test code. Extend the test of the list of grants to the column privileges. Add the L1 tests TC-3-04 and TC-5-08, and the scenarios of the `tenant-isolation` and `job-queue` specs for the check constraints and for `upload_slots`. Verify: the tests pass, and TC-3-06, TC-3-07 and the grant test still pass. TC-5-08 counts the rows of a global table, so it runs in a new database, with the method of TC-3-13 in change 1. Remove the pending markers of TC-3-04 and TC-5-08.
+- [x] 3.2 Add `jobs` and `upload_slots` to the one list of global tables in the test code. Extend the test of the list of grants to the column privileges. Add the L1 tests TC-3-04 and TC-5-08, and the scenarios of the `tenant-isolation` and `job-queue` specs for the check constraints and for `upload_slots`. Verify: the tests pass, and TC-3-06, TC-3-07 and the grant test still pass. TC-5-08 counts the rows of a global table, so it runs in a new database, with the method of TC-3-13 in change 1. Remove the pending markers of TC-3-04 and TC-5-08.
 
 ## 4. Storage
 
