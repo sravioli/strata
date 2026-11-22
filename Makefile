@@ -25,7 +25,7 @@ check: lint prose test-cases rust
 # Toolchains that manage themselves stay out of .tools/: setup only checks for them.
 setup: tools $(BIN)/cargo-llvm-cov $(BIN)/cargo-deny $(BIN)/cog $(BIN)/betterleaks $(BIN)/nsjail $(AENEAS)/charon
 	@for c in cargo rustup; do command -v $$c >/dev/null || { echo "missing: $$c (make check needs it)" >&2; exit 1; }; done
-	@for t in verify:lake l1:docker l1:pdftotext sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
+	@for t in verify:lake l1:docker rust:pdftotext sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
 	@echo "setup ok"
 
 # The pinned lint and SQL tools (hashes in $(REQ)). Reinstalls when a pin changes.

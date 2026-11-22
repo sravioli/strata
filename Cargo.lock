@@ -1820,6 +1820,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "strata-extract"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "strata-tests"
 version = "0.1.0"
 dependencies = [
