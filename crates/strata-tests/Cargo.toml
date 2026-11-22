@@ -73,3 +73,6 @@ required-features = ["l1"]
 [[test]]
 name = "cleanup"
 required-features = ["l1"]
+
+[[test]]
+name = "routes"

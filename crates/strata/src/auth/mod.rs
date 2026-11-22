@@ -23,11 +23,26 @@ use keys::KeyCache;
 /// The largest token, in bytes (step 1).
 pub const MAX_TOKEN_BYTES: usize = 8 * 1024;
 
-/// What the authentication of a request needs. Each API process has one.
+/// What the authentication of a request needs. Each API process has one. The pool is private:
+/// a route gets a connection only through `Caller`, so each query of a route follows a decision
+/// or a scope (TC-4-08).
+///
+/// ```compile_fail
+/// // A route cannot read the pool of the state.
+/// fn route(s: strata::api::AppState) {
+///     let _ = s.auth.pool;
+/// }
+/// ```
 #[derive(Clone)]
 pub struct Auth {
-    pub pool: Pool,
-    pub keys: Arc<KeyCache>,
+    pool: Pool,
+    keys: Arc<KeyCache>,
+}
+
+impl Auth {
+    pub fn new(pool: Pool, keys: Arc<KeyCache>) -> Self {
+        Auth { pool, keys }
+    }
 }
 
 /// The reason that a request stops before its route runs.

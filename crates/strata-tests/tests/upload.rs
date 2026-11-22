@@ -55,10 +55,7 @@ async fn jwks(key: &DevKey) -> String {
 
 fn app(pool: Pool, bounds: Bounds) -> Router {
     router(AppState {
-        auth: Auth {
-            pool,
-            keys: Arc::new(KeyCache::new()),
-        },
+        auth: Auth::new(pool, Arc::new(KeyCache::new())),
         storage: Arc::new(storage()),
         bounds,
     })
@@ -559,7 +556,7 @@ async fn two_finishes_at_the_same_time_create_one_job() {
     assert_eq!(w.jobs(d, r).await, 1);
 }
 
-/// Cross-tenant: the finish of a revision of B.
+/// Cross-tenant: `POST /v1/documents/{document_id}/revisions/{revision}/finish` with a revision of B.
 #[tokio::test]
 async fn a_finish_of_a_revision_of_a_different_tenant() {
     let w = world().await;

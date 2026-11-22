@@ -26,17 +26,12 @@ impl FromRef<AppState> for Auth {
     }
 }
 
-/// The state of `strata api`. The storage settings come from the environment, so a missing
-/// variable stops the process before it serves a request.
-pub fn state(cfg: tokio_postgres::Config) -> Result<AppState, String> {
-    let storage = Arc::new(Storage::from_env()?);
-    let pool = db::pool(cfg, POOL_SIZE, POOL_WAIT)?;
+/// The state of `strata api` on `pool`. The storage settings come from the environment, so a
+/// missing variable stops the process before it serves a request.
+pub fn state(pool: db::Pool) -> Result<AppState, String> {
     Ok(AppState {
-        auth: Auth {
-            pool,
-            keys: Arc::new(KeyCache::new()),
-        },
-        storage,
+        storage: Arc::new(Storage::from_env()?),
+        auth: Auth::new(pool, Arc::new(KeyCache::new())),
         bounds: Bounds::default(),
     })
 }
@@ -58,10 +53,10 @@ pub fn router(state: AppState) -> Router {
 }
 
 pub async fn serve(cfg: tokio_postgres::Config, listen: &str) -> Result<(), String> {
-    let state = state(cfg)?;
+    let pool = db::pool(cfg, POOL_SIZE, POOL_WAIT)?;
+    let app = router(state(pool.clone())?);
     // The cleanup of upload_slots has its own handle of the pool.
-    tokio::spawn(crate::cleanup::old_slots_task(state.auth.pool.clone()));
-    let app = router(state);
+    tokio::spawn(crate::cleanup::old_slots_task(pool));
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .map_err(|e| format!("bind {listen}: {e}"))?;

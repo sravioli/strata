@@ -89,7 +89,6 @@ The code SHALL open a transaction on a tenant-owned table only from the identity
 - **GIVEN** each route of the API
 - **WHEN** the code of a route opens a tenant transaction in a way other than from a decision or a scope, or runs a query in the identity transaction other than the reads of the binding, the account and the statuses
 - **THEN** the code does not compile
-- **PENDING** Task 7.2 adds the test.
 
 ## ADDED Requirements
 
@@ -103,4 +102,3 @@ For each route of the API, an L1 test SHALL call the route with the identifiers 
 - **THEN** each route has a test that uses the identifiers of a different tenant
 - **WHEN** a route has no such test
 - **THEN** the check fails
-- **PENDING** Task 7.1 adds the test.

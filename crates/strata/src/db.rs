@@ -16,6 +16,30 @@
 //!     strata::db::tenant_context(conn, "x").await;
 //! }
 //! ```
+//!
+//! TC-4-08: a route gets its tenant transaction only from a decision or a scope. The pool is
+//! private to `auth` (see `strata::auth::Auth`).
+//!
+//! ```compile_fail
+//! // A tenant transaction comes only from `into_tenant`.
+//! fn f(id: &strata::db::IdentityTx, t: strata::db::TenantTx) -> strata::db::TenantTx {
+//!     strata::db::TenantTx { tenant_id: id.tenant_id(), ..t }
+//! }
+//! ```
+//!
+//! ```compile_fail
+//! // Only `allowed` makes an "allow", and only from `Decision::Allow`.
+//! fn f() -> strata::db::Allowed {
+//!     strata::db::Allowed(())
+//! }
+//! ```
+//!
+//! ```compile_fail
+//! // A query function does not accept the identity transaction.
+//! async fn f(mut id: strata::db::IdentityTx) {
+//!     strata::db::tenant_context(&mut id, "x").await;
+//! }
+//! ```
 
 use std::time::Duration;
 
