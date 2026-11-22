@@ -342,7 +342,7 @@ L0: unit tests cover the split of blocks, the check of the request body and the 
 | TC-49-07 | L1 | Given a search body with no `q`, with a `limit` of 101, or above 16 KB. When the client sends it. Then the API answers `400`, `400` and `413`. | sravioli, 2026-11-21 | pending |
 | TC-49-08 | L1 | Given a `GET` and a `POST` to `/v1/search`. When the API gets them. Then it answers `405` with the header `Allow: QUERY`. | sravioli, 2026-11-21 | pending |
 | TC-49-09 | L1 | Given a revision in `AwaitingUpload` with its object in the storage. When the client sends two finishes at the same time, and then a third. Then the revision is `Uploaded`, it has exactly one job, and each finish answers `202` with the same `Location`. | sravioli, 2026-11-21 | pending |
-| TC-49-10 | L1 | Given the nsjail configuration of `strata-extract`. When the extraction process calls `io_uring_setup`, `io_uring_enter` or `io_uring_register`. Then each call fails, and the process does no I/O through a ring. Reason: seccomp does not see the operations of a ring, so a ring can bypass the seccomp list of 0007. | | pending |
+| TC-49-10 | L1 | Given the nsjail configuration of `strata-extract`. When the extraction process calls `io_uring_setup`, `io_uring_enter` or `io_uring_register`. Then each call fails, and the process does no I/O through a ring. Reason: seccomp does not see the operations of a ring, so a ring can bypass the seccomp list of 0007. | sravioli, 2026-11-22 | pending |
 
 TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on 2026-11-21. It runs in CI also, not only before a release. That is a change to `docs/agents/testing.md` for this one test, and the fourth change makes it.
 
@@ -407,12 +407,7 @@ The owner answered these questions on 2026-11-21:
 19. The owner approved the amended notes in 0005, 0006, 0047, ADR 0009 and 0048.
 20. The skeleton does not clean up revisions in `AwaitingUpload` or the objects of `Superseded` revisions. That cleanup waits for its principal in [#69](https://github.com/sravioli/strata/issues/69). Until then, such revisions and their objects stay. The issue #69 records this.
 21. The owner approved the test cases TC-49-02 to TC-49-09.
-
-The owner must decide these points of the amendment of 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)):
-
-- refinery for the migrations, with the subcommand `strata migrate`.
-- The pipelining rule.
-- The test case TC-49-10.
+22. The owner approved the amendment of 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)). It has tokio-postgres with deadpool-postgres, and refinery with the subcommand `strata migrate`. It also has the pipelining rule and the test case TC-49-10.
 
 Implementation resolves these points:
 
