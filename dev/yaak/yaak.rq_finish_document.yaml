@@ -1,0 +1,10 @@
+type: http_request
+model: http_request
+id: rq_finish_document
+workspaceId: wk_strata
+folderId: fl_new_document
+name: Finish
+description: 202 with Location. 409 when the file is not in the storage, 413 when it is above 100 MB.
+sortPriority: 2
+method: POST
+url: ${[ base_url ]}/v1/documents/${[ response.body.path(request='rq_start_document', path='$.document_id') ]}/revisions/${[ response.body.path(request='rq_start_document', path='$.revision') ]}/finish
