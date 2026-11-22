@@ -3,3 +3,4 @@
 
 pub mod authorization;
 pub mod job;
+pub mod revision;

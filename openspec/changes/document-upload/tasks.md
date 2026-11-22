@@ -2,13 +2,13 @@
 
 ## 1. Dependencies and settings
 
-- [ ] 1.1 Add `rusty-s3` at the exact version 0.12.0, with no default features and the feature `rustcrypto` (owner, 2026-11-22). Verify: `cargo build --workspace --locked` and `make deny` pass, and `cargo tree -i aws-lc-rs` finds no crate. If `make deny` fails, stop and tell the owner.
+- [x] 1.1 Add `rusty-s3` at the exact version 0.12.0, with no default features and the feature `rustcrypto` (owner, 2026-11-22). Verify: `cargo build --workspace --locked` and `make deny` pass, and `cargo tree -i aws-lc-rs` finds no crate. If `make deny` fails, stop and tell the owner.
 - [ ] 1.2 Read the six storage variables of the `document-upload` spec into the settings of the storage client. Read no other `AWS_*` variable. A missing `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` gives an error that names the variable. An `http://` endpoint with no `AWS_ALLOW_HTTP=true` gives an error that names `AWS_ALLOW_HTTP`. Add the settings of Garage to the environment of the L1 tests and of the `l1` job of CI, from the development values in `compose.yaml`. Verify: the scenarios "No secret key" and "An http endpoint needs AWS_ALLOW_HTTP" pass in L1 tests of the binary, and `make secrets` passes with no new entry in `.betterleaksignore`.
 
 ## 2. Revision state in core
 
-- [ ] 2.1 Add `crates/core/src/revision.rs` with the states, the classes, the events, `revision_step` and `may_extract` of the `revision-lifecycle` spec. Use only the proved subset of 0009: enums, structs, `match` and comparison. Add L0 tests for each pair of a state and an event, with and without the retry mark. Verify: `cargo test -p strata-core` passes.
-- [ ] 2.2 Run `scripts/translate.sh`. Add `lean/Strata/Model/Revision.lean` with the model of the table, and `lean/Strata/Proofs/Revision.lean` with the five theorems of 0049, `revision_step_refines` and `may_extract_refines`. The statements are the statements of the table of 0049. Choose Rust types that let the Lean statements of 0049 type-check as written. The Lean text can change for a type, for example `some c` for an `Option` field, when its meaning stays the same. If the meaning of a statement must change, stop and tell the owner. Verify: `make verify` passes with no `sorry`, and `python3 scripts/proof-obligations.py` finds each theorem.
+- [x] 2.1 Add `crates/core/src/revision.rs` with the states, the classes, the events, `revision_step` and `may_extract` of the `revision-lifecycle` spec. Use only the proved subset of 0009: enums, structs, `match` and comparison. Add L0 tests for each pair of a state and an event, with and without the retry mark. Verify: `cargo test -p strata-core` passes.
+- [x] 2.2 Run `scripts/translate.sh`. Add `lean/Strata/Model/Revision.lean` with the model of the table, and `lean/Strata/Proofs/Revision.lean` with the five theorems of 0049, `revision_step_refines` and `may_extract_refines`. The statements are the statements of the table of 0049. Choose Rust types that let the Lean statements of 0049 type-check as written. The Lean text can change for a type, for example `some c` for an `Option` field, when its meaning stays the same. If the meaning of a statement must change, stop and tell the owner. Verify: `make verify` passes with no `sorry`, and `python3 scripts/proof-obligations.py` finds each theorem.
 
 ## 3. Schema
 
