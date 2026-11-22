@@ -11,6 +11,7 @@ testing = []
 
 [dependencies]
 strata-core = { path = "../core" }
+strata-extract = { path = "../strata-extract" }
 axum = { version = "=0.8.9", default-features = false, features = [
   "http1",
   "json",
@@ -48,6 +49,8 @@ tokio = { version = "=1.54.1", features = [
   "time",
   "net",
   "signal",
+  "process",
+  "io-util",
 ] }
 tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
 tracing = "=0.1.44"

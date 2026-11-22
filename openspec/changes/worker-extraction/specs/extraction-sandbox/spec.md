@@ -84,14 +84,12 @@ The worker SHALL run each extraction process in nsjail. The process SHALL have a
 - **GIVEN** an extraction process
 - **WHEN** it tries to open a network connection
 - **THEN** the attempt fails
-- **PENDING** Task 3.3 adds the test.
 
 #### Scenario: TC-7-02 No environment and no secrets
 
 - **GIVEN** an extraction process
 - **WHEN** it reads its environment and tries to read the files of the worker
 - **THEN** it finds no variable of the worker and no secret
-- **PENDING** Task 3.3 adds the test.
 
 ### Requirement: The sandbox blocks io_uring
 
@@ -102,7 +100,6 @@ The seccomp list of the sandbox SHALL block `io_uring_setup`, `io_uring_enter` a
 - **GIVEN** the nsjail configuration of `strata-extract`
 - **WHEN** the extraction process calls `io_uring_setup`, `io_uring_enter` or `io_uring_register`
 - **THEN** each call fails, and the process does no I/O through a ring
-- **PENDING** Task 3.3 adds the test.
 
 ### Requirement: The limits of an extraction
 
@@ -113,14 +110,12 @@ Each extraction SHALL have the limits of 0007. They are 1 GB of memory, 60 secon
 - **GIVEN** a file that makes the parser use more than 1 GB
 - **WHEN** the worker extracts it
 - **THEN** the process stops, and the revision is `Failed` with `ExtractionMemory`
-- **PENDING** Task 3.3 adds the test.
 
 #### Scenario: TC-7-06 More than 50 MB of output
 
 - **GIVEN** an extraction process that writes more than 50 MB
 - **WHEN** the worker reads the output
 - **THEN** the worker stops the process, and the revision is `Failed` with `ExtractionOutputTooLarge`
-- **PENDING** Task 3.3 adds the test.
 
 #### Scenario: TC-7-04 The time limit retries one time
 

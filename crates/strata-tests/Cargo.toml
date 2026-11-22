@@ -11,6 +11,8 @@ publish.workspace = true
 l1 = []
 
 [dependencies]
+# The test program hostile-extract (src/bin) makes raw system calls.
+libc = "=0.2.191"
 
 [dev-dependencies]
 strata = { path = "../strata", features = ["testing"] }
@@ -72,6 +74,10 @@ required-features = ["l1"]
 
 [[test]]
 name = "cleanup"
+required-features = ["l1"]
+
+[[test]]
+name = "sandbox"
 required-features = ["l1"]
 
 [[test]]

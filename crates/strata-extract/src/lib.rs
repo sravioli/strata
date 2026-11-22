@@ -86,7 +86,8 @@ pub fn run(pdftotext: &str, input: impl Read, mut output: impl Write) -> i32 {
         .args(["-q", "-enc", "UTF-8", "-eol", "unix", "-", "-"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // The sandbox has no /dev/null. With -q, pdftotext writes nothing to its stderr.
+        .stderr(Stdio::inherit())
         .spawn()
     else {
         return exit::CRASH;

@@ -1,6 +1,10 @@
 //! The extraction of one file in the sandbox of tech design 0007, and the check of its output.
 
 use serde::Deserialize;
+use strata_core::revision::FailureClass;
+use strata_extract::exit;
+
+use crate::sandbox::{Run, Stop};
 
 /// The maximum size of a text part (0049). A `tsvector` of this size stays far below the limits
 /// of PostgreSQL.
@@ -12,6 +16,43 @@ pub struct Part {
     /// The page, from 1.
     pub location: u32,
     pub text: String,
+}
+
+/// The result of one run, for the transaction that ends the job.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// The text of the file. No part is the class `NoText` (0007).
+    Text(Vec<Part>),
+    /// A class of 0007 for the revision.
+    Failed(FailureClass),
+    /// nsjail could not start the sandbox: a normal failure of the job, with no change to the
+    /// revision (owner, 2026-11-22).
+    SandboxFailure,
+    /// The lease is lost: nothing writes a result.
+    Cancelled,
+}
+
+/// The map from each stop of a run to its result (0007, and the task 1.2 of #49).
+pub fn outcome(run: Run) -> Outcome {
+    use FailureClass::*;
+    match run.stop {
+        Stop::Memory => Outcome::Failed(ExtractionMemory),
+        Stop::OutputTooLarge => Outcome::Failed(ExtractionOutputTooLarge),
+        Stop::Timeout => Outcome::Failed(ExtractionTimeout),
+        Stop::Cancelled => Outcome::Cancelled,
+        Stop::SandboxFailure => Outcome::SandboxFailure,
+        Stop::Crash => Outcome::Failed(ExtractionCrash),
+        Stop::Exit(exit::OK) => match check(&run.output) {
+            Some(parts) => Outcome::Text(parts),
+            None => Outcome::Failed(InvalidOutput),
+        },
+        Stop::Exit(exit::UNSUPPORTED_FORMAT) => Outcome::Failed(UnsupportedFormat),
+        Stop::Exit(exit::ENCRYPTED_FILE) => Outcome::Failed(EncryptedFile),
+        Stop::Exit(exit::MALFORMED_FILE) => Outcome::Failed(MalformedFile),
+        Stop::Exit(exit::OUTPUT_TOO_LARGE) => Outcome::Failed(ExtractionOutputTooLarge),
+        // `exit::CRASH`, and each code that `strata-extract` does not give.
+        Stop::Exit(_) => Outcome::Failed(ExtractionCrash),
+    }
 }
 
 /// The output of `strata-extract` (0049). Each field that is not in the list fails the check.
@@ -80,6 +121,60 @@ pub fn split(mut text: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn run(stop: Stop, output: &[u8]) -> Outcome {
+        outcome(Run {
+            stop,
+            output: output.to_vec(),
+        })
+    }
+
+    #[test]
+    fn each_stop_gives_one_result() {
+        use FailureClass::*;
+        let text = br#"{"format":"pdf","pages":1,"blocks":[{"kind":"page","index":1,"text":"a"}]}"#;
+        assert_eq!(
+            run(Stop::Exit(0), text),
+            Outcome::Text(vec![Part {
+                location: 1,
+                text: "a".into()
+            }])
+        );
+        assert_eq!(run(Stop::Exit(0), b"{}"), Outcome::Failed(InvalidOutput));
+        // A memory stop wins over valid output (task 1.2 of #49).
+        assert_eq!(run(Stop::Memory, text), Outcome::Failed(ExtractionMemory));
+        let cases = [
+            (
+                Stop::OutputTooLarge,
+                Outcome::Failed(ExtractionOutputTooLarge),
+            ),
+            (Stop::Timeout, Outcome::Failed(ExtractionTimeout)),
+            (Stop::Crash, Outcome::Failed(ExtractionCrash)),
+            (Stop::Cancelled, Outcome::Cancelled),
+            (Stop::SandboxFailure, Outcome::SandboxFailure),
+            (
+                Stop::Exit(exit::UNSUPPORTED_FORMAT),
+                Outcome::Failed(UnsupportedFormat),
+            ),
+            (
+                Stop::Exit(exit::ENCRYPTED_FILE),
+                Outcome::Failed(EncryptedFile),
+            ),
+            (
+                Stop::Exit(exit::MALFORMED_FILE),
+                Outcome::Failed(MalformedFile),
+            ),
+            (
+                Stop::Exit(exit::OUTPUT_TOO_LARGE),
+                Outcome::Failed(ExtractionOutputTooLarge),
+            ),
+            (Stop::Exit(exit::CRASH), Outcome::Failed(ExtractionCrash)),
+            (Stop::Exit(1), Outcome::Failed(ExtractionCrash)),
+        ];
+        for (stop, expected) in cases {
+            assert_eq!(run(stop, text), expected, "{stop:?}");
+        }
+    }
 
     fn invalid(output: &[u8]) {
         assert_eq!(check(output), None, "{}", String::from_utf8_lossy(output));

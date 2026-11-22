@@ -7,6 +7,7 @@ pub mod cleanup;
 pub mod db;
 pub mod extraction;
 pub mod migrate;
+pub mod sandbox;
 pub mod storage;
 pub mod upload;
 
