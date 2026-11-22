@@ -40,7 +40,8 @@ The `Makefile` holds the commands of CI. Each CI job of `.github/workflows/ci.ym
   - Lint and SQL tools: `.github/requirements/tools.txt` (uv) and `package-lock.json` (npm). `make tools` installs them.
   - `cargo-llvm-cov`, `cargo-deny`, `cog` and `betterleaks`: `.github/requirements/tools.env` (URL and SHA-256), with `scripts/install-tool.sh`.
   - Aeneas and Charon: `toolchain.env`, with `scripts/install-aeneas.sh`.
-- **Toolchains.** Install these yourself: `uv`, `npm`, the Rust toolchain (`rustup`, with the `llvm-tools-preview` component), and for `make verify` Lean (`elan`) and the nightly `CHARON_RUST` of `toolchain.env`. `make l1` needs Docker, and `make sql` needs `psql` and an empty Postgres. `make setup` warns about each one that is missing.
+  - nsjail: `.github/requirements/tools.env` (tag and commit), with `scripts/install-nsjail.sh`. nsjail has no release binaries, so the script builds it from source. A tag whose commit is not the pin stops the build. The build needs `g++`, `make`, `pkg-config`, `bison`, `flex`, and the `protobuf` and `libnl-route-3` headers.
+- **Toolchains.** Install these yourself: `uv`, `npm`, the Rust toolchain (`rustup`, with the `llvm-tools-preview` component), and for `make verify` Lean (`elan`) and the nightly `CHARON_RUST` of `toolchain.env`. `make l1` needs Docker and `pdftotext` (`poppler-utils`), and `make sql` needs `psql` and an empty Postgres. `make setup` warns about each one that is missing.
 - **Linter configuration.** The configuration files are in `.github/linters/`. The targets give the path to each tool, so run a linter through `make`, not directly.
 
 ## Running the levels
