@@ -48,7 +48,7 @@
 
 ## 9. Integration and gates
 
-- [x] 9.1 Verify the coverage floor of `CONSTRAINTS.md`. With L0 tests only, the workspace was at 47 %. The owner decided on 2026-11-22: the floor counts the L0 and L1 tests together, in the `l1` job. The number stays 80. The value is 86.52 %. Verify: `cargo llvm-cov --workspace --locked --all-features --fail-under-lines 80` passes.
+- [x] 9.1 Verify the coverage floor of `CONSTRAINTS.md`. With L0 tests only, the workspace was at 47 %. The owner decided on 2026-11-22: the floor counts the L0 and L1 tests together, in the `l1` job. The owner set the number to 85. The value is 86.52 %. Verify: `cargo llvm-cov --workspace --locked --all-features --fail-under-lines 85` passes.
 - [x] 9.2 Run `make` and `make l1`. Verify: each target passes, and `python3 scripts/check-test-cases.py --report` shows each scenario of this change as `implemented`, except TC-21-18 as `planned`.
 - [x] 9.3 Update the implementation-point lists in the comments of #49. Tick each point that this change implements, and name the change that implements each other point. Verify: each point of #3, #4 and #21 that change 1 owns is ticked.
 

@@ -97,7 +97,7 @@ test-cases:
 l1: $(BIN)/cargo-llvm-cov
 	docker compose up --wait
 	scripts/dev-services-smoke.sh
-	cargo llvm-cov --workspace --locked --all-features --fail-under-lines 80
+	cargo llvm-cov --workspace --locked --all-features --fail-under-lines 85
 
 commits: $(BIN)/cog
 	cog check $(RANGE)
