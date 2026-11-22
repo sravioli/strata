@@ -54,6 +54,8 @@ A developer runs `make dev`. It starts PostgreSQL, the pooler and Garage. It app
 | `strata-extract` | binary | The extraction process of 0007. It has no code for a database, a storage or a network. |
 | `strata-dev` | binary | The development issuer of 0021. The `strata` crate does not depend on it (TC-21-17). |
 
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): a fifth crate, `strata-tests`, holds the L1 tests. It depends on `strata` and on `strata-dev`, so the tests can sign tokens, and `strata` keeps no dependency on `strata-dev` of any kind (TC-21-17).
+
 `strata api` and `strata worker` run as separate processes and scale separately (ADR 0003). `strata admin` is the operator command of 0003 and 0021. It connects with the role `strata_operator`.
 
 Libraries:

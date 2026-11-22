@@ -5,15 +5,34 @@ name: strata
 services:
   postgres:
     # The tag that the sql job of CI uses.
-    image: docker.io/library/postgres:17@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c
+    image: docker.io/library/postgres:19@sha256:bb6e70add742cd868fb62cb3b2f67d1dd2bdd2b65a521e778420748753687c60
     environment:
       POSTGRES_USER: strata
       POSTGRES_PASSWORD: strata
       POSTGRES_DB: strata
     ports: ["127.0.0.1:5432:5432"]
-    volumes: [postgres:/var/lib/postgresql/data]
+    volumes:
+      # PostgreSQL 18+ images keep the data in a folder for each major version under this path.
+      - postgres:/var/lib/postgresql
+      - ./dev/roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "strata", "-d", "strata"]
+      # TCP, not the socket: during init the server listens only on the socket.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "strata", "-d", "strata"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  pgbouncer:
+    image: docker.io/edoburu/pgbouncer:v1.26.1-p0@sha256:488422e38cff912895d0d65d8963fcd306e6ac589a724398b6eb8e294e94d624
+    # The runtime roles connect through PgBouncer (tech design 0049).
+    ports: ["127.0.0.1:6432:6432"]
+    volumes:
+      - ./dev/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./dev/pgbouncer-userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-p", "6432", "-U", "strata_api", "-d", "strata"]
       interval: 2s
       timeout: 5s
       retries: 30

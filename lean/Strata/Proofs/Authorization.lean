@@ -95,13 +95,13 @@ theorem allow_same_tenant (p : authorization.Principal) (a : authorization.Actio
   rw [rust_allow]
   exact Model.allow_same_tenant _ _ _
 
-theorem allow_account_active (t c : U64) (aa ta : Bool) (a : authorization.Action)
+theorem allow_account_active (t c : U128) (aa ta : Bool) (a : authorization.Action)
     (r : authorization.Resource) :
     authorization.authorize (.Account t c aa ta) a r = ok .Allow → aa = true ∧ ta = true := by
   rw [rust_allow]
   exact Model.allow_account_active _ _ _ _ _ _
 
-theorem active_account_allowed (t c : U64) (a : authorization.Action)
+theorem active_account_allowed (t c : U128) (a : authorization.Action)
     (r : authorization.Resource) :
     (absAction a).forAccount = true → r.tenant = t →
       authorization.authorize (.Account t c true true) a r = ok .Allow := by
@@ -109,7 +109,7 @@ theorem active_account_allowed (t c : U64) (a : authorization.Action)
   rw [rust_allow]
   exact Model.active_account_allowed _ _ _ _ ha (by simp [absResource, hr])
 
-theorem account_never_processes (t c : U64) (aa ta : Bool) (a : authorization.Action)
+theorem account_never_processes (t c : U128) (aa ta : Bool) (a : authorization.Action)
     (r : authorization.Resource) :
     (absAction a).forAccount = false →
       ∃ reason, authorization.authorize (.Account t c aa ta) a r = ok (.Deny reason) := by
@@ -122,7 +122,7 @@ theorem account_never_processes (t c : U64) (aa ta : Bool) (a : authorization.Ac
     exact absurd hm (by decide)
   | Deny reason => exact ⟨reason, hd⟩
 
-theorem job_only_processes (t : U64) (ta : Bool) (a : authorization.Action)
+theorem job_only_processes (t : U128) (ta : Bool) (a : authorization.Action)
     (r : authorization.Resource) :
     authorization.authorize (.Job t ta) a r = ok .Allow →
       (a = .ProcessDocument ∨ a = .RemoveDocumentFiles) ∧ r.tenant = t := by
@@ -132,7 +132,7 @@ theorem job_only_processes (t : U64) (ta : Bool) (a : authorization.Action)
   refine ⟨by cases a <;> simp_all [absAction], ?_⟩
   exact UScalar.eq_equiv _ _ |>.mpr (by simpa [absResource] using hr)
 
-theorem allow_job_active (t : U64) (ta : Bool) (a : authorization.Action)
+theorem allow_job_active (t : U128) (ta : Bool) (a : authorization.Action)
     (r : authorization.Resource) :
     authorization.authorize (.Job t ta) a r = ok .Allow → ta = true := by
   rw [rust_allow]

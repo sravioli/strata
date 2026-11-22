@@ -25,8 +25,8 @@ namespace strata_core
     Visibility: public -/
 @[discriminant isize]
 inductive authorization.Principal where
-| Account : Std.U64 → Std.U64 → Bool → Bool → authorization.Principal
-| Job : Std.U64 → Bool → authorization.Principal
+| Account : Std.U128 → Std.U128 → Bool → Bool → authorization.Principal
+| Job : Std.U128 → Bool → authorization.Principal
 
 /-- [strata_core::authorization::Action]
     Source: 'crates/core/src/authorization.rs', lines 22:0-29:1
@@ -44,7 +44,7 @@ inductive authorization.Action where
     Source: 'crates/core/src/authorization.rs', lines 32:0-34:1
     Visibility: public -/
 structure authorization.Resource where
-  tenant : Std.U64
+  tenant : Std.U128
 
 /-- [strata_core::authorization::DenyReason]
     Source: 'crates/core/src/authorization.rs', lines 38:0-42:1
@@ -68,7 +68,7 @@ inductive authorization.Decision where
 @[discriminant isize]
 inductive authorization.ScopeKind where
 | Nothing : authorization.ScopeKind
-| Tenant : Std.U64 → authorization.ScopeKind
+| Tenant : Std.U128 → authorization.ScopeKind
 
 /-- [strata_core::authorization::Scope]
     Source: 'crates/core/src/authorization.rs', lines 52:0-52:28
@@ -79,7 +79,7 @@ def authorization.Scope := authorization.ScopeKind
 /-- [strata_core::authorization::principal_tenant]:
     Source: 'crates/core/src/authorization.rs', lines 70:0-75:1 -/
 def authorization.principal_tenant
-  (p : authorization.Principal) : Result Std.U64 := do
+  (p : authorization.Principal) : Result Std.U128 := do
   match p with
   | authorization.Principal.Account tenant _ _ _ => ok tenant
   | authorization.Principal.Job tenant _ => ok tenant

@@ -1,0 +1,54 @@
+[package]
+name = "strata"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# The helper `testing::tenant_tx` for the L1 tests (tech design 0003).
+testing = []
+
+[dependencies]
+strata-core = { path = "../core" }
+axum = { version = "=0.8.9", default-features = false, features = [
+  "http1",
+  "tokio",
+] }
+base64 = "=0.22.1"
+clap = { version = "=4.6.9", features = ["derive", "env"] }
+deadpool-postgres = { version = "=0.14.2", features = ["rt_tokio_1"] }
+jsonwebtoken = { version = "=12.0.0", default-features = false, features = [
+  "rust_crypto",
+] }
+refinery = { version = "=0.10.0", default-features = false, features = [
+  "tokio-postgres",
+] }
+http-body-util = "=0.1.5"
+hyper = "=1.12.0"
+hyper-rustls = { version = "=0.27.10", default-features = false, features = [
+  "http1",
+  "native-tokio",
+  "ring",
+  "tls12",
+] }
+hyper-util = { version = "=0.1.21", features = [
+  "client-legacy",
+  "http1",
+  "tokio",
+] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+thiserror = "=2.0.21"
+tokio = { version = "=1.54.1", features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+  "net",
+  "signal",
+] }
+tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
+uuid = "=1.29.3"

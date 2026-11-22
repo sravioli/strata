@@ -63,12 +63,11 @@ prose:
 	git ls-files 'docs/tech-design/*.md' 'docs/adr/*.md' | grep -v '/0000-' \
 	  | xargs -r python3 .agents/skills/asd-ste100/scripts/ste-lint.py
 
-# L0 runs once, under coverage. The floor is in CONSTRAINTS.md.
-rust: $(BIN)/cargo-llvm-cov
+# L0, with the doc tests. The coverage floor of CONSTRAINTS.md runs in l1, over L0 and L1.
+rust:
 	cargo fmt --all --check
 	cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-	cargo llvm-cov --workspace --locked --fail-under-lines 80
-	cargo test --workspace --doc --locked
+	cargo test --workspace --locked
 	scripts/check-toolchain.sh
 
 deny: $(BIN)/cargo-deny
@@ -85,7 +84,8 @@ verify: $(AENEAS)/charon
 sql: tools
 	files=$$(git ls-files '*.sql' | sort); \
 	echo "$$files" | xargs -r sqlfluff lint --dialect postgres; \
-	for f in $$files; do psql -v ON_ERROR_STOP=1 -q -f "$$f"; done
+	psql -v ON_ERROR_STOP=1 -q -f dev/roles.sql; \
+	for f in $$(echo "$$files" | grep -vx dev/roles.sql); do psql -v ON_ERROR_STOP=1 -q -f "$$f"; done
 
 # Each test case ID has a test or a PENDING marker.
 test-cases:
@@ -93,10 +93,11 @@ test-cases:
 	python3 scripts/check-test-cases.py
 
 # L1: tests against the services of compose.yaml. The services stay up, so local data stays.
-l1:
+# L0 and L1 run together under coverage. The floor is in CONSTRAINTS.md.
+l1: $(BIN)/cargo-llvm-cov
 	docker compose up --wait
 	scripts/dev-services-smoke.sh
-	cargo test --workspace --locked --all-features
+	cargo llvm-cov --workspace --locked --all-features --fail-under-lines 85
 
 commits: $(BIN)/cog
 	cog check $(RANGE)
