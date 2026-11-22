@@ -26,7 +26,7 @@ Chosen option: "The S3 API through `object_store`, with Garage as the first serv
 
 The decision has these parts:
 
-* The code uses the traits `ObjectStore` and `Signer` of the crate `object_store`. A backend must implement `Signer`.
+* The code uses the traits `ObjectStore` and `Signer` of the crate `object_store`. A backend must implement `Signer`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the crate `rusty-s3` replaces `object_store` (owner, 2026-11-22). With the feature `aws`, `object_store` adds `aws-lc-rs`, a second crypto backend. With each set of features, `make deny` fails on the advisories RUSTSEC-2026-0542 and RUSTSEC-2026-0543 of `chrono` and `humantime`. `rusty-s3` signs S3 requests only, and a small storage module of Strata uses it. A backend must accept the signed URLs of the S3 API.
 * Garage is the first server. Its licence, AGPLv3, is accepted. Strata uses it as a separate server and does not change it.
 * Local development and L1 tests run Garage in a container.
 * A client gets only signed URLs for one key and one method. An upload URL expires after 15 minutes, and a download URL after 5 minutes. The time limits the start of a transfer, not its length.
@@ -39,10 +39,10 @@ The decision has these parts:
 ### Consequences
 
 * Good, because the storage is free and open-source, and Strata can host it.
-* Good, because a change to a different S3-compatible server, or to Azure Blob Storage, is a change of configuration.
+* Good, because a change to a different S3-compatible server, or to Azure Blob Storage, is a change of configuration. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): this stays true for an S3-compatible server. Azure Blob Storage now needs its own client, because `rusty-s3` has no Azure signer.
 * Good, because the API holds no file bytes, so it stays small and stateless.
 * Good, because local tests use the same server as production.
 * Bad, because Strata must operate, replicate and back up a storage server (M3).
-* Bad, because the signed URL of `object_store` cannot limit the size of an upload (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))). The check at "finish" and the cleanup task must catch large files.
+* Bad, because the signed URL of `object_store` cannot limit the size of an upload (Amended on 2026-11-21 ([#85](https://github.com/sravioli/strata/issues/85))). The check at "finish" and the cleanup task must catch large files. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the signed URL of `rusty-s3` has the same limit.
 * Bad, because a signed URL that leaks gives access to one file until it expires.
-* Not decided: hosting, replication, backups and encryption of the disks (M3). Implementation must check that Garage accepts the signed URLs of `object_store`.
+* Not decided: hosting, replication, backups and encryption of the disks (M3). Implementation must check that Garage accepts the signed URLs of `object_store` (Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): of `rusty-s3`. The L1 tests TC-6-01 and TC-6-02 check it).

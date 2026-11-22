@@ -87,6 +87,8 @@ A sample of real files from a product, for example "alpha", replaces this assump
 
 Strata uses the traits `ObjectStore` and `Signer` of the crate `object_store`. It does not write its own storage interface. The configuration selects the backend.
 
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the crate `rusty-s3` 0.12 replaces `object_store` (owner, 2026-11-22). With the feature `aws`, `object_store` adds `aws-lc-rs`, a second crypto backend. With each set of features, `make deny` fails, because `object_store` depends on `chrono` and `humantime`, and each has an advisory that it is not maintained (RUSTSEC-2026-0542, RUSTSEC-2026-0543). `rusty-s3` signs S3 requests only. The API signs a PUT URL for a client. It also signs its own requests that read the size of an object and remove an object. The HTTP client of `strata` sends them. Strata has a small storage module of its own, for the S3 API only. Each S3-compatible server is still a change of configuration. Azure Blob Storage now needs its own client.
+
 The first backend is a free and open-source server that uses the S3 API, through the `AmazonS3` type of the crate. The first server is Garage. The owner accepted it, with its licence AGPLv3, on 2026-11-18. Each server and cloud service with an S3 API can replace it with a change of configuration. Azure Blob Storage stays possible through the `MicrosoftAzure` type, with a user delegation SAS.
 
 A backend must implement `Signer`. Thus local disk and memory are not backends for the API. Development and tests use the same server as production, in a container.
@@ -109,11 +111,11 @@ client               API                       storage          database
 
 1. **Start.** The client sends the file name, the content type and the size. It can also send the `document_id` of a document that exists. Then the revision is the next revision of that document. With no `document_id`, the API creates a new document, and the revision is revision 1. The API calls `authorize` for `UploadDocument`. A `document_id` of a different tenant gives the same answer as a document that does not exist. The API checks the bound on `Waiting` jobs (ADR 0004) and the bound on revisions in `AwaitingUpload` (see "Removal"). It rejects a declared size above the maximum with `413`, and creates no revision (Amended on 2026-11-21 ([#49](https://github.com/sravioli/strata/issues/49))). It creates the revision in the state `AwaitingUpload` and returns a signed PUT URL for the key of that revision. The URL expires after 15 minutes. The time limits the start of the PUT, not its length. The storage checks the expiry when the request arrives, and a transfer that starts in time continues to its end. Thus a slow transfer of 100 MB does not fail.
 2. **Send.** The client sends the bytes to the storage with the URL. The URL permits a PUT of one key only.
-3. **Finish.** The client tells the API that the upload is complete. The API reads the size of the object from the storage. If the object does not exist, the API answers with an error and changes nothing. If the size is above the maximum, the API removes the object, sets the revision to `Failed` with the class `FileTooLarge`, and rejects the upload. Otherwise one transaction sets the revision to `Uploaded` and creates its `ProcessDocument` job (O6). A "finish" of a revision that is `superseded` creates no job, and gives the same answer (Amended on 2026-11-21 ([#47](https://github.com/sravioli/strata/issues/47))).
+3. **Finish.** The client tells the API that the upload is complete. The API reads the size of the object from the storage. If the object does not exist, the API answers `409 Conflict` and changes nothing (Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49))). If the size is above the maximum, the API removes the object, sets the revision to `Failed` with the class `FileTooLarge`, and rejects the upload. Otherwise one transaction sets the revision to `Uploaded` and creates its `ProcessDocument` job (O6). A "finish" of a revision that is `superseded` creates no job, and gives the same answer (Amended on 2026-11-21 ([#47](https://github.com/sravioli/strata/issues/47))).
 
 A second "finish" for the same revision changes nothing and gives the same answer. Thus a client can try again after a network failure.
 
-The `Signer` of `object_store` signs no headers, so its signed URL cannot limit the size of an upload. The S3 API can sign a `content-length` header, but reports say that Garage rejects a signed `content-length`. Thus the check of step 3 is the limit (O7). A client can put a large object in its own key. That object never becomes part of the corpus, and step 3 or the cleanup removes it.
+The `Signer` of `object_store` signs no headers, so its signed URL cannot limit the size of an upload. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the PUT URL of `rusty-s3` signs only the header `host`, so the same reason applies. The S3 API can sign a `content-length` header, but reports say that Garage rejects a signed `content-length`. Thus the check of step 3 is the limit (O7). A client can put a large object in its own key. That object never becomes part of the corpus, and step 3 or the cleanup removes it.
 
 ### Keys
 
@@ -148,7 +150,7 @@ The API and the worker get the storage credentials from the secret store of the 
 
 ## Alternatives considered
 
-**Azure Blob Storage first, as issue [#6](https://github.com/sravioli/strata/issues/6) first recommended.** It needs no server to operate, and `object_store` can sign with a user delegation SAS. But it is not free and open-source software, and the owner requires that (O1). It stays possible as a second backend.
+**Azure Blob Storage first, as issue [#6](https://github.com/sravioli/strata/issues/6) first recommended.** It needs no server to operate, and `object_store` can sign with a user delegation SAS. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `rusty-s3` has no Azure signer, so Azure needs its own client. But it is not free and open-source software, and the owner requires that (O1). It stays possible as a second backend.
 
 **MinIO.** For years it was the usual self-hosted server with an S3 API. But its community edition has had no binary releases since October 2025, and its repository is archived. Strata would have to build it and fix its security problems.
 
@@ -191,7 +193,7 @@ N/A. This design connects services and does not add a function with a rule. L1 t
 ### Developer
 
 - Local development and L1 tests run the storage server in a container, next to PostgreSQL.
-- The crate `object_store` is a new dependency, with the features `aws` and, later, `azure`.
+- The crate `object_store` is a new dependency, with the features `aws` and, later, `azure`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the new dependency is `rusty-s3` 0.12, with the feature `rustcrypto` only.
 
 ## Test cases
 
@@ -220,7 +222,7 @@ The owner answered on 2026-11-18:
 
 Implementation resolves these points:
 
-- A check that the Garage S3 API accepts the signed URLs of `object_store`, before the first L1 test.
+- A check that the Garage S3 API accepts the signed URLs of `rusty-s3` (Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): it was `object_store`), before the first L1 test.
 - A check that Garage, like Amazon S3, checks the expiry of a signed URL only when the request arrives.
 
 These questions belong to later designs:

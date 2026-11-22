@@ -62,7 +62,7 @@ Libraries:
 
 - axum 0.8 and tokio for HTTP,
 - tokio-postgres 0.7 with deadpool-postgres 0.14 for PostgreSQL, and refinery 0.10 for the migrations,
-- `object_store` 0.14 for the storage (0006),
+- `rusty-s3` 0.12 for the signatures of the storage requests (0006). Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): it was `object_store` 0.14. With the feature `aws`, `object_store` adds `aws-lc-rs`, a second crypto backend. With each set of features, `make deny` fails, because `object_store` depends on `chrono` and `humantime`, and each has an advisory that it is not maintained (RUSTSEC-2026-0542, RUSTSEC-2026-0543). `rusty-s3` only signs requests, and the HTTP client of `strata` sends the requests of the API (owner, 2026-11-22),
 - `jsonwebtoken` for tokens, and `clap` for the subcommands.
 
 Queries are checked at run time and by L1 tests, so the build needs no database.
@@ -76,6 +76,8 @@ Amended on 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)): t
 ### Identifiers
 
 All identifiers are UUIDs that the database generates with `uuidv7()`. Version 7 UUIDs start with the time, so new rows go to the end of each B-tree index. PostgreSQL 18 added `uuidv7()`, and PostgreSQL 17 does not have it. The skeleton moves the pins of `compose.yaml` and of the `sql` job of CI to PostgreSQL 19, the latest version (owner, 2026-11-21). One change moves both pins. PostgreSQL 19 was released on 2026-11-19. If an image, PgBouncer or sqlx does not work with it yet, the first change uses PostgreSQL 18 and records the reason.
+
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): one identifier is an exception. `slot_id` of `upload_slots` is a version 4 UUID from `gen_random_uuid()`. It is a random key, and no index of a tenant table holds it.
 
 The proved functions of `core` use `u64` for the identifiers of a tenant and an account. A UUID has 128 bits. The first change of the skeleton changes these fields to `u128`, and the `strata` crate gives the 128 bits of the UUID. The proofs compare identifiers for equality only, so they do not change. The translation and the proofs change in the same pull request (`docs/agents/testing.md`).
 
@@ -105,6 +107,7 @@ These tables are new. Each table that a tenant owns follows the three rules of 0
 | `error_class` | The class of a `Failed` revision (0007, 0006). Null in each other state. |
 | `no_text` | True when a `Ready` revision has no text (`NoText` of 0007) |
 | `status_at` | The time of the last change of the public status (`updated_at` of 0047) |
+| `slot_id` | The key of the row of `upload_slots` of the start. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)). |
 | `created_at` | The time of the start |
 
 `text_parts`:
@@ -118,18 +121,20 @@ These tables are new. Each table that a tenant owns follows the three rules of 0
 
 Index: `create index on text_parts using gin (tenant_id, tsv)`, with the extension `btree_gin`, which has an operator class for `uuid`. Thus a search reads only the index entries of one tenant, and its cost does not depend on the count of tenants (S5 of 0002). Text parts exist only for a revision in the state `Ready`. The worker writes them in the transaction that sets `Ready`. The transaction that sets `Superseded` removes them.
 
-`upload_slots` is a global table, as `jobs` is (0005). It holds no tenant content, only identifiers and a time:
+`upload_slots` is a global table, as `jobs` is (0005). It holds no tenant content, only a random key and a time:
 
 | Column | Meaning |
 |---|---|
-| `tenant_id`, `document_id`, `revision` | The revision that waits for its upload |
+| `slot_id` | The primary key, a version 4 UUID. The revision stores it. |
 | `created_at` | The time of the start |
 
-The start of an upload inserts a row, and the finish removes it. The bound on revisions in `AwaitingUpload` of 0006 counts its rows from the last 2 hours: `select count(*) from upload_slots where created_at > now() - interval '2 hours'`. A count of `revisions` cannot give that number, because the policy of 0003 shows a role only the rows of one tenant. A task removes rows older than 2 hours. It needs no tenant context, because the table is global.
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the table held `tenant_id`, `document_id` and `revision`. With `select (created_at)` only, the finish could not remove its row: a `delete` needs `select` on each column in its `where`. A test on PostgreSQL 19 gave "permission denied". Thus the row has a random key, and the finish removes the row by that key. The API still cannot read the tenant or the document of a row, because the table has no such column (owner, 2026-11-22).
+
+The start of an upload inserts a row, and the finish removes it. A finish that sets `Failed` with `FileTooLarge` also removes it, because the revision is no longer in `AwaitingUpload` (Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49))). The bound on revisions in `AwaitingUpload` of 0006 counts its rows from the last 2 hours: `select count(*) from upload_slots where created_at > now() - interval '2 hours'`. A count of `revisions` cannot give that number, because the policy of 0003 shows a role only the rows of one tenant. A task removes rows older than 2 hours. It needs no tenant context, because the table is global.
 
 **Revision numbers.** The start of an upload with a `document_id` runs `update documents set last_revision = last_revision + 1 where tenant_id = $1 and document_id = $2 returning last_revision`. The row lock of that update puts two starts for one document in sequence, so each gets its own number. A start with no `document_id` inserts the document with `last_revision = 1`.
 
-**Roles and grants.** The roles are the four roles of 0003. `strata_api` gets `select`, `insert` and `update` on `documents` and `revisions`, and `select` on `text_parts`. It gets `insert` and `select (state)` on `jobs` (0005, TC-5-08). It gets `insert`, `delete` and `select (created_at)` on `upload_slots`. `strata_worker` gets `select` and `update` on `revisions`, and `select`, `insert` and `delete` on `text_parts`. It gets `select` and `update (ready_revision)` on `documents`, because a row lock with `for update` needs the `update` privilege on one column or more. It gets `select`, `update` and `delete` on `jobs`. Implementation writes these grants in the migrations, and an L1 test checks each grant that this list does not give.
+**Roles and grants.** The roles are the four roles of 0003. `strata_api` gets `select`, `insert` and `update` on `documents` and `revisions`, and `select` on `text_parts`. It gets `insert` and `select (state)` on `jobs` (0005, TC-5-08). It gets `insert`, `delete` and `select (slot_id, created_at)` on `upload_slots`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): it was `select (created_at)`, see `upload_slots` above. `strata_worker` gets `select` and `update` on `revisions`, and `select`, `insert` and `delete` on `text_parts`. It gets `select` and `update (ready_revision)` on `documents`, because a row lock with `for update` needs the `update` privilege on one column or more. It gets `select`, `update` and `delete` on `jobs`. Implementation writes these grants in the migrations, and an L1 test checks each grant that this list does not give.
 
 ### The lifecycle of a revision
 
@@ -197,7 +202,7 @@ Each route of a revision is under the path of its status, `/v1/documents/{docume
 
 The start rejects a size above 100 MB with `413`, so the client learns early. The finish still checks the real size of the object, because the signed URL cannot limit it (0006).
 
-The finish runs in one tenant transaction. It locks the revision with `select … for update`, and applies `revision_step` with `Finish` or `FinishTooLarge`. It creates the job and removes the row of `upload_slots` only when the revision changes from `AwaitingUpload` to `Uploaded`. Thus a second finish, or two finishes at the same time, create one job only (0006).
+The finish runs in one tenant transaction. It locks the revision with `select … for update`, and applies `revision_step` with `Finish` or `FinishTooLarge`. It creates the job only when the revision changes from `AwaitingUpload` to `Uploaded`. It removes the row of `upload_slots` when the revision leaves `AwaitingUpload`, to `Uploaded` or to `Failed` with `FileTooLarge` (Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49))). Thus a second finish, or two finishes at the same time, create one job only (0006).
 
 ### Extraction in the skeleton
 
@@ -249,6 +254,8 @@ The search must rank each match in the tenant. Thus its cost grows with the coun
 | Poll of a worker with no job | 0005 | 1 s, two times longer after each empty poll, up to 10 s | Fast work when jobs arrive, few queries when the queue is empty |
 | Jobs that one worker runs at the same time, and extraction processes of one worker | 0005, 0007 | 2 | Two sandboxes of 1 GB on a small machine |
 | Bound on `Waiting` jobs | 0005 | 20,000 | About 2 hours of uploads at the ceiling of 10,000 each hour (ADR 0003) |
+| Start body | 0006, 0047 | `file_name` and `content_type` have 1 to 1,024 characters. `size` is an integer from 0 to 104,857,600 (100 MB). A size above 100 MB gives `413`. Each other wrong value gives `400`. The body rules of 0047 apply: no `Content-Type` gives `400`, another media type gives `415`, and a body above 16,384 bytes gives `413`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)). | The owner decided the limits on 2026-11-22. Each route with a JSON body has the same body rules. |
+| `Retry-After` of a start at a bound | 0005, 0006 | 60 s. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)). | The owner decided it on 2026-11-22. |
 | Bound on revisions in `AwaitingUpload`, for all tenants | 0006 | 5,000, counted in `upload_slots` | Above the approximately 2,700 uploads that 15 minutes hold at the ceiling. Objects that are not finished then hold approximately 500 GB, when each client sends the size that it declared. The signed URL cannot limit the real size (0006), so a client can put more. |
 | Cleanup | 0005, 0006 | Each 60 s, 1,000 rows each batch | Done jobs after 24 hours, and rows of `upload_slots` after 2 hours. The cleanup of revisions in `AwaitingUpload` and of the objects of `Superseded` revisions waits for its principal ([#69](https://github.com/sravioli/strata/issues/69)). |
 | Token buckets of one API process | 0047 | 100,000, least recently used goes first | Ten buckets for each of the 10,000 accounts of C1 (ADR 0003) |
@@ -266,7 +273,7 @@ The search must rank each match in the tenant. Thus its cost grows with the coun
 4. `strata admin tenant create acme`, the same for `globex`, the registration of the issuer, and one binding for each tenant.
 5. Start `strata api` and `strata worker` on the host.
 
-Before the first L1 test with Garage, the second change checks two things. The first check: Garage accepts the signed URLs of `object_store`. The second check: Garage checks the expiry only when the request arrives (0006).
+Before the first L1 test with Garage, the second change checks two things. The first check: Garage accepts the signed URLs of `rusty-s3` (Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): it was `object_store`). The second check: Garage checks the expiry only when the request arrives (0006).
 
 ### Operator commands
 
@@ -392,7 +399,7 @@ The owner answered these questions on 2026-11-21:
 2. The search uses PostgreSQL full-text search with the configuration `simple`.
 3. The revision has five internal states, and the other facts are columns.
 4. Four crates, and one server binary with subcommands.
-5. axum, tokio, sqlx, `object_store` and `jsonwebtoken`. The prototype [#100](https://github.com/sravioli/strata/issues/100) checks sqlx with a threshold of 20 %. Amended on 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)): tokio-postgres and deadpool-postgres replace sqlx, and refinery replaces `sqlx migrate`.
+5. axum, tokio, sqlx, `object_store` and `jsonwebtoken`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `rusty-s3` replaces `object_store`, see "Crates and processes". The prototype [#100](https://github.com/sravioli/strata/issues/100) checks sqlx with a threshold of 20 %. Amended on 2026-11-22 ([#100](https://github.com/sravioli/strata/issues/100)): tokio-postgres and deadpool-postgres replace sqlx, and refinery replaces `sqlx migrate`.
 6. `make dev`, and development on Linux only.
 7. The revision state function is proved, with the statements of the Proof obligations table.
 8. The agent sets the values of the implementation points, and the owner reviews them in this pull request.
