@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use http_body_util::Empty;
+use http_body_util::{BodyExt, Empty};
 use hyper::body::Bytes;
 use hyper::{Method, Request, StatusCode, header};
 use hyper_rustls::HttpsConnector;
@@ -18,6 +18,9 @@ use uuid::Uuid;
 pub const PUT_EXPIRY: Duration = Duration::from_secs(15 * 60);
 /// The expiry of the signed URL of a request of the API.
 const API_EXPIRY: Duration = Duration::from_secs(60);
+/// The read of an object by the worker stops after this time, with its body.
+// shortcut: one fixed time for 100 MB; make it a setting if a storage is slower than 1 MB/s.
+const READ_TIMEOUT: Duration = Duration::from_secs(120);
 /// A request of the API to the storage stops after this time. The finish holds a row lock while
 /// it waits.
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,7 +43,7 @@ pub struct Error(String);
 
 type Http = Client<HttpsConnector<HttpConnector>, Empty<Bytes>>;
 
-/// The storage client of one API process.
+/// The storage client of one API or worker process.
 pub struct Storage {
     bucket: Bucket,
     credentials: Credentials,
@@ -118,6 +121,39 @@ impl Storage {
             StatusCode::NOT_FOUND => Ok(None),
             s => Err(Error(format!("HEAD gave {s}"))),
         }
+    }
+
+    /// At most `max` + 1 bytes of the object, so that the caller can see an object above `max`,
+    /// or `None` when no object has the key. The worker reads with its own credentials (0006).
+    pub async fn read(&self, key: &str, max: u64) -> Result<Option<Vec<u8>>, Error> {
+        let url = self
+            .bucket
+            .get_object(Some(&self.credentials), key)
+            .sign(API_EXPIRY);
+        let limit = usize::try_from(max).unwrap_or(usize::MAX).saturating_add(1);
+        let read = async {
+            let resp = self.send(Method::GET, url).await?;
+            match resp.status() {
+                StatusCode::OK => {}
+                StatusCode::NOT_FOUND => return Ok(None),
+                s => return Err(Error(format!("GET gave {s}"))),
+            }
+            let mut body = resp.into_body();
+            let mut bytes = Vec::new();
+            while bytes.len() < limit {
+                let Some(frame) = body.frame().await else {
+                    break;
+                };
+                let frame = frame.map_err(|e| Error(e.to_string()))?;
+                if let Ok(data) = frame.into_data() {
+                    bytes.extend_from_slice(&data[..data.len().min(limit - bytes.len())]);
+                }
+            }
+            Ok(Some(bytes))
+        };
+        tokio::time::timeout(READ_TIMEOUT, read)
+            .await
+            .map_err(|_| Error("timeout".into()))?
     }
 
     /// Removes the object. A key with no object is not an error.

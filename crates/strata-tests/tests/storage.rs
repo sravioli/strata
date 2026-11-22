@@ -67,3 +67,19 @@ async fn a_slow_transfer_that_starts_in_time_completes() {
     assert_eq!(s.size(&key).await.unwrap(), Some(body.len() as u64));
     s.remove(&key).await.unwrap();
 }
+
+/// Task 5.1: the worker reads an object, and at most `max` + 1 bytes of a larger one.
+#[tokio::test]
+async fn the_worker_reads_at_most_the_limit_and_one_byte() {
+    let s = storage();
+    let key = new_key();
+    let body: Vec<u8> = (0..=255).cycle().take(100_000).collect();
+    let (url, _) = s.sign_put(&key, std::time::Duration::from_secs(60));
+    assert_eq!(
+        put(&url, &body, body.len(), std::time::Duration::ZERO).await,
+        200
+    );
+    assert_eq!(s.read(&key, 100_000).await.unwrap(), Some(body.clone()));
+    assert_eq!(s.read(&key, 10).await.unwrap(), Some(body[..11].to_vec()));
+    assert_eq!(s.read(&new_key(), 10).await.unwrap(), None);
+}
