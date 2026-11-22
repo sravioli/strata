@@ -100,10 +100,7 @@ impl Api {
     fn new(pool: Pool, keys: KeyCache) -> Self {
         let handled = Arc::new(AtomicUsize::new(0));
         let state = TestState {
-            auth: Auth {
-                pool,
-                keys: Arc::new(keys),
-            },
+            auth: Auth::new(pool, Arc::new(keys)),
             handled: handled.clone(),
         };
         let app = Router::new()

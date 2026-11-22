@@ -30,7 +30,7 @@ The decision has these parts:
 * PostgreSQL 19 full-text search with the configuration `simple`. One row for each page, with parts of at most 64 KB, and a GIN index on `(tenant_id, tsv)`.
 * `QUERY /v1/search` returns one result for each document of the tenant of the caller, with no snippets.
 * The upload routes are under `/v1/documents`.
-* Crates: `core`, `strata` (`api`, `worker`, `admin`), `strata-extract`, `strata-dev`. Libraries: axum, tokio, tokio-postgres with deadpool-postgres, refinery for the migrations, `object_store`, `jsonwebtoken`. The benchmark ([#100](https://github.com/sravioli/strata/issues/100)) found tokio-postgres better than sqlx by more than 20 % on the tenant transaction and on the batch status read (2026-11-22).
+* Crates: `core`, `strata` (`api`, `worker`, `admin`), `strata-extract`, `strata-dev`. Libraries: axum, tokio, tokio-postgres with deadpool-postgres, refinery for the migrations, `object_store`, `jsonwebtoken`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `rusty-s3` replaces `object_store`, because `object_store` adds a second crypto backend and fails `make deny` (owner, 2026-11-22). The benchmark ([#100](https://github.com/sravioli/strata/issues/100)) found tokio-postgres better than sqlx by more than 20 % on the tenant transaction and on the batch status read (2026-11-22).
 * Statements that do not need an earlier result go to PostgreSQL together, in one round trip.
 * Identifiers are `uuidv7()` UUIDs, and `core` uses `u128`. PgBouncer runs in transaction mode on the laptop too.
 * Each step reads or writes its rows with one statement.

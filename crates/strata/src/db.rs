@@ -16,6 +16,30 @@
 //!     strata::db::tenant_context(conn, "x").await;
 //! }
 //! ```
+//!
+//! TC-4-08: a route gets its tenant transaction only from a decision or a scope. The pool is
+//! private to `auth` (see `strata::auth::Auth`).
+//!
+//! ```compile_fail
+//! // A tenant transaction comes only from `into_tenant`.
+//! fn f(id: &strata::db::IdentityTx, t: strata::db::TenantTx) -> strata::db::TenantTx {
+//!     strata::db::TenantTx { tenant_id: id.tenant_id(), ..t }
+//! }
+//! ```
+//!
+//! ```compile_fail
+//! // Only `allowed` makes an "allow", and only from `Decision::Allow`.
+//! fn f() -> strata::db::Allowed {
+//!     strata::db::Allowed(())
+//! }
+//! ```
+//!
+//! ```compile_fail
+//! // A query function does not accept the identity transaction.
+//! async fn f(mut id: strata::db::IdentityTx) {
+//!     strata::db::tenant_context(&mut id, "x").await;
+//! }
+//! ```
 
 use std::time::Duration;
 
@@ -25,6 +49,8 @@ use tokio_postgres::NoTls;
 use uuid::Uuid;
 
 pub use deadpool_postgres::{Pool, PoolError};
+
+pub mod upload;
 
 /// Connections in the pool of each process (0049, "Values").
 pub const POOL_SIZE: usize = 20;
@@ -79,6 +105,11 @@ impl Tx {
         let conn = self.0.take().expect("an open transaction");
         conn.batch_execute(sql).await?;
         Ok(())
+    }
+
+    /// The transaction ended on the connection: it goes back to the pool.
+    fn release(mut self) {
+        drop(self.0.take());
     }
 }
 
@@ -258,6 +289,26 @@ impl TenantTx {
 
     pub async fn rollback(self) -> Result<(), Error> {
         self.tx.end("rollback").await
+    }
+
+    /// Runs one statement and ends the transaction with `commit` or `rollback`, in one round trip
+    /// (the pipelining rule of 0049). A failed statement aborts the transaction, so `commit`
+    /// rolls it back, and the connection closes.
+    async fn query_and_end(
+        self,
+        sql: &str,
+        params: Params<'_>,
+        commit: bool,
+    ) -> Result<Vec<tokio_postgres::Row>, Error> {
+        let rows = {
+            let c = self.tx.conn();
+            let st = c.prepare_cached(sql).await?;
+            let end = if commit { "commit" } else { "rollback" };
+            let (rows, ()) = tokio::try_join!(c.query(&st, params), c.batch_execute(end))?;
+            rows
+        };
+        self.tx.release();
+        Ok(rows)
     }
 
     /// The connection of the transaction, for the L1 tests only.

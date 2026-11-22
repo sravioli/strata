@@ -6,5 +6,7 @@ The Lean project of Strata (tech design 0009).
 -/
 import Strata.Model.Authorization
 import Strata.Model.Job
+import Strata.Model.Revision
 import Strata.Proofs.Authorization
 import Strata.Proofs.Job
+import Strata.Proofs.Revision

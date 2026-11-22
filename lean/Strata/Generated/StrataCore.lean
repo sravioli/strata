@@ -322,4 +322,207 @@ def job.job_step
         }
   | job.JobState.Done => ok j
 
+/-- [strata_core::revision::RevisionState]
+    Source: 'crates/core/src/revision.rs', lines 7:0-13:1
+    Visibility: public -/
+@[discriminant isize]
+inductive revision.RevisionState where
+| AwaitingUpload : revision.RevisionState
+| Uploaded : revision.RevisionState
+| Ready : revision.RevisionState
+| Failed : revision.RevisionState
+| Superseded : revision.RevisionState
+
+/-- [strata_core::revision::FailureClass]
+    Source: 'crates/core/src/revision.rs', lines 17:0-28:1
+    Visibility: public -/
+@[discriminant isize]
+inductive revision.FailureClass where
+| FileTooLarge : revision.FailureClass
+| ExtractionTimeout : revision.FailureClass
+| ExtractionMemory : revision.FailureClass
+| ExtractionCrash : revision.FailureClass
+| ExtractionOutputTooLarge : revision.FailureClass
+| ArchiveTooLarge : revision.FailureClass
+| UnsupportedFormat : revision.FailureClass
+| EncryptedFile : revision.FailureClass
+| MalformedFile : revision.FailureClass
+| InvalidOutput : revision.FailureClass
+
+/-- [strata_core::revision::Revision]
+    Source: 'crates/core/src/revision.rs', lines 32:0-40:1
+    Visibility: public -/
+structure revision.Revision where
+  state : revision.RevisionState
+  retry_mark : Bool
+  error_class : Option revision.FailureClass
+  no_text : Bool
+
+/-- [strata_core::revision::Event]
+    Source: 'crates/core/src/revision.rs', lines 43:0-53:1
+    Visibility: public -/
+@[discriminant isize]
+inductive revision.Event where
+| Finish : revision.Event
+| FinishTooLarge : revision.Event
+| Extracted : Bool → revision.Event
+| ExtractFailed : revision.FailureClass → revision.Event
+| NewerReady : revision.Event
+
+/-- [strata_core::revision::revision_step]:
+    Source: 'crates/core/src/revision.rs', lines 58:0-107:1
+    Visibility: public -/
+def revision.revision_step
+  (r : revision.Revision) (e : revision.Event) : Result revision.Revision := do
+  match r.state with
+  | revision.RevisionState.AwaitingUpload =>
+    match e with
+    | revision.Event.Finish =>
+      ok { r with state := revision.RevisionState.Uploaded }
+    | revision.Event.FinishTooLarge =>
+      ok
+        {
+          r
+            with
+            state := revision.RevisionState.Failed,
+            error_class := (some revision.FailureClass.FileTooLarge)
+        }
+    | revision.Event.Extracted _ => ok r
+    | revision.Event.ExtractFailed _ => ok r
+    | revision.Event.NewerReady =>
+      ok { r with state := revision.RevisionState.Superseded }
+  | revision.RevisionState.Uploaded =>
+    match e with
+    | revision.Event.Finish => ok r
+    | revision.Event.FinishTooLarge => ok r
+    | revision.Event.Extracted no_text =>
+      ok { r with state := revision.RevisionState.Ready, no_text }
+    | revision.Event.ExtractFailed c =>
+      match c with
+      | revision.FailureClass.FileTooLarge =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class := (some revision.FailureClass.FileTooLarge)
+          }
+      | revision.FailureClass.ExtractionTimeout =>
+        if r.retry_mark
+        then
+          ok
+            {
+              r
+                with
+                state := revision.RevisionState.Failed,
+                error_class := (some revision.FailureClass.ExtractionTimeout)
+            }
+        else ok { r with retry_mark := true }
+      | revision.FailureClass.ExtractionMemory =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class := (some revision.FailureClass.ExtractionMemory)
+          }
+      | revision.FailureClass.ExtractionCrash =>
+        if r.retry_mark
+        then
+          ok
+            {
+              r
+                with
+                state := revision.RevisionState.Failed,
+                error_class := (some revision.FailureClass.ExtractionCrash)
+            }
+        else ok { r with retry_mark := true }
+      | revision.FailureClass.ExtractionOutputTooLarge =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class :=
+                (some revision.FailureClass.ExtractionOutputTooLarge)
+          }
+      | revision.FailureClass.ArchiveTooLarge =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class := (some revision.FailureClass.ArchiveTooLarge)
+          }
+      | revision.FailureClass.UnsupportedFormat =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class := (some revision.FailureClass.UnsupportedFormat)
+          }
+      | revision.FailureClass.EncryptedFile =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class := (some revision.FailureClass.EncryptedFile)
+          }
+      | revision.FailureClass.MalformedFile =>
+        ok
+          {
+            r
+              with
+              state := revision.RevisionState.Failed,
+              error_class := (some revision.FailureClass.MalformedFile)
+          }
+      | revision.FailureClass.InvalidOutput =>
+        if r.retry_mark
+        then
+          ok
+            {
+              r
+                with
+                state := revision.RevisionState.Failed,
+                error_class := (some revision.FailureClass.InvalidOutput)
+            }
+        else ok { r with retry_mark := true }
+    | revision.Event.NewerReady =>
+      ok { r with state := revision.RevisionState.Superseded }
+  | revision.RevisionState.Ready =>
+    match e with
+    | revision.Event.Finish => ok r
+    | revision.Event.FinishTooLarge => ok r
+    | revision.Event.Extracted _ => ok r
+    | revision.Event.ExtractFailed _ => ok r
+    | revision.Event.NewerReady =>
+      ok { r with state := revision.RevisionState.Superseded }
+  | revision.RevisionState.Failed =>
+    match e with
+    | revision.Event.Finish => ok r
+    | revision.Event.FinishTooLarge => ok r
+    | revision.Event.Extracted _ => ok r
+    | revision.Event.ExtractFailed _ => ok r
+    | revision.Event.NewerReady => ok r
+  | revision.RevisionState.Superseded =>
+    match e with
+    | revision.Event.Finish => ok r
+    | revision.Event.FinishTooLarge => ok r
+    | revision.Event.Extracted _ => ok r
+    | revision.Event.ExtractFailed _ => ok r
+    | revision.Event.NewerReady => ok r
+
+/-- [strata_core::revision::may_extract]:
+    Source: 'crates/core/src/revision.rs', lines 110:0-112:1
+    Visibility: public -/
+def revision.may_extract (r : revision.Revision) : Result Bool := do
+  match r.state with
+  | revision.RevisionState.AwaitingUpload => ok false
+  | revision.RevisionState.Uploaded => ok true
+  | revision.RevisionState.Ready => ok false
+  | revision.RevisionState.Failed => ok false
+  | revision.RevisionState.Superseded => ok false
+
 end strata_core
