@@ -48,8 +48,8 @@
 
 ## 9. Integration and gates
 
-- [ ] 9.1 Verify the coverage floor of `CONSTRAINTS.md`. The L1 code of `strata` does not count in the L0 coverage. If the workspace falls below 80 %, stop and tell the owner, with the numbers. Do not lower the number. Verify: `cargo llvm-cov --workspace --locked --fail-under-lines 80` passes.
-- [ ] 9.2 Run `make` and `make l1`. Verify: each target passes, and `python3 scripts/check-test-cases.py --report` shows each scenario of this change as `implemented`, except TC-21-18 as `planned`.
+- [x] 9.1 Verify the coverage floor of `CONSTRAINTS.md`. With L0 tests only, the workspace was at 47 %. The owner decided on 2026-11-22: the floor counts the L0 and L1 tests together, in the `l1` job. The value is 86.52 %, so the ratchet sets the number to 86. Verify: `cargo llvm-cov --workspace --locked --all-features --fail-under-lines 86` passes.
+- [x] 9.2 Run `make` and `make l1`. Verify: each target passes, and `python3 scripts/check-test-cases.py --report` shows each scenario of this change as `implemented`, except TC-21-18 as `planned`.
 - [ ] 9.3 Update the implementation-point lists in the comments of #49. Tick each point that this change implements, and name the change that implements each other point. Verify: each point of #3, #4 and #21 that change 1 owns is ticked.
 
 ## Workflow follow-up

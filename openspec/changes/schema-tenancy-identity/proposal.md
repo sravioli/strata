@@ -33,6 +33,7 @@ Not in this change:
 
 - The owner decided the status codes on 2026-11-22. Each failure of steps 1 to 9 of 0021 gets `401`. An account or a tenant that is not active (step 10) gets `403`. This change amends 0021 with this decision.
 - The agent set two more values, for the owner to review. A `401` has the header `WWW-Authenticate: Bearer`, because RFC 9110 requires a `WWW-Authenticate` header on a `401`. Each rejection has an empty body, so that the body shows no step.
+- The owner decided on 2026-11-22: the coverage floor of `CONSTRAINTS.md` counts the L0 and L1 tests together, in the `l1` job. With L0 tests only, the database and HTTP code of `strata` gave 47 %. The new value is 86.52 %, so the ratchet sets the number to 86.
 - The grants for the four tables of this change come from 0003 and 0021. The spec `tenant-isolation` lists them.
 
 ## Test cases
