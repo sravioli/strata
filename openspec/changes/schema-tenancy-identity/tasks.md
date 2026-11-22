@@ -20,10 +20,10 @@
 
 ## 4. Schema and migrations
 
-- [ ] 4.1 Add the first migration in `crates/strata/migrations/`. It holds `tenants`, `accounts`, `issuers` and `issuer_bindings`, with the columns of 0003 and 0021. It also holds the `uuidv7()` defaults, the three rules of 0003, the policies, and the grants of the `tenant-isolation` spec. Copy the expressions of the policies from 0003 and 0021 without a change. Verify: `make sql` passes.
-- [ ] 4.2 Add `strata migrate` with refinery, which embeds the migrations. It connects directly as `strata_owner`. Add the L1 tests of the `schema-migrations` spec. Verify: the tests pass.
-- [ ] 4.3 Add the L1 tests of the catalog: TC-3-06 and TC-3-07, and the test of the list of grants. Each test reads all tables and roles from the catalog. The list of global tables is in one place in the test code. It holds `issuers` and the history table of refinery. Verify: the tests pass, and each fails when a policy, a grant or a role attribute changes. Remove the pending markers.
-- [ ] 4.4 Add the L1 tests TC-3-01, TC-3-02, TC-3-03, TC-3-15, TC-3-20 and TC-21-15. Also add the tests of version 7 identifiers and of the update of the account status. Use `accounts` as the tenant-owned table. Verify: the tests pass. Remove the pending markers.
+- [x] 4.1 Add the first migration in `crates/strata/migrations/`. It holds `tenants`, `accounts`, `issuers` and `issuer_bindings`, with the columns of 0003 and 0021. It also holds the `uuidv7()` defaults, the three rules of 0003, the policies, and the grants of the `tenant-isolation` spec. Copy the expressions of the policies from 0003 and 0021 without a change. Verify: `make sql` passes.
+- [x] 4.2 Add `strata migrate` with refinery, which embeds the migrations. It connects directly as `strata_owner`. Add the L1 tests of the `schema-migrations` spec. Verify: the tests pass.
+- [x] 4.3 Add the L1 tests of the catalog: TC-3-06 and TC-3-07, and the test of the list of grants. Each test reads all tables and roles from the catalog. The list of global tables is in one place in the test code. It holds `issuers` and the history table of refinery. Verify: the tests pass, and each fails when a policy, a grant or a role attribute changes. Remove the pending markers.
+- [x] 4.4 Add the L1 tests TC-3-01, TC-3-02, TC-3-03, TC-3-15, TC-3-20 and TC-21-15. Also add the tests of version 7 identifiers and of the update of the account status. Use `accounts` as the tenant-owned table. Verify: the tests pass. Remove the pending markers.
 
 ## 5. Transactions in Rust
 

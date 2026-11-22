@@ -15,14 +15,12 @@ Each tenant-owned table SHALL have a `tenant_id` column that is not null. Its pr
 - **GIVEN** the tenant context of A
 - **WHEN** a transaction inserts a row with the `tenant_id` of B
 - **THEN** PostgreSQL rejects the insert
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-15 Update of the tenant of a row fails
 
 - **GIVEN** the tenant context of A and a row of A
 - **WHEN** a transaction updates the `tenant_id` of the row to B
 - **THEN** PostgreSQL rejects the update
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: Identifiers come from the database
 
@@ -41,7 +39,6 @@ Each tenant-owned table SHALL have row-level security enabled and forced, and ex
 - **AND** the text of that policy is equal to the text in 0003 for a tenant-owned table or for `tenants`
 - **AND** for `issuer_bindings`, it is equal to the text in the identity provider design (0021)
 - **AND** a tenant-owned table also has a `tenant_id` column
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: A transaction sees only the rows of its tenant context
 
@@ -52,7 +49,6 @@ A runtime role SHALL read and write only rows whose `tenant_id` is the value of 
 - **GIVEN** tenants A and B each own one row
 - **WHEN** a transaction in the tenant context of A selects all rows with no tenant filter
 - **THEN** the result contains only the row of A
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-02 No tenant context gives no rows and no writes
 
@@ -61,7 +57,6 @@ A runtime role SHALL read and write only rows whose `tenant_id` is the value of 
 - **THEN** the result is empty
 - **WHEN** the role inserts a row
 - **THEN** PostgreSQL rejects the insert
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-20 The tenants table shows only the tenant of the context
 
@@ -70,7 +65,6 @@ A runtime role SHALL read and write only rows whose `tenant_id` is the value of 
 - **THEN** the result contains only the row of A
 - **WHEN** the role selects with no tenant context
 - **THEN** the result is empty
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The tenant context does not stay on a pooled connection
 
@@ -99,7 +93,6 @@ The code SHALL set `app.tenant_id`, `app.issuer_id` and `app.tenant_value` only 
 - **THEN** the role is not a superuser and cannot bypass row-level security
 - **AND** the role cannot create roles or objects in the schema
 - **AND** the role owns no table, cannot truncate a table and is a member of no other role
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The grants are exactly the list
 

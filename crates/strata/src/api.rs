@@ -21,8 +21,8 @@ impl FromRef<AppState> for Auth {
     }
 }
 
-pub fn state(url: &str) -> Result<AppState, String> {
-    let pool = db::pool(url, POOL_SIZE, POOL_WAIT)?;
+pub fn state(cfg: tokio_postgres::Config) -> Result<AppState, String> {
+    let pool = db::pool(cfg, POOL_SIZE, POOL_WAIT)?;
     Ok(AppState {
         auth: Auth {
             pool,
@@ -36,8 +36,8 @@ pub fn router(state: AppState) -> Router {
     Router::new().with_state(state)
 }
 
-pub async fn serve(url: &str, listen: &str) -> Result<(), String> {
-    let app = router(state(url)?);
+pub async fn serve(cfg: tokio_postgres::Config, listen: &str) -> Result<(), String> {
+    let app = router(state(cfg)?);
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .map_err(|e| format!("bind {listen}: {e}"))?;

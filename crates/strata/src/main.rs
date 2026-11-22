@@ -41,12 +41,13 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), String> {
-    let url = strata::database_url()?;
+    let cfg = strata::database_config()?;
     match cli.cmd {
-        Cmd::Api { listen } => strata::api::serve(&url, &listen).await,
-        Cmd::Migrate => strata::migrate::run(&url).await,
+        Cmd::Api { listen } => strata::api::serve(cfg, &listen).await,
+        Cmd::Migrate => strata::migrate::run(&cfg).await,
         Cmd::Admin(cmd) => {
-            let (client, conn) = tokio_postgres::connect(&url, tokio_postgres::NoTls)
+            let (client, conn) = cfg
+                .connect(tokio_postgres::NoTls)
                 .await
                 .map_err(|e| format!("connect: {e}"))?;
             tokio::spawn(conn);

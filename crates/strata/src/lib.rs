@@ -9,8 +9,9 @@ pub mod migrate;
 /// The one source of the database URL of each subcommand.
 pub const DATABASE_URL: &str = "STRATA_DATABASE_URL";
 
-/// The database URL, or an error that names the variable.
-pub fn database_url() -> Result<String, String> {
-    std::env::var(DATABASE_URL)
-        .map_err(|_| format!("set {DATABASE_URL} to the URL of the database"))
+/// The database settings of `STRATA_DATABASE_URL`, or an error that names the variable.
+pub fn database_config() -> Result<tokio_postgres::Config, String> {
+    let url = std::env::var(DATABASE_URL)
+        .map_err(|_| format!("set {DATABASE_URL} to the URL of the database"))?;
+    url.parse().map_err(|e| format!("{DATABASE_URL}: {e}"))
 }

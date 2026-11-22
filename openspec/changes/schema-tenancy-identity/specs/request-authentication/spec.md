@@ -100,7 +100,6 @@ The API SHALL find the tenant only through the binding of the issuer and the ten
 - **GIVEN** bindings for issuers P1 and P2
 - **WHEN** a runtime role selects from `issuer_bindings` with no settings, or with only `app.issuer_id`
 - **THEN** the result is empty
-- **PENDING** change 1 of #49 adds the test
 
 #### Scenario: TC-3-11 A tenant in the request is ignored
 

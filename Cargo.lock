@@ -1756,9 +1756,20 @@ dependencies = [
 name = "strata-tests"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "getrandom 0.3.4",
+ "jsonwebtoken",
+ "p256",
  "serde_json",
  "strata",
+ "strata-core",
  "strata-dev",
+ "tokio",
+ "tokio-postgres",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

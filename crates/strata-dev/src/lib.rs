@@ -61,7 +61,8 @@ impl DevKey {
         }
     }
 
-    fn encoding_key(&self) -> EncodingKey {
+    /// The private key, for tests that sign with their own header.
+    pub fn encoding_key(&self) -> EncodingKey {
         EncodingKey::from_ed_der(&self.der)
     }
 

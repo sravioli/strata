@@ -4,10 +4,11 @@ mod embedded {
     refinery::embed_migrations!("migrations");
 }
 
-/// Applies each migration that the database does not have, as the role of the URL
+/// Applies each migration that the database does not have, as the role of `cfg`
 /// (`strata_owner`). A migration whose text changed after it was applied stops the run.
-pub async fn run(url: &str) -> Result<(), String> {
-    let (mut client, conn) = tokio_postgres::connect(url, tokio_postgres::NoTls)
+pub async fn run(cfg: &tokio_postgres::Config) -> Result<(), String> {
+    let (mut client, conn) = cfg
+        .connect(tokio_postgres::NoTls)
         .await
         .map_err(|e| format!("connect: {e}"))?;
     let task = tokio::spawn(conn);

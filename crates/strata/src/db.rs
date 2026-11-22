@@ -46,11 +46,10 @@ impl Error {
     }
 }
 
-/// A pool for one database URL.
+/// A pool for one database.
 // shortcut: no TLS to PostgreSQL, because the skeleton runs only on a laptop and in CI (0049).
 // Add TLS before the first deployment (M3, #61).
-pub fn pool(url: &str, size: usize, wait: Duration) -> Result<Pool, String> {
-    let cfg: tokio_postgres::Config = url.parse().map_err(|e| format!("database URL: {e}"))?;
+pub fn pool(cfg: tokio_postgres::Config, size: usize, wait: Duration) -> Result<Pool, String> {
     let mgr = Manager::from_config(
         cfg,
         NoTls,
