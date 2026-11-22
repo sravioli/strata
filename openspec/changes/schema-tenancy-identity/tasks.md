@@ -9,8 +9,8 @@
 
 ## 2. Identifiers of 128 bits in core
 
-- [ ] 2.1 In `crates/core/src/authorization.rs`, change `u64` to `u128` for the identifiers of a tenant and of an account, in `Principal`, `Resource`, `Scope` and their functions. Update the L0 tests. Verify: `cargo test -p strata-core` passes.
-- [ ] 2.2 Run `scripts/translate.sh` with the pinned Charon and Aeneas, and update `absPrincipal`, `absResource` and the other abstractions in `lean/Strata/Proofs/Authorization.lean`. The statements of the theorems do not change. If Charon or Aeneas cannot translate `u128`, stop and tell the owner. Verify: `make verify` passes with no `sorry`.
+- [x] 2.1 In `crates/core/src/authorization.rs`, change `u64` to `u128` for the identifiers of a tenant and of an account, in `Principal`, `Resource`, `Scope` and their functions. Update the L0 tests. Verify: `cargo test -p strata-core` passes.
+- [x] 2.2 Run `scripts/translate.sh` with the pinned Charon and Aeneas, and update `absPrincipal`, `absResource` and the other abstractions in `lean/Strata/Proofs/Authorization.lean`. The statements of the theorems do not change. If Charon or Aeneas cannot translate `u128`, stop and tell the owner. Verify: `make verify` passes with no `sorry`.
 
 ## 3. Crates and dependencies
 

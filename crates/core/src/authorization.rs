@@ -7,13 +7,13 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Principal {
     Account {
-        tenant: u64,
-        account: u64,
+        tenant: u128,
+        account: u128,
         account_active: bool,
         tenant_active: bool,
     },
     Job {
-        tenant: u64,
+        tenant: u128,
         tenant_active: bool,
     },
 }
@@ -30,7 +30,7 @@ pub enum Action {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Resource {
-    pub tenant: u64,
+    pub tenant: u128,
 }
 
 /// The reason of a "deny". It goes to the log only.
@@ -54,12 +54,12 @@ pub struct Scope(ScopeKind);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ScopeKind {
     Nothing,
-    Tenant(u64),
+    Tenant(u128),
 }
 
 impl Scope {
     /// The tenant whose resources the scope holds, or `None` for the scope "Nothing".
-    pub fn tenant(self) -> Option<u64> {
+    pub fn tenant(self) -> Option<u128> {
         match self.0 {
             ScopeKind::Nothing => None,
             ScopeKind::Tenant(t) => Some(t),
@@ -67,7 +67,7 @@ impl Scope {
     }
 }
 
-fn principal_tenant(p: Principal) -> u64 {
+fn principal_tenant(p: Principal) -> u128 {
     match p {
         Principal::Account { tenant, .. } => tenant,
         Principal::Job { tenant, .. } => tenant,
@@ -181,6 +181,24 @@ mod tests {
         assert_eq!(
             authorized_scope(ANNA, Action::RemoveDocumentFiles).tenant(),
             None
+        );
+    }
+
+    #[test]
+    fn identifiers_use_all_128_bits() {
+        // Two UUIDs that agree in their low 64 bits are still two tenants.
+        let high = 1u128 << 64;
+        let p = Principal::Job {
+            tenant: high | 1,
+            tenant_active: true,
+        };
+        assert_eq!(
+            authorize(p, Action::ProcessDocument, Resource { tenant: 1 }),
+            Decision::Deny(DenyReason::OtherTenant)
+        );
+        assert_eq!(
+            authorized_scope(p, Action::ProcessDocument).tenant(),
+            Some(high | 1)
         );
     }
 
