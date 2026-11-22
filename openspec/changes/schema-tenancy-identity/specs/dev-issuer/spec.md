@@ -15,7 +15,6 @@ Gives a developer and the tests an issuer of access tokens on a laptop, with no 
 - **WHEN** a test reads the dependency graph of the server crate
 - **THEN** it does not contain the `strata-dev` crate
 - **AND** the build fails if it does
-- **PENDING** change 1 of #49 adds the test
 
 ### Requirement: The development issuer keeps one key pair
 

@@ -14,9 +14,9 @@
 
 ## 3. Crates and dependencies
 
-- [ ] 3.1 Add `crates/strata`: a library, and a binary with the `clap` subcommands `api`, `admin` and `migrate`. Add `crates/strata-dev`: a library and a binary. Add `crates/strata-tests` for the L1 tests, with `required-features = ["l1"]`. It depends on `strata` and `strata-dev`. Add the dependencies of the proposal at exact versions. The JWKS client uses rustls. Verify: `cargo build --workspace --locked` and `make deny` pass.
-- [ ] 3.2 Add a test for TC-21-17 that reads `cargo metadata` and fails when a dependency of `strata`, of any kind, reaches `strata-dev`. Verify: the test passes. It fails when `strata-dev` is added to `[dependencies]` or `[dev-dependencies]` of `strata`. Remove the pending marker of TC-21-17.
-- [ ] 3.3 Read the database URL of each subcommand from one environment variable. The process reads no other source of credentials. Verify: a subcommand with no variable exits with an error that names the variable.
+- [x] 3.1 Add `crates/strata`: a library, and a binary with the `clap` subcommands `api`, `admin` and `migrate`. Add `crates/strata-dev`: a library and a binary. Add `crates/strata-tests` for the L1 tests, with `required-features = ["l1"]`. It depends on `strata` and `strata-dev`. Add the dependencies of the proposal at exact versions. The JWKS client uses rustls. Verify: `cargo build --workspace --locked` and `make deny` pass.
+- [x] 3.2 Add a test for TC-21-17 that reads `cargo metadata` and fails when a dependency of `strata`, of any kind, reaches `strata-dev`. Verify: the test passes. It fails when `strata-dev` is added to `[dependencies]` or `[dev-dependencies]` of `strata`. Remove the pending marker of TC-21-17.
+- [x] 3.3 Read the database URL of each subcommand from one environment variable. The process reads no other source of credentials. Verify: a subcommand with no variable exits with an error that names the variable.
 
 ## 4. Schema and migrations
 
