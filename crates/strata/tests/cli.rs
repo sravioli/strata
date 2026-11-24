@@ -51,3 +51,52 @@ fn api_stops_when_a_storage_setting_is_wrong() {
         );
     }
 }
+
+/// Scenario "A setting that is missing" of the spec job-queue: `strata worker` stops with an
+/// error that names the variable. Each case fails before the first connection, so the test needs
+/// no service.
+#[test]
+fn worker_stops_when_a_sandbox_setting_is_wrong() {
+    let not_a_cgroup = std::env::temp_dir();
+    let not_a_cgroup = not_a_cgroup.to_str().unwrap();
+    let base = [
+        (
+            "STRATA_DATABASE_URL",
+            "postgres://strata_worker@localhost:6432/strata",
+        ),
+        ("AWS_ENDPOINT", "http://localhost:3900"),
+        ("AWS_ACCESS_KEY_ID", "key"),
+        ("AWS_SECRET_ACCESS_KEY", "secret"),
+        ("AWS_DEFAULT_REGION", "garage"),
+        ("AWS_BUCKET_NAME", "strata"),
+        ("AWS_ALLOW_HTTP", "true"),
+        ("STRATA_NSJAIL", "/bin/sh"),
+        ("STRATA_EXTRACT", "/bin/sh"),
+        ("STRATA_CGROUP", not_a_cgroup),
+    ];
+    // (the variable, its value: `None` removes it)
+    let cases = [
+        ("STRATA_NSJAIL", None),
+        ("STRATA_EXTRACT", None),
+        ("STRATA_CGROUP", None),
+        ("STRATA_EXTRACT", Some("/no/such/strata-extract")),
+        ("STRATA_CGROUP", Some(not_a_cgroup)),
+    ];
+    for (name, value) in cases {
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_strata"));
+        cmd.arg("worker");
+        for (k, v) in base {
+            if k != name {
+                cmd.env(k, v);
+            }
+        }
+        match value {
+            Some(v) => cmd.env(name, v),
+            None => cmd.env_remove(name),
+        };
+        let out = cmd.output().unwrap();
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(!out.status.success(), "{name} {value:?}");
+        assert!(stderr.contains(name), "{name} {value:?}: {stderr}");
+    }
+}
