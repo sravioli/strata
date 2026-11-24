@@ -4,6 +4,8 @@
 //! `jobs` is a global table. Only `ClaimTx::into_tenant`, with an "allow" decision of
 //! `authorize` for `ProcessDocument`, gives the tenant transaction of a job.
 
+use std::time::Duration;
+
 use strata_core::authorization::{Action, Decision, Principal, Resource, authorize};
 use strata_core::job::{ErrorClass, Event, Job, JobState, LEASE_SECONDS, job_step};
 use uuid::Uuid;
@@ -167,6 +169,21 @@ pub async fn renew(pool: &Pool, job_id: Uuid, lease_token: Uuid) -> Result<bool,
     let st = c.prepare_cached(RENEW).await?;
     let secs = LEASE_SECONDS as f64;
     Ok(c.execute(&st, &[&job_id, &lease_token, &secs]).await? == 1)
+}
+
+/// Renews the lease each `every`, and ends at the first renewal that writes nothing. The worker
+/// gives it to `Sandbox::run` as the cancel, so the loss of the lease stops the extraction. A
+/// failed renewal tries again at the next interval: the lease holds 300 s, so one failure loses
+/// nothing.
+pub async fn keep_lease(pool: &Pool, job_id: Uuid, lease_token: Uuid, every: Duration) {
+    loop {
+        tokio::time::sleep(every).await;
+        match renew(pool, job_id, lease_token).await {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(e) => tracing::warn!(%job_id, error = %e, "a renewal of the lease"),
+        }
+    }
 }
 
 fn secs(v: i64) -> u64 {

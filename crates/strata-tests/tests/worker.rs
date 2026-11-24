@@ -5,8 +5,10 @@
 mod common;
 
 use common::*;
-use strata::db::job::{ClaimTx, renew};
+use std::time::Duration;
+use strata::db::job::{ClaimTx, keep_lease, renew};
 use strata::db::{POOL_SIZE, POOL_WAIT, Pool, pool};
+use strata::sandbox::{LIMITS, Limits, Stop};
 use strata_core::authorization::{Decision, DenyReason};
 use strata_core::job::JobState;
 use tokio_postgres::Client;
@@ -166,6 +168,25 @@ async fn an_expired_lease_gives_the_job_to_a_second_worker() {
     // Scenario "A renewal after a new claim": the first worker renews with its old token.
     assert!(!renew(&d.worker, id, old).await.unwrap());
     assert!(renew(&d.worker, id, token).await.unwrap());
+    // The renewal that writes nothing stops the extraction of the first worker.
+    let s = sandbox(
+        &hostile(),
+        Limits {
+            wall: Duration::from_secs(60),
+            ..LIMITS
+        },
+    );
+    let every = Duration::from_millis(100);
+    let run = s
+        .run(b"forever", keep_lease(&d.worker, id, old, every))
+        .await;
+    assert_eq!(run.stop, Stop::Cancelled);
+    // The lease of the second worker holds: its renewals continue.
+    let kept = tokio::time::timeout(
+        Duration::from_millis(500),
+        keep_lease(&d.worker, id, token, every),
+    );
+    assert!(kept.await.is_err(), "the lease of the claim holds");
 }
 
 /// TC-4-10, and the first half of TC-5-05.
