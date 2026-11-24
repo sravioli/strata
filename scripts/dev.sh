@@ -39,7 +39,8 @@ export AWS_ENDPOINT=http://localhost:3900 AWS_ALLOW_HTTP=true AWS_BUCKET_NAME=st
 db() { echo "postgres://$1:$1@localhost:$2/strata"; }
 bin=target/debug
 
-${COMPOSE:-docker compose} up --wait
+# podman-compose stays attached on a first start without -d.
+${COMPOSE:-docker compose} up -d --wait
 cargo build --locked -p strata -p strata-dev -p strata-extract
 STRATA_DATABASE_URL=$(db strata_owner 5432) $bin/strata migrate
 

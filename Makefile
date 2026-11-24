@@ -108,7 +108,7 @@ test-cases:
 # L0 and L1 run together under coverage. The floor is in CONSTRAINTS.md.
 # The tests run in a delegated cgroup (scripts/in-cgroup.sh), for the limits of the sandbox.
 l1: $(BIN)/cargo-llvm-cov $(BIN)/nsjail
-	$(COMPOSE) up --wait
+	$(COMPOSE) up -d --wait
 	scripts/dev-services-smoke.sh
 	scripts/in-cgroup.sh cargo llvm-cov --workspace --locked --features strata/testing,strata-tests/l1 \
 	  --fail-under-lines 90
