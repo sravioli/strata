@@ -81,7 +81,7 @@ impl Error {
 }
 
 /// A pool for one database.
-// shortcut: no TLS to PostgreSQL, because the skeleton runs only on a laptop and in CI (0049).
+// shortcut: no TLS to PostgreSQL, because the skeleton runs only locally and in CI (0049).
 // Add TLS before the first deployment (M3, #61).
 pub fn pool(cfg: tokio_postgres::Config, size: usize, wait: Duration) -> Result<Pool, String> {
     let mgr = Manager::from_config(

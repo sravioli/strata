@@ -67,7 +67,7 @@ impl Storage {
         let endpoint: Url = need(ENDPOINT)?
             .parse()
             .map_err(|e| format!("{ENDPOINT}: {e}"))?;
-        // An http endpoint sends the credentials in plain text: only by choice, for Garage on a laptop.
+        // An http endpoint sends the credentials in plain text: only by choice, for a local Garage.
         if endpoint.scheme() == "http" && var(ALLOW_HTTP).as_deref() != Some("true") {
             return Err(format!(
                 "{ENDPOINT} is http: set {ALLOW_HTTP}=true to permit it"

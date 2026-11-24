@@ -143,6 +143,6 @@ A client that reads the `Location` of a finish until the status is final SHALL s
 
 #### Scenario: TC-47-11 The Location until the final status
 
-- **GIVEN** the walking skeleton on a laptop
+- **GIVEN** the walking skeleton locally
 - **WHEN** a client uploads a document and reads the `Location` URL until the status is final
 - **THEN** the status is `ready`, and a search finds the document

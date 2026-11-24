@@ -207,9 +207,9 @@ async fn ready(token: &str, text: &str) -> String {
     document
 }
 
-/// TC-49-01: from upload to search on a laptop.
+/// TC-49-01: from upload to search locally.
 #[tokio::test]
-async fn tc_49_01_from_upload_to_search_on_a_laptop() {
+async fn tc_49_01_from_upload_to_search_locally() {
     let (a, b) = (account(A, "anna"), account(B, "boris"));
     let w = word();
     let (document, revision, _) = upload(&a, &format!("report {w}")).await;

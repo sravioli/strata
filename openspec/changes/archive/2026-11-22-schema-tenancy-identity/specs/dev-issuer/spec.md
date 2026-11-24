@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Gives a developer and the tests an issuer of access tokens on a laptop, with no external identity provider (tech design 0021, "Development issuer").
+Gives a developer and the tests an issuer of access tokens locally, with no external identity provider (tech design 0021, "Development issuer").
 
 ## ADDED Requirements
 

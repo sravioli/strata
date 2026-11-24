@@ -1,4 +1,4 @@
-//! `strata-dev`: the development issuer (tech design 0021). Laptop only.
+//! `strata-dev`: the development issuer (tech design 0021). Local only.
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;

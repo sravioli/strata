@@ -39,7 +39,7 @@ A backend of the tenant `globex` sends the same search. The answer is empty, bec
 
 Alice uploads a new file as revision 2 of the same document, with `POST /v1/documents/{document_id}/revisions`. Revision 1 stays searchable until revision 2 is `Ready`. In the transaction that sets revision 2 to `Ready`, revision 1 becomes `Superseded`, and its search rows go. A search then finds revision 2 only. A client cannot go back to revision 1 in v1 ([#101](https://github.com/sravioli/strata/issues/101)).
 
-### On a laptop
+### Locally
 
 A developer runs `make dev`. It starts PostgreSQL, the pooler and Garage. It applies the migrations, starts `strata-dev`, creates two tenants and binds the development issuer to them. Then it runs `strata api` and `strata worker`. `strata-dev token --tenant acme --sub alice` gives a token for the first call. Development needs Linux, because nsjail needs Linux user namespaces.
 
@@ -318,18 +318,18 @@ Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `te
 
 ### Infrastructure
 
-- New processes: `strata api`, `strata worker`, `strata-extract` (one for each file) and `strata-dev` (laptop only).
+- New processes: `strata api`, `strata worker`, `strata-extract` (one for each file) and `strata-dev` (local only).
 - New local service: PgBouncer. PostgreSQL moves from 17 to 18.
 - Logs: one line for each request and each job, with no tenant content (0005). Metrics for each bound of 0002 S6 come with M3 ([#61](https://github.com/sravioli/strata/issues/61)). The skeleton logs each rejection at a bound.
 - TC-49-01 runs nsjail in CI, so the CI runner must permit user namespaces (0007, 0048).
-- The skeleton runs only on a laptop and in CI. It has no deployment and no release. The licence text of Poppler in the image waits for the first release ([#105](https://github.com/sravioli/strata/issues/105)).
+- The skeleton runs only locally and in CI. It has no deployment and no release. The licence text of Poppler in the image waits for the first release ([#105](https://github.com/sravioli/strata/issues/105)).
 
 ### Security and tenant isolation
 
 - Each query function takes a `TenantTx`, and only a decision or a scope opens one (0004). The search reads `text_parts` with the scope of the caller, and the policy of 0003 also filters it.
 - The GIN index starts with `tenant_id`, so a search of one tenant never reads the index entries of another tenant.
 - The search text goes in the body of `QUERY`, so it is not in URLs or in the access logs of a proxy.
-- `strata-dev` is not in the `strata` crate (TC-21-17). Its key and its tokens exist only on a laptop.
+- `strata-dev` is not in the `strata` crate (TC-21-17). Its key and its tokens exist only locally.
 - An exploit of `pdftotext` reaches one file, as 0007 says.
 
 ### Data and migration
@@ -344,7 +344,7 @@ L0: unit tests cover the split of blocks, the check of the request body and the 
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-49-01 | L2 | Given the walking skeleton on a laptop, with the tenants A and B and an account of each. When the account of A uploads a PDF with a unique word, and polls the status of the revision until it is final. Then the status is `ready`. A search of A for the word returns the document. The same search of B returns no result. CI runs this test on each pull request that changes Rust code, and before each release. | sravioli, 2026-11-21 | pending |
+| TC-49-01 | L2 | Given the walking skeleton locally, with the tenants A and B and an account of each. When the account of A uploads a PDF with a unique word, and polls the status of the revision until it is final. Then the status is `ready`. A search of A for the word returns the document. The same search of B returns no result. CI runs this test on each pull request that changes Rust code, and before each release. | sravioli, 2026-11-21 | pending |
 | TC-49-02 | L1 | Given revision 1 of a document is `Ready`. When revision 2 becomes `Ready`. Then revision 1 is `Superseded`, its text parts do not exist, and a search returns revision 2 only. | sravioli, 2026-11-21 | pending |
 | TC-49-03 | L1 | Given revision 2 of a document is `Ready`. When the job of revision 1 ends after that. Then revision 1 stays `Superseded`, the worker writes no text for it, and the job is `Done`. | sravioli, 2026-11-21 | pending |
 | TC-49-04 | L1 | Given two starts of an upload for the same `document_id` at the same time. When both complete. Then they get two different revision numbers, one after the other. | sravioli, 2026-11-21 | pending |
