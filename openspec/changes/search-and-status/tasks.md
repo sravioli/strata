@@ -37,5 +37,5 @@
 
 ## 8. Integration and gates
 
-- [ ] 8.1 Run `make`, `make l1` and `make l2`. Verify: each target passes, the coverage of `CONSTRAINTS.md` is 90 % or more, and `python3 scripts/check-test-cases.py --report` shows each scenario of this change as `implemented`. TC-3-12 and TC-7-09 stay as they are. If the coverage is below 90 %, add tests. Do not lower the number.
-- [ ] 8.2 Update the implementation-point lists in the comments of #49. Tick the bound on token buckets, the route for `QUERY`, and the bounds of change 4. Verify: each point of #2 and #47 that change 4 owns is ticked.
+- [x] 8.1 Run `make`, `make l1` and `make l2`. Verify: each target passes, the coverage of `CONSTRAINTS.md` is 90 % or more, and `python3 scripts/check-test-cases.py --report` shows each scenario of this change as `implemented`. TC-3-12 and TC-7-09 stay as they are. If the coverage is below 90 %, add tests. Do not lower the number.
+- [x] 8.2 Update the implementation-point lists in the comments of #49. Tick the bound on token buckets, the route for `QUERY`, and the bounds of change 4. Verify: each point of #2 and #47 that change 4 owns is ticked.
