@@ -23,9 +23,13 @@ done
 echo "ok: the four roles log in"
 
 # The runtime roles connect through PgBouncer and run a prepared statement in a transaction.
+# A SQL PREPARE stays on the server connection that PgBouncer gives to the next client, so each
+# run uses its own name and removes the statement.
+p=smoke_$$
 for role in strata_api strata_worker; do
   PGPASSWORD=$role psql -h localhost -p 6432 -U "$role" -d strata -v ON_ERROR_STOP=1 -tA \
-    -c 'begin' -c "prepare p(int) as select \$1 + 1" -c 'execute p(1)' -c 'commit' | grep -qx 2
+    -c 'begin' -c "prepare $p(int) as select \$1 + 1" -c "execute $p(1)" -c "deallocate $p" \
+    -c 'commit' | grep -x 2 >/dev/null
 done
 echo "ok: PgBouncer accepts the runtime roles on localhost:6432"
 
