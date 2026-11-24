@@ -51,6 +51,8 @@ use uuid::Uuid;
 pub use deadpool_postgres::{Pool, PoolError};
 
 pub mod job;
+pub mod search;
+pub mod status;
 pub mod upload;
 
 /// Connections in the pool of each process (0049, "Values").
@@ -70,6 +72,11 @@ impl Error {
     /// True when the wait for a connection reached its limit.
     pub fn is_pool_timeout(&self) -> bool {
         matches!(self, Error::Pool(PoolError::Timeout(_)))
+    }
+
+    /// True when PostgreSQL stopped the statement at its `statement_timeout`.
+    pub fn is_statement_timeout(&self) -> bool {
+        matches!(self, Error::Postgres(e) if e.code() == Some(&tokio_postgres::error::SqlState::QUERY_CANCELED))
     }
 }
 

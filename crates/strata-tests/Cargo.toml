@@ -7,8 +7,10 @@ publish.workspace = true
 
 # L1 tests of the crate `strata` (docs/agents/testing.md). They need the services of compose.yaml.
 # A separate crate, so that `strata` does not depend on `strata-dev` (TC-21-17).
+# L2 tests run against `make dev` (make l2), so `make rust` and `make l1` do not run them.
 [features]
 l1 = []
+l2 = []
 
 [dependencies]
 # The test program hostile-extract (src/bin) makes raw system calls.
@@ -73,6 +75,14 @@ name = "upload"
 required-features = ["l1"]
 
 [[test]]
+name = "status"
+required-features = ["l1"]
+
+[[test]]
+name = "search"
+required-features = ["l1"]
+
+[[test]]
 name = "cleanup"
 required-features = ["l1"]
 
@@ -86,3 +96,7 @@ required-features = ["l1"]
 
 [[test]]
 name = "routes"
+
+[[test]]
+name = "l2"
+required-features = ["l2"]

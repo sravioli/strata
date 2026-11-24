@@ -34,6 +34,7 @@ const GRANTS: &[(&str, &str, &str)] = &[
     ("strata_api", "jobs", "INSERT"),
     ("strata_api", "upload_slots", "INSERT"),
     ("strata_api", "upload_slots", "DELETE"),
+    ("strata_api", "text_parts", "SELECT"),
     ("strata_worker", "tenants", "SELECT"),
     ("strata_worker", "documents", "SELECT"),
     ("strata_worker", "revisions", "SELECT"),
@@ -833,6 +834,32 @@ async fn a_word_query_uses_the_index_of_one_tenant() {
         .map(|r| r.get(0))
         .collect();
     assert_eq!(found, [doc_a]);
+}
+
+/// Scenario "The API reads text parts and cannot change them" (spec tenant-isolation).
+#[tokio::test]
+async fn the_api_reads_text_parts_and_cannot_change_them() {
+    let t = two_tenants().await;
+    let (doc, _) = document(&t.su, t.a, "Ready").await;
+    text_part(&t.su, t.a, doc, 1, "alpha").await;
+    let tx = tenant_tx(&api_pool(), t.a).await.unwrap();
+    let c = tx.client();
+    let read: String = c
+        .query_one(
+            "select part_text from text_parts where document_id = $1",
+            &[&doc],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(read, "alpha");
+    let update = c
+        .execute("update text_parts set part_text = 'other'", &[])
+        .await;
+    assert_eq!(sqlstate(update), "42501");
+    let tx = tenant_tx(&api_pool(), t.a).await.unwrap();
+    let delete = tx.client().execute("delete from text_parts", &[]).await;
+    assert_eq!(sqlstate(delete), "42501");
 }
 
 /// Scenario "The worker cannot change a text part" (spec tenant-isolation).

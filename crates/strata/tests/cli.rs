@@ -105,3 +105,32 @@ fn worker_stops_when_a_setting_is_wrong() {
         assert!(stderr.contains(name), "{name} {value:?}: {stderr}");
     }
 }
+
+/// Task 1.2 of search-and-status: `STRATA_STATUS_RETRY_AFTER` out of its range stops `strata api`
+/// with an error that names the variable.
+#[test]
+fn api_stops_when_the_status_retry_after_is_wrong() {
+    for value in ["0", "3601", "x"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_strata"))
+            .args(["api", "--listen", "127.0.0.1:0"])
+            .env(
+                "STRATA_DATABASE_URL",
+                "postgres://strata_api@localhost:6432/strata",
+            )
+            .env("AWS_ENDPOINT", "http://localhost:3900")
+            .env("AWS_ACCESS_KEY_ID", "key")
+            .env("AWS_SECRET_ACCESS_KEY", "secret")
+            .env("AWS_DEFAULT_REGION", "garage")
+            .env("AWS_BUCKET_NAME", "strata")
+            .env("AWS_ALLOW_HTTP", "true")
+            .env("STRATA_STATUS_RETRY_AFTER", value)
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(!out.status.success(), "{value}");
+        assert!(
+            stderr.contains("STRATA_STATUS_RETRY_AFTER"),
+            "{value}: {stderr}"
+        );
+    }
+}

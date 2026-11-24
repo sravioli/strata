@@ -1,0 +1,1 @@
+Tech design: [docs/tech-design/0049-walking-skeleton.md](../../../docs/tech-design/0049-walking-skeleton.md), change 4 of "How the work lands", with tech designs 0047 (status routes, Retry-After, token buckets), 0002 (bounds S3 and S4) and 0004 (actions).

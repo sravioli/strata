@@ -1,0 +1,8 @@
+type: folder
+model: folder
+id: fl_read
+workspaceId: wk_strata
+folderId: null
+name: Search and status
+description: 'QUERY routes. A method other than QUERY gets 405 with Allow: QUERY.'
+sortPriority: 2

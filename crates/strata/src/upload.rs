@@ -53,12 +53,10 @@ pub struct StartBody {
     pub size: i64,
 }
 
-/// The rules of the start body: the body rules of 0047, then the fields. Each rejection is the
-/// status of the spec.
-pub fn check_start(
-    content_type: Option<&HeaderValue>,
-    body: &[u8],
-) -> Result<StartBody, StatusCode> {
+/// The body rules of 0047 for each route with a JSON body: no `Content-Type` gives `400`, a
+/// media type other than `application/json` gives `415`, a body above 16 KB gives `413`, and a
+/// body that is not JSON gives `400`.
+pub fn json_body(content_type: Option<&HeaderValue>, body: &[u8]) -> Result<Value, StatusCode> {
     let media = content_type.ok_or(StatusCode::BAD_REQUEST)?;
     let media = media
         .to_str()
@@ -70,7 +68,16 @@ pub fn check_start(
     if body.len() > MAX_BODY_BYTES {
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
-    let v: Value = serde_json::from_slice(body).map_err(|_| StatusCode::BAD_REQUEST)?;
+    serde_json::from_slice(body).map_err(|_| StatusCode::BAD_REQUEST)
+}
+
+/// The rules of the start body: the body rules of 0047, then the fields. Each rejection is the
+/// status of the spec.
+pub fn check_start(
+    content_type: Option<&HeaderValue>,
+    body: &[u8],
+) -> Result<StartBody, StatusCode> {
+    let v = json_body(content_type, body)?;
     let text = |name: &str| {
         v.get(name)
             .and_then(Value::as_str)

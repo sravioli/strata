@@ -8,24 +8,19 @@ In Yaak, select **Open folder** and choose `dev/yaak`. Yaak keeps the workspace 
 
 ## Run the API
 
-Do steps 1 to 4 of "On a laptop" in [tech design 0049](../../docs/tech-design/0049-walking-skeleton.md). Then start the API with the development values of `compose.yaml`:
-
 ```sh
-STRATA_DATABASE_URL=postgres://strata_api:strata_api@127.0.0.1:6432/strata \
-AWS_ENDPOINT=http://127.0.0.1:3900 AWS_ALLOW_HTTP=true \
-AWS_ACCESS_KEY_ID=GK000000000000000000000000 \
-AWS_SECRET_ACCESS_KEY=0000000000000000000000000000000000000000000000000000000000000000 \
-AWS_DEFAULT_REGION=garage AWS_BUCKET_NAME=strata \
-cargo run -p strata -- api
+make dev
 ```
+
+It starts the services, the API on `127.0.0.1:8080` and the worker, and binds the tenant values `acme` and `globex`. Set `base_url` to `http://127.0.0.1:8080`.
 
 ## Get a token
 
 ```sh
-cargo run -p strata-dev -- token --tenant <tenant value> --sub alice
+target/debug/strata-dev token --tenant acme --sub alice
 ```
 
-Use the tenant value of a binding from step 4. A token is valid for one hour.
+A token is valid for one hour. Use `globex` for a token of the second tenant.
 
 In Yaak, make a sub-environment, keep it private, and set `token` in it. Yaak does not write a private environment to this folder. Do not set the token in "Global Variables": that environment is a file in git.
 
@@ -34,6 +29,8 @@ In Yaak, make a sub-environment, keep it private, and set `token` in it. Yaak do
 Send the requests of **New document** in order: start, upload the file, finish. Before the upload, choose the file in the Body tab, and set `size` of the start to the size of that file. Each later request reads the IDs and the signed URL from the last response of its start.
 
 **New revision** starts the next revision of the document of **New document**.
+
+**Status** reads the status of the revision of its folder. Send it again after the time of `Retry-After`, until the state is final. **Search and status** has the two `QUERY` routes: the status of the revisions of both folders, and a search. Put a word of your file in `q`.
 
 ## Change the workspace
 

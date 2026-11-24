@@ -1,0 +1,507 @@
+//! L1 tests of the status routes (spec revision-status) through the router of `strata api`.
+
+mod common;
+
+use axum::http::StatusCode;
+use common::api::*;
+use common::*;
+use strata::api::router;
+use strata::upload::Bounds;
+use tokio_postgres::Client;
+use uuid::Uuid;
+
+fn path(d: Uuid, r: i32) -> String {
+    format!("/v1/documents/{d}/revisions/{r}")
+}
+
+/// A new document of the tenant with revision 1 in `state`. `Failed` gets `MalformedFile`.
+async fn revision(su: &Client, tenant: Uuid, state: &str) -> Uuid {
+    document(su, tenant, state).await.0
+}
+
+/// Revision 2 of the document in `state`.
+async fn second(su: &Client, tenant: Uuid, doc: Uuid, state: &str) {
+    su.execute(
+        "with r as (insert into revisions (tenant_id, document_id, revision, state, file_name, \
+         content_type, size, slot_id) \
+         values ($1, $2, 2, $3, 'b.pdf', 'application/pdf', 10, gen_random_uuid())) \
+         update documents set last_revision = 2 where document_id = $2",
+        &[&tenant, &doc, &state],
+    )
+    .await
+    .unwrap();
+}
+
+async fn set_state(su: &Client, doc: Uuid, r: i32, state: &str, class: Option<&str>) {
+    su.execute(
+        "update revisions set state = $3, error_class = $4 where document_id = $1 and revision = $2",
+        &[&doc, &r, &state, &class],
+    )
+    .await
+    .unwrap();
+}
+
+/// TC-47-01
+#[tokio::test]
+async fn tc_47_01_each_internal_state() {
+    let w = world().await;
+    for (state, public) in [
+        ("AwaitingUpload", "uploading"),
+        ("Uploaded", "processing"),
+        ("Ready", "ready"),
+        ("Failed", "failed"),
+        ("Superseded", "superseded"),
+    ] {
+        let d = revision(&w.su, w.a.id, state).await;
+        let a = w.get(&w.a, &path(d, 1)).await;
+        assert_eq!(a.status, StatusCode::OK, "{state}");
+        assert_eq!(a.body["state"], public, "{state}");
+        assert_eq!(a.body["document_id"], d.to_string());
+        assert_eq!(a.body["revision"], 1);
+        assert_eq!(a.headers["cache-control"], "no-store");
+    }
+}
+
+/// TC-47-02
+#[tokio::test]
+async fn tc_47_02_a_parked_job() {
+    let w = world().await;
+    let d = revision(&w.su, w.a.id, "Uploaded").await;
+    w.su.execute(
+        "insert into jobs (tenant_id, kind, document_id, revision, state, attempts, last_error) \
+         values ($1, 'ProcessDocument', $2, 1, 'Parked', 5, 'JobFailed')",
+        &[&w.a.id, &d],
+    )
+    .await
+    .unwrap();
+    assert_eq!(w.get(&w.a, &path(d, 1)).await.body["state"], "processing");
+}
+
+/// TC-47-03
+#[tokio::test]
+async fn tc_47_03_a_newer_revision_is_ready() {
+    let w = world().await;
+    // The rows that the end of the job of revision 2 writes (spec revision-lifecycle).
+    let d = revision(&w.su, w.a.id, "Superseded").await;
+    second(&w.su, w.a.id, d, "Ready").await;
+    assert_eq!(w.get(&w.a, &path(d, 1)).await.body["state"], "superseded");
+    assert_eq!(w.get(&w.a, &path(d, 2)).await.body["state"], "ready");
+}
+
+/// TC-47-13. The end of a job writes `Superseded` only for an older revision in `AwaitingUpload`,
+/// `Uploaded` or `Ready` (spec revision-lifecycle), so a `Failed` revision 1 stays `Failed`.
+#[tokio::test]
+async fn tc_47_13_failed_stays_failed() {
+    let w = world().await;
+    let d = revision(&w.su, w.a.id, "Failed").await;
+    second(&w.su, w.a.id, d, "Ready").await;
+    let a = w.get(&w.a, &path(d, 1)).await;
+    assert_eq!(a.body["state"], "failed");
+    assert_eq!(a.body["error_class"], "MalformedFile");
+
+    let d = revision(&w.su, w.a.id, "Superseded").await;
+    second(&w.su, w.a.id, d, "Ready").await;
+    assert_eq!(w.get(&w.a, &path(d, 1)).await.body["state"], "superseded");
+}
+
+/// TC-47-04
+#[tokio::test]
+async fn tc_47_04_retry_after_and_the_final_statuses() {
+    let w = world().await;
+    for state in ["AwaitingUpload", "Uploaded"] {
+        let d = revision(&w.su, w.a.id, state).await;
+        assert_eq!(w.get(&w.a, &path(d, 1)).await.headers["retry-after"], "2");
+    }
+    for state in ["Ready", "Failed", "Superseded"] {
+        let d = revision(&w.su, w.a.id, state).await;
+        assert!(
+            w.get(&w.a, &path(d, 1))
+                .await
+                .headers
+                .get("retry-after")
+                .is_none()
+        );
+    }
+}
+
+/// Scenario "The configured value".
+#[tokio::test]
+async fn the_configured_value() {
+    let mut w = world().await;
+    let mut state = test_state(api_pool(), Bounds::default());
+    state.status_retry_after = 5;
+    w.app = router(state);
+    let d = revision(&w.su, w.a.id, "Uploaded").await;
+    assert_eq!(w.get(&w.a, &path(d, 1)).await.headers["retry-after"], "5");
+}
+
+/// TC-47-10
+#[tokio::test]
+async fn tc_47_10_the_class_of_a_failed_revision() {
+    let w = world().await;
+    let d = revision(&w.su, w.a.id, "Failed").await;
+    for class in ["FileTooLarge", "ExtractionTimeout", "InvalidOutput"] {
+        set_state(&w.su, d, 1, "Failed", Some(class)).await;
+        let a = w.get(&w.a, &path(d, 1)).await;
+        assert_eq!(a.body["error_class"], class);
+        let mut keys: Vec<&str> = a
+            .body
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(|k| k.as_str())
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "document_id",
+                "error_class",
+                "revision",
+                "state",
+                "updated_at"
+            ]
+        );
+    }
+}
+
+/// Scenario "A ready revision with no text".
+#[tokio::test]
+async fn a_ready_revision_with_no_text() {
+    let w = world().await;
+    let d = revision(&w.su, w.a.id, "Ready").await;
+    w.su.execute(
+        "update revisions set no_text = true where document_id = $1",
+        &[&d],
+    )
+    .await
+    .unwrap();
+    let a = w.get(&w.a, &path(d, 1)).await;
+    assert_eq!(
+        (a.body["state"].as_str(), a.body["no_text"].as_bool()),
+        (Some("ready"), Some(true))
+    );
+    assert!(a.body.get("error_class").is_none());
+    let updated = a.body["updated_at"].as_str().unwrap();
+    assert!(
+        updated.ends_with('Z') && !updated.contains('.'),
+        "{updated}"
+    );
+}
+
+/// Cross-tenant: `GET /v1/documents/{document_id}/revisions/{revision}`. TC-47-06 (the read of
+/// one revision): a revision of B, one that does not exist, and an identifier that is not valid
+/// give the same `404`.
+#[tokio::test]
+async fn tc_47_06_a_revision_of_tenant_b() {
+    let w = world().await;
+    let of_b = revision(&w.su, w.b.id, "Ready").await;
+    let answers = [
+        w.get(&w.a, &path(of_b, 1)).await,
+        w.get(&w.a, &path(Uuid::from_u128(0x5eed_0047_0006), 1))
+            .await,
+        w.get(&w.a, "/v1/documents/not-a-uuid/revisions/x").await,
+    ];
+    for a in &answers {
+        assert_eq!(a.status, StatusCode::NOT_FOUND);
+        assert_eq!(a.headers, answers[0].headers);
+        assert_eq!(a.body, answers[0].body);
+    }
+    // B reads its own revision.
+    assert_eq!(w.get(&w.b, &path(of_b, 1)).await.status, StatusCode::OK);
+}
+
+// ---- The batch status.
+
+fn entry(d: Uuid, r: i32) -> serde_json::Value {
+    serde_json::json!({"document_id": d.to_string(), "revision": r})
+}
+
+fn batch(entries: Vec<serde_json::Value>) -> serde_json::Value {
+    serde_json::json!({ "revisions": entries })
+}
+
+/// Cross-tenant: `QUERY /v1/revisions`. TC-47-06 (the batch): the list omits a revision of B.
+#[tokio::test]
+async fn tc_47_06_the_batch_omits_a_revision_of_tenant_b() {
+    let w = world().await;
+    let of_a = revision(&w.su, w.a.id, "Ready").await;
+    let of_b = revision(&w.su, w.b.id, "Ready").await;
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(of_b, 1), entry(of_a, 1)]),
+        )
+        .await;
+    assert_eq!(a.status, StatusCode::OK);
+    let list = a.body["revisions"].as_array().unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0]["document_id"], of_a.to_string());
+    let only_b = w
+        .query(&w.a, "/v1/revisions", &batch(vec![entry(of_b, 1)]))
+        .await;
+    assert_eq!(only_b.body["revisions"].as_array().unwrap().len(), 0);
+}
+
+/// TC-47-07
+#[tokio::test]
+async fn tc_47_07_a_batch_that_is_not_valid() {
+    let w = world().await;
+    let many: Vec<_> = (0..101).map(|n| entry(Uuid::from_u128(n), 1)).collect();
+    assert_eq!(
+        w.query(&w.a, "/v1/revisions", &batch(many)).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    let bad = serde_json::json!({"revisions": [{"document_id": "x", "revision": 1}]});
+    assert_eq!(
+        w.query(&w.a, "/v1/revisions", &bad).await.status,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+/// TC-47-08
+#[tokio::test]
+async fn tc_47_08_a_batch_with_one_status_that_is_not_final() {
+    let w = world().await;
+    let open = revision(&w.su, w.a.id, "Uploaded").await;
+    let done = revision(&w.su, w.a.id, "Ready").await;
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(open, 1), entry(done, 1)]),
+        )
+        .await;
+    let list = a.body["revisions"].as_array().unwrap();
+    assert_eq!(list.len(), 2);
+    assert_eq!(
+        (list[0]["state"].as_str(), list[1]["state"].as_str()),
+        (Some("processing"), Some("ready"))
+    );
+    assert_eq!(a.headers["retry-after"], "2");
+    assert_eq!(a.headers["cache-control"], "no-store");
+    assert_eq!(a.headers["accept-query"], "application/json");
+    let final_only = w
+        .query(&w.a, "/v1/revisions", &batch(vec![entry(done, 1)]))
+        .await;
+    assert!(final_only.headers.get("retry-after").is_none());
+}
+
+/// TC-47-15
+#[tokio::test]
+async fn tc_47_15_the_body_rules_of_the_batch() {
+    let w = world().await;
+    let body = batch(vec![entry(Uuid::from_u128(1), 1)])
+        .to_string()
+        .into_bytes();
+    let none = w
+        .send(&w.a, "QUERY", "/v1/revisions", None, body.clone())
+        .await;
+    assert_eq!(none.status, StatusCode::BAD_REQUEST);
+    let text = w
+        .send(&w.a, "QUERY", "/v1/revisions", Some("text/plain"), body)
+        .await;
+    assert_eq!(text.status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    assert_eq!(text.headers["accept-query"], "application/json");
+    let large = vec![b' '; 16 * 1024 + 1];
+    let large = w
+        .send(
+            &w.a,
+            "QUERY",
+            "/v1/revisions",
+            Some("application/json"),
+            large,
+        )
+        .await;
+    assert_eq!(large.status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// Scenario "A repeated entry".
+#[tokio::test]
+async fn a_repeated_entry() {
+    let w = world().await;
+    let d = revision(&w.su, w.a.id, "Ready").await;
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(d, 1), entry(d, 1)]),
+        )
+        .await;
+    assert_eq!(a.body["revisions"].as_array().unwrap().len(), 1);
+}
+
+/// Scenario "A GET to the batch path".
+#[tokio::test]
+async fn a_get_to_the_batch_path() {
+    let w = world().await;
+    let a = w.get(&w.a, "/v1/revisions").await;
+    assert_eq!(a.status, StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(a.headers["allow"], "QUERY");
+    assert_eq!(a.headers["accept-query"], "application/json");
+}
+
+// ---- The limits of status reads (spec request-limits).
+
+/// A world whose buckets have a manual clock, and a bound of `max` buckets.
+async fn limited_world(max: usize) -> (World, strata::limits::Clock) {
+    use strata::limits::{Buckets, Clock};
+    let mut w = world().await;
+    let clock = Clock::manual();
+    let mut state = test_state(api_pool(), Bounds::default());
+    state.buckets = std::sync::Arc::new(Buckets::new(2, max, clock.clone()));
+    w.app = router(state);
+    (w, clock)
+}
+
+/// TC-47-05
+#[tokio::test]
+async fn tc_47_05_reads_above_the_limit_of_one_revision() {
+    let (w, _) = limited_world(strata::limits::MAX_BUCKETS).await;
+    let r = revision(&w.su, w.a.id, "Uploaded").await;
+    for _ in 0..3 {
+        assert_eq!(w.get(&w.a, &path(r, 1)).await.status, StatusCode::OK);
+    }
+    let limited = w.get(&w.a, &path(r, 1)).await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(limited.headers["retry-after"], "2");
+    let other = revision(&w.su, w.a.id, "Ready").await;
+    assert_eq!(w.get(&w.a, &path(other, 1)).await.status, StatusCode::OK);
+}
+
+/// Scenario "A batch with one empty bucket".
+#[tokio::test]
+async fn a_batch_with_one_empty_bucket() {
+    let (w, _) = limited_world(strata::limits::MAX_BUCKETS).await;
+    let (r, s) = (
+        revision(&w.su, w.a.id, "Ready").await,
+        revision(&w.su, w.a.id, "Ready").await,
+    );
+    for _ in 0..3 {
+        w.get(&w.a, &path(r, 1)).await;
+    }
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(r, 1), entry(s, 1)]),
+        )
+        .await;
+    assert_eq!(a.status, StatusCode::TOO_MANY_REQUESTS);
+    // The bucket of S kept its 3 tokens.
+    for _ in 0..3 {
+        assert_eq!(w.get(&w.a, &path(s, 1)).await.status, StatusCode::OK);
+    }
+}
+
+/// TC-47-12
+#[tokio::test]
+async fn tc_47_12_a_backend_that_waits_for_300_revisions() {
+    let (w, clock) = limited_world(strata::limits::MAX_BUCKETS).await;
+    let mut ids = Vec::new();
+    for _ in 0..300 {
+        ids.push(entry(revision(&w.su, w.a.id, "Uploaded").await, 1));
+    }
+    for _ in 0..10 {
+        for chunk in ids.chunks(100) {
+            let a = w.query(&w.a, "/v1/revisions", &batch(chunk.to_vec())).await;
+            assert_eq!(a.status, StatusCode::OK);
+            assert_eq!(a.body["revisions"].as_array().unwrap().len(), 100);
+        }
+        clock.advance(std::time::Duration::from_secs(2));
+    }
+}
+
+/// TC-47-14
+#[tokio::test]
+async fn tc_47_14_many_requests_for_different_revisions() {
+    let (w, _) = limited_world(strata::limits::MAX_BUCKETS).await;
+    // The buckets come before the read, so the revisions need not exist.
+    for n in 0..20 {
+        let a = w
+            .get(&w.a, &path(Uuid::from_u128(0x4714_0000 + n), 1))
+            .await;
+        assert_eq!(a.status, StatusCode::NOT_FOUND, "{n}");
+    }
+    let a = w.get(&w.a, &path(Uuid::from_u128(0x4714_ffff), 1)).await;
+    assert_eq!(a.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(a.headers["retry-after"], "1");
+}
+
+/// Scenario "The bucket used least recently goes first". The bound counts the bucket of the
+/// account too, so a bound of 3 holds the account and two revisions.
+#[tokio::test]
+async fn the_bucket_used_least_recently_goes_first() {
+    let (w, _) = limited_world(3).await;
+    let (r1, r2, r3) = (
+        revision(&w.su, w.a.id, "Ready").await,
+        revision(&w.su, w.a.id, "Ready").await,
+        revision(&w.su, w.a.id, "Ready").await,
+    );
+    w.get(&w.a, &path(r2, 1)).await;
+    for _ in 0..3 {
+        w.get(&w.a, &path(r1, 1)).await;
+    }
+    // R3 comes, and the bucket of R2 goes. R1 keeps its empty bucket.
+    assert_eq!(w.get(&w.a, &path(r3, 1)).await.status, StatusCode::OK);
+    assert_eq!(
+        w.get(&w.a, &path(r1, 1)).await.status,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    for _ in 0..3 {
+        assert_eq!(w.get(&w.a, &path(r2, 1)).await.status, StatusCode::OK);
+    }
+}
+
+/// Scenario "A request above the bound" (spec request-limits), with a bound of 1. The first
+/// request holds its permit while its body arrives.
+#[tokio::test]
+async fn a_request_above_the_bound() {
+    use tokio::io::AsyncWriteExt;
+    let mut w = world().await;
+    let mut state = test_state(api_pool(), Bounds::default());
+    state.in_flight = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+    w.app = router(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(axum::serve(listener, w.app.clone()).into_future());
+
+    let mut first = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let head = format!(
+        "QUERY /v1/revisions HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {}\r\n\
+         Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{{",
+        w.a.token
+    );
+    first.write_all(head.as_bytes()).await.unwrap();
+    first.flush().await.unwrap();
+    // The first request is in the handler: it waits for the rest of its body.
+    let mut second = None;
+    for _ in 0..50 {
+        let a = w.get(&w.a, "/v1/revisions").await;
+        if a.status == StatusCode::SERVICE_UNAVAILABLE {
+            second = Some(a);
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    let second = second.expect("the second request gets 503 while the first runs");
+    assert_eq!(second.headers["retry-after"], "1");
+    assert_eq!(second.body, serde_json::Value::Null, "no body");
+
+    // The first request ends, and a third request gets its answer.
+    drop(first);
+    let mut third = w.get(&w.a, "/v1/revisions").await;
+    for _ in 0..50 {
+        if third.status != StatusCode::SERVICE_UNAVAILABLE {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        third = w.get(&w.a, "/v1/revisions").await;
+    }
+    assert_eq!(
+        third.status,
+        StatusCode::METHOD_NOT_ALLOWED,
+        "the route answers"
+    );
+}

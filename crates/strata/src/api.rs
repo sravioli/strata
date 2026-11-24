@@ -5,10 +5,13 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::FromRef;
-use axum::routing::post;
+use axum::routing::{get, post};
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
+use crate::limits::{Buckets, Clock, MAX_BUCKETS, MAX_REQUESTS};
+use crate::query::query;
+use crate::status;
 use crate::storage::Storage;
 use crate::upload::{self, Bounds};
 
@@ -18,6 +21,14 @@ pub struct AppState {
     pub auth: Auth,
     pub storage: Arc<Storage>,
     pub bounds: Bounds,
+    /// The `Retry-After` of a status that is not final, in seconds (0047).
+    pub status_retry_after: u64,
+    /// The token buckets of the status routes (0047).
+    pub buckets: Arc<Buckets>,
+    /// The permits of the requests at the same time (`limits::MAX_REQUESTS`).
+    pub in_flight: Arc<tokio::sync::Semaphore>,
+    /// The statement timeout of a search (`search::TIMEOUT`).
+    pub search_timeout: std::time::Duration,
 }
 
 impl FromRef<AppState> for Auth {
@@ -29,10 +40,20 @@ impl FromRef<AppState> for Auth {
 /// The state of `strata api` on `pool`. The storage settings come from the environment, so a
 /// missing variable stops the process before it serves a request.
 pub fn state(pool: db::Pool) -> Result<AppState, String> {
+    let retry_after = std::env::var(crate::status::RETRY_AFTER_VAR).ok();
+    let status_retry_after = crate::status::retry_after(retry_after.as_deref())?;
     Ok(AppState {
         storage: Arc::new(Storage::from_env()?),
         auth: Auth::new(pool, Arc::new(KeyCache::new())),
         bounds: Bounds::default(),
+        status_retry_after,
+        buckets: Arc::new(Buckets::new(
+            status_retry_after,
+            MAX_BUCKETS,
+            Clock::system(),
+        )),
+        in_flight: Arc::new(tokio::sync::Semaphore::new(MAX_REQUESTS)),
+        search_timeout: crate::search::TIMEOUT,
     })
 }
 
@@ -49,6 +70,16 @@ pub fn router(state: AppState) -> Router {
             "/v1/documents/{document_id}/revisions/{revision}/finish",
             post(upload::finish),
         )
+        .route(
+            "/v1/documents/{document_id}/revisions/{revision}",
+            get(status::one),
+        )
+        .route("/v1/revisions", query(status::batch))
+        .route("/v1/search", query(crate::search::search))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::limits::bound,
+        ))
         .with_state(state)
 }
 

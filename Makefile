@@ -22,7 +22,7 @@ RANGE ?= origin/main..HEAD
 COMPOSE ?= $(if $(shell command -v docker),docker compose,podman compose)
 export COMPOSE
 
-.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 commits secrets
+.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 dev commits secrets
 .DEFAULT_GOAL := check
 
 check: lint prose test-cases rust
@@ -110,7 +110,21 @@ test-cases:
 l1: $(BIN)/cargo-llvm-cov $(BIN)/nsjail
 	$(COMPOSE) up --wait
 	scripts/dev-services-smoke.sh
-	scripts/in-cgroup.sh cargo llvm-cov --workspace --locked --all-features --fail-under-lines 90
+	scripts/in-cgroup.sh cargo llvm-cov --workspace --locked --features strata/testing,strata-tests/l1 \
+	  --fail-under-lines 90
+
+# L2: the tests of crates/strata-tests/tests/l2.rs over HTTP, against the processes of make dev.
+# The processes stop after the tests, also when a test fails.
+l2: $(BIN)/nsjail
+	scripts/dev.sh --background
+	status=0; cargo test --locked -p strata-tests --features l2 --test l2 || status=$$?; \
+	  scripts/dev.sh --stop; \
+	  [ $$status = 0 ] || tail -n 40 .strata-dev/api.log .strata-dev/worker.log .strata-dev/strata-dev.log; \
+	  exit $$status
+
+# The walking skeleton on this machine (scripts/dev.sh). Ctrl-C stops it.
+dev: $(BIN)/nsjail
+	scripts/dev.sh
 
 commits: $(BIN)/cog
 	cog check $(RANGE)
