@@ -7,6 +7,10 @@ updates:
     # Wait a week before a new release is proposed, so a bad release can be pulled first.
     cooldown:
       default-days: 7
+    ignore:
+      # Its image cannot be pulled (ossf/scorecard-action#1752). A later release can come in.
+      - dependency-name: ossf/scorecard-action
+        versions: ["2.6.0"]
   - package-ecosystem: pip
     directory: /.github/requirements
     schedule:
