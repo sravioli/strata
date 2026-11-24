@@ -171,4 +171,49 @@ mod tests {
         j = job_step(job_step(j, Event::Claim(true), 0), Event::Fail, 0);
         assert_eq!((j.state, j.attempts), (JobState::Parked, MAX_ATTEMPTS));
     }
+
+    #[test]
+    fn the_other_arms() {
+        let p = job_step(waiting(), Event::Claim(false), 5);
+        assert_eq!(
+            (p.state, p.last_error),
+            (JobState::Parked, ErrorClass::TenantNotActive)
+        );
+        let at_max = Job {
+            attempts: MAX_ATTEMPTS,
+            ..waiting()
+        };
+        let p = job_step(at_max, Event::Claim(true), 5);
+        assert_eq!(
+            (p.state, p.attempts, p.last_error),
+            (JobState::Parked, MAX_ATTEMPTS, ErrorClass::JobFailed)
+        );
+
+        let running = job_step(waiting(), Event::Claim(true), 0);
+        let d = job_step(running, Event::Succeed, 7);
+        assert_eq!((d.state, d.ended_at), (JobState::Done, 7));
+        let w = job_step(running, Event::LeaseExpired, 9);
+        assert_eq!(
+            (w.state, w.run_after, w.last_error),
+            (JobState::Waiting, 9, ErrorClass::LeaseExpired)
+        );
+        let last = Job {
+            attempts: MAX_ATTEMPTS,
+            ..running
+        };
+        let p = job_step(last, Event::LeaseExpired, 9);
+        assert_eq!(
+            (p.state, p.last_error),
+            (JobState::Parked, ErrorClass::LeaseExpired)
+        );
+
+        let r = job_step(p, Event::Requeue, 11);
+        assert_eq!(
+            (r.state, r.attempts, r.run_after, r.last_error),
+            (JobState::Waiting, 0, 11, ErrorClass::NoError)
+        );
+        // An event that does not apply leaves the job unchanged.
+        assert_eq!(job_step(d, Event::Fail, 20), d);
+        assert_eq!(job_step(waiting(), Event::Requeue, 20), waiting());
+    }
 }
