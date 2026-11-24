@@ -2,8 +2,8 @@
 
 ## 1. Grant and setting
 
-- [ ] 1.1 Add the migration `V4` that grants `select` on `text_parts` to `strata_api`. Update the list of grants that the L1 test of the catalog reads. Verify: the scenarios "No privilege beyond the list" and "The API reads text parts and cannot change them" pass.
-- [ ] 1.2 Add the setting `STRATA_STATUS_RETRY_AFTER` to `strata api`: whole seconds from 1 to 3,600, and 2 when it is absent. A value out of range stops `strata api` with an error that names the variable. Verify: a test of the binary in `crates/strata/tests/cli.rs` gives the error for 0, 3601 and `x`.
+- [x] 1.1 Add the migration `V4` that grants `select` on `text_parts` to `strata_api`. Update the list of grants that the L1 test of the catalog reads. Verify: the scenarios "No privilege beyond the list" and "The API reads text parts and cannot change them" pass.
+- [x] 1.2 Add the setting `STRATA_STATUS_RETRY_AFTER` to `strata api`: whole seconds from 1 to 3,600, and 2 when it is absent. A value out of range stops `strata api` with an error that names the variable. Verify: a test of the binary in `crates/strata/tests/cli.rs` gives the error for 0, 3601 and `x`.
 
 ## 2. The QUERY handler
 

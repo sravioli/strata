@@ -60,6 +60,7 @@ fn app(pool: Pool, bounds: Bounds) -> Router {
         auth: Auth::new(pool, Arc::new(KeyCache::new())),
         storage: Arc::new(storage()),
         bounds,
+        status_retry_after: strata::status::DEFAULT_RETRY_AFTER,
     })
 }
 

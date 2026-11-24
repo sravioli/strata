@@ -18,6 +18,8 @@ pub struct AppState {
     pub auth: Auth,
     pub storage: Arc<Storage>,
     pub bounds: Bounds,
+    /// The `Retry-After` of a status that is not final, in seconds (0047).
+    pub status_retry_after: u64,
 }
 
 impl FromRef<AppState> for Auth {
@@ -33,6 +35,11 @@ pub fn state(pool: db::Pool) -> Result<AppState, String> {
         storage: Arc::new(Storage::from_env()?),
         auth: Auth::new(pool, Arc::new(KeyCache::new())),
         bounds: Bounds::default(),
+        status_retry_after: crate::status::retry_after(
+            std::env::var(crate::status::RETRY_AFTER_VAR)
+                .ok()
+                .as_deref(),
+        )?,
     })
 }
 

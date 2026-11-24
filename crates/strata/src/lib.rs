@@ -8,6 +8,7 @@ pub mod db;
 pub mod extraction;
 pub mod migrate;
 pub mod sandbox;
+pub mod status;
 pub mod storage;
 pub mod upload;
 pub mod worker;
