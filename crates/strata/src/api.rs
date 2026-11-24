@@ -9,6 +9,7 @@ use axum::routing::{get, post};
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
+use crate::limits::{Buckets, Clock, MAX_BUCKETS};
 use crate::query::query;
 use crate::status;
 use crate::storage::Storage;
@@ -22,6 +23,8 @@ pub struct AppState {
     pub bounds: Bounds,
     /// The `Retry-After` of a status that is not final, in seconds (0047).
     pub status_retry_after: u64,
+    /// The token buckets of the status routes (0047).
+    pub buckets: Arc<Buckets>,
 }
 
 impl FromRef<AppState> for Auth {
@@ -33,15 +36,18 @@ impl FromRef<AppState> for Auth {
 /// The state of `strata api` on `pool`. The storage settings come from the environment, so a
 /// missing variable stops the process before it serves a request.
 pub fn state(pool: db::Pool) -> Result<AppState, String> {
+    let retry_after = std::env::var(crate::status::RETRY_AFTER_VAR).ok();
+    let status_retry_after = crate::status::retry_after(retry_after.as_deref())?;
     Ok(AppState {
         storage: Arc::new(Storage::from_env()?),
         auth: Auth::new(pool, Arc::new(KeyCache::new())),
         bounds: Bounds::default(),
-        status_retry_after: crate::status::retry_after(
-            std::env::var(crate::status::RETRY_AFTER_VAR)
-                .ok()
-                .as_deref(),
-        )?,
+        status_retry_after,
+        buckets: Arc::new(Buckets::new(
+            status_retry_after,
+            MAX_BUCKETS,
+            Clock::system(),
+        )),
     })
 }
 

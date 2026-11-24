@@ -341,3 +341,115 @@ async fn a_get_to_the_batch_path() {
     assert_eq!(a.headers["allow"], "QUERY");
     assert_eq!(a.headers["accept-query"], "application/json");
 }
+
+// ---- The limits of status reads (spec request-limits).
+
+/// A world whose buckets have a manual clock, and a bound of `max` buckets.
+async fn limited_world(max: usize) -> (World, strata::limits::Clock) {
+    use strata::limits::{Buckets, Clock};
+    let mut w = world().await;
+    let clock = Clock::manual();
+    let mut state = test_state(api_pool(), Bounds::default());
+    state.buckets = std::sync::Arc::new(Buckets::new(2, max, clock.clone()));
+    w.app = router(state);
+    (w, clock)
+}
+
+/// TC-47-05
+#[tokio::test]
+async fn tc_47_05_reads_above_the_limit_of_one_revision() {
+    let (w, _) = limited_world(strata::limits::MAX_BUCKETS).await;
+    let r = revision(&w.su, w.a.id, "Uploaded").await;
+    for _ in 0..3 {
+        assert_eq!(w.get(&w.a, &path(r, 1)).await.status, StatusCode::OK);
+    }
+    let limited = w.get(&w.a, &path(r, 1)).await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(limited.headers["retry-after"], "2");
+    let other = revision(&w.su, w.a.id, "Ready").await;
+    assert_eq!(w.get(&w.a, &path(other, 1)).await.status, StatusCode::OK);
+}
+
+/// Scenario "A batch with one empty bucket".
+#[tokio::test]
+async fn a_batch_with_one_empty_bucket() {
+    let (w, _) = limited_world(strata::limits::MAX_BUCKETS).await;
+    let (r, s) = (
+        revision(&w.su, w.a.id, "Ready").await,
+        revision(&w.su, w.a.id, "Ready").await,
+    );
+    for _ in 0..3 {
+        w.get(&w.a, &path(r, 1)).await;
+    }
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(r, 1), entry(s, 1)]),
+        )
+        .await;
+    assert_eq!(a.status, StatusCode::TOO_MANY_REQUESTS);
+    // The bucket of S kept its 3 tokens.
+    for _ in 0..3 {
+        assert_eq!(w.get(&w.a, &path(s, 1)).await.status, StatusCode::OK);
+    }
+}
+
+/// TC-47-12
+#[tokio::test]
+async fn tc_47_12_a_backend_that_waits_for_300_revisions() {
+    let (w, clock) = limited_world(strata::limits::MAX_BUCKETS).await;
+    let mut ids = Vec::new();
+    for _ in 0..300 {
+        ids.push(entry(revision(&w.su, w.a.id, "Uploaded").await, 1));
+    }
+    for _ in 0..10 {
+        for chunk in ids.chunks(100) {
+            let a = w.query(&w.a, "/v1/revisions", &batch(chunk.to_vec())).await;
+            assert_eq!(a.status, StatusCode::OK);
+            assert_eq!(a.body["revisions"].as_array().unwrap().len(), 100);
+        }
+        clock.advance(std::time::Duration::from_secs(2));
+    }
+}
+
+/// TC-47-14
+#[tokio::test]
+async fn tc_47_14_many_requests_for_different_revisions() {
+    let (w, _) = limited_world(strata::limits::MAX_BUCKETS).await;
+    // The buckets come before the read, so the revisions need not exist.
+    for n in 0..20 {
+        let a = w
+            .get(&w.a, &path(Uuid::from_u128(0x4714_0000 + n), 1))
+            .await;
+        assert_eq!(a.status, StatusCode::NOT_FOUND, "{n}");
+    }
+    let a = w.get(&w.a, &path(Uuid::from_u128(0x4714_ffff), 1)).await;
+    assert_eq!(a.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(a.headers["retry-after"], "1");
+}
+
+/// Scenario "The bucket used least recently goes first". The bound counts the bucket of the
+/// account too, so a bound of 3 holds the account and two revisions.
+#[tokio::test]
+async fn the_bucket_used_least_recently_goes_first() {
+    let (w, _) = limited_world(3).await;
+    let (r1, r2, r3) = (
+        revision(&w.su, w.a.id, "Ready").await,
+        revision(&w.su, w.a.id, "Ready").await,
+        revision(&w.su, w.a.id, "Ready").await,
+    );
+    w.get(&w.a, &path(r2, 1)).await;
+    for _ in 0..3 {
+        w.get(&w.a, &path(r1, 1)).await;
+    }
+    // R3 comes, and the bucket of R2 goes. R1 keeps its empty bucket.
+    assert_eq!(w.get(&w.a, &path(r3, 1)).await.status, StatusCode::OK);
+    assert_eq!(
+        w.get(&w.a, &path(r1, 1)).await.status,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    for _ in 0..3 {
+        assert_eq!(w.get(&w.a, &path(r2, 1)).await.status, StatusCode::OK);
+    }
+}

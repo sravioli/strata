@@ -6,7 +6,7 @@ use axum::extract::{FromRequestParts, Path, Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
-use strata_core::authorization::{Action, authorized_scope};
+use strata_core::authorization::{Action, Principal, authorized_scope};
 use strata_core::revision::{Revision, RevisionState};
 use uuid::Uuid;
 
@@ -86,6 +86,23 @@ async fn read_tx(id: IdentityTx) -> Result<TenantTx, Reject> {
     id.into_tenant(scope).await?.ok_or(Reject::Forbidden)
 }
 
+/// The tokens of a status request (0047). `Some` is the `429` with `Retry-After` when one bucket
+/// is empty.
+fn limited(s: &AppState, id: &IdentityTx, revisions: &[(Uuid, i32)]) -> Option<Response> {
+    // Only an account reaches a route of the API: a job has no token.
+    let Principal::Account { account, .. } = id.principal() else {
+        return Some(StatusCode::FORBIDDEN.into_response());
+    };
+    s.buckets.take(account, revisions).err().map(|wait| {
+        let seconds = crate::limits::retry_after_seconds(wait);
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, HeaderValue::from(seconds))],
+        )
+            .into_response()
+    })
+}
+
 /// The response of statuses: `Retry-After` when one of them is not final.
 fn with_retry_after(mut r: Response, any_open: bool, retry_after: u64) -> Response {
     if any_open {
@@ -119,6 +136,9 @@ async fn read(
     else {
         return Ok(not_found());
     };
+    if let Some(limit) = limited(s, &id, &[(document_id, revision)]) {
+        return Ok(limit);
+    }
     let tx = read_tx(id).await?;
     Ok(match q::read_one(tx, document_id, revision).await? {
         Some(st) => with_retry_after(
@@ -195,6 +215,9 @@ async fn read_batch(s: &AppState, req: Request) -> Result<Response, BatchStop> {
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
     let Caller(id) = Caller::from_request_parts(&mut parts, s).await?;
+    if let Some(limit) = limited(s, &id, &ids) {
+        return Ok(limit);
+    }
     let tx = read_tx(id).await?;
     let found = q::read_many(tx, &ids).await.map_err(Reject::from)?;
     let open = found.iter().any(|st| !is_final(st.r.state));

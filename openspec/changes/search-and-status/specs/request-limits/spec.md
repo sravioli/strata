@@ -29,14 +29,12 @@ Each API process SHALL keep in memory one token bucket for each pair (account, r
 - **THEN** the API answers `429` with `Retry-After`
 - **WHEN** it reads a different revision
 - **THEN** the API answers with its status
-- **PENDING** Task 4.1 adds the test.
 
 #### Scenario: TC-47-12 A backend that waits for 300 revisions
 
 - **GIVEN** one account that waits for 300 revisions
 - **WHEN** it sends 3 batch requests of 100 revisions in each `Retry-After` interval, for 10 intervals
 - **THEN** no response is `429`
-- **PENDING** Task 4.1 adds the test.
 
 ### Requirement: An empty bucket stops the complete request
 
@@ -57,7 +55,6 @@ Each account SHALL also have one bucket for all its status requests. The bucket 
 - **GIVEN** an account that sends 21 status requests in less than one second, each for a different revision
 - **WHEN** it sends one more
 - **THEN** the API answers `429`
-- **PENDING** Task 4.1 adds the test.
 
 ### Requirement: The count of buckets has a bound
 

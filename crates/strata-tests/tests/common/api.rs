@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use strata::api::{AppState, router};
 use strata::auth::{Auth, keys::KeyCache};
 use strata::db::{self, Pool};
+use strata::limits::{Buckets, Clock, MAX_BUCKETS};
 use strata::upload::Bounds;
 use strata_dev::DevKey;
 use tokio_postgres::Client;
@@ -61,6 +62,11 @@ pub fn test_state(pool: Pool, bounds: Bounds) -> AppState {
         storage: Arc::new(storage()),
         bounds,
         status_retry_after: strata::status::DEFAULT_RETRY_AFTER,
+        buckets: Arc::new(Buckets::new(
+            strata::status::DEFAULT_RETRY_AFTER,
+            MAX_BUCKETS,
+            Clock::system(),
+        )),
     }
 }
 
