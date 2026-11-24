@@ -15,7 +15,6 @@ Runs the parse of each hostile file in a separate process with no credentials, n
 - **GIVEN** a file with the name `report.pdf` and the bytes of a ZIP archive
 - **WHEN** the worker extracts it
 - **THEN** the process detects the format from the bytes, not from the name
-- **PENDING** Task 6.1 adds the test.
 
 #### Scenario: A format that is not PDF
 
@@ -51,7 +50,6 @@ For a PDF, `strata-extract` SHALL write on standard output one JSON document wit
 - **GIVEN** a scanned PDF with no text
 - **WHEN** the worker extracts it
 - **THEN** the revision is not `Failed`, and it holds the class `NoText`
-- **PENDING** Task 6.1 adds the test.
 
 ### Requirement: A PDF that the parser cannot read gets a class
 

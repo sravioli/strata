@@ -33,7 +33,7 @@
 
 ## 6. Real files
 
-- [ ] 6.1 Add the L1 tests with the real `strata-extract` and `pdftotext` in the sandbox, from an upload through the finish to the end of the job: TC-7-07, TC-7-08, "The known text of a PDF", "A PDF with a content type that is not PDF", "A format that is not PDF", "A PDF with a user password", "A PDF with only an owner password" and "A PDF with a broken structure". Verify: the tests pass. Remove the pending markers of TC-7-07 and TC-7-08.
+- [x] 6.1 Add the L1 tests with the real `strata-extract` and `pdftotext` in the sandbox, from an upload through the finish to the end of the job: TC-7-07, TC-7-08, "The known text of a PDF", "A PDF with a content type that is not PDF", "A format that is not PDF", "A PDF with a user password", "A PDF with only an owner password" and "A PDF with a broken structure". Verify: the tests pass. Remove the pending markers of TC-7-07 and TC-7-08.
 
 ## 7. Operator command
 
