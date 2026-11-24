@@ -83,7 +83,13 @@ async fn no_environment_and_no_secrets() {
     let run = hostile_run(&input, SHORT).await;
     assert_eq!(run.stop, Stop::Exit(0));
     let lines = lines(&run);
-    assert_eq!(lines[0], "variables 0");
+    // The coverage runtime of an instrumented build sets this name in the process itself.
+    let names: Vec<&str> = lines[0]
+        .trim_start_matches("variables ")
+        .split(',')
+        .filter(|n| !n.is_empty() && *n != "__LLVM_PROFILE_RT_INIT_ONCE")
+        .collect();
+    assert!(names.is_empty(), "variables in the sandbox: {names:?}");
     let root: Vec<&str> = lines[1].trim_start_matches("root ").split(',').collect();
     for entry in &root {
         assert!(

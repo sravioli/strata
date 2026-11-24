@@ -23,7 +23,11 @@ fn main() {
         }
         // TC-7-02: the environment, and each path that the test names (files of the worker).
         "environment" => {
-            let _ = writeln!(out, "variables {}", std::env::vars_os().count());
+            // The names only: a value could be a secret.
+            let names: Vec<_> = std::env::vars_os()
+                .map(|(k, _)| k.to_string_lossy().into_owned())
+                .collect();
+            let _ = writeln!(out, "variables {}", names.join(","));
             let root: Vec<_> = std::fs::read_dir("/")
                 .map(|d| {
                     d.flatten()
