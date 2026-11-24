@@ -5,10 +5,11 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::FromRef;
-use axum::routing::post;
+use axum::routing::{get, post};
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
+use crate::status;
 use crate::storage::Storage;
 use crate::upload::{self, Bounds};
 
@@ -55,6 +56,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/documents/{document_id}/revisions/{revision}/finish",
             post(upload::finish),
+        )
+        .route(
+            "/v1/documents/{document_id}/revisions/{revision}",
+            get(status::one),
         )
         .with_state(state)
 }

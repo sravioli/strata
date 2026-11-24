@@ -3,6 +3,8 @@
 //! tests can run at the same time, and on a database that holds the data of earlier runs.
 #![allow(dead_code)] // Each test file uses a part of the helpers.
 
+pub mod api;
+
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};

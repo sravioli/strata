@@ -51,6 +51,7 @@ use uuid::Uuid;
 pub use deadpool_postgres::{Pool, PoolError};
 
 pub mod job;
+pub mod status;
 pub mod upload;
 
 /// Connections in the pool of each process (0049, "Values").

@@ -15,7 +15,6 @@ Tells a client when a revision is ready to search, or why it failed, with one of
 - **GIVEN** a revision that is `failed`
 - **WHEN** a client reads its status
 - **THEN** `error_class` is a value from the list of the extraction design or `FileTooLarge`, and the body holds no other error text
-- **PENDING** Task 3.2 adds the test.
 
 #### Scenario: A ready revision with no text
 
@@ -42,21 +41,18 @@ The state of the job of the revision SHALL NOT change the public status.
 - **GIVEN** a revision in each internal state of the map
 - **WHEN** a client reads its status
 - **THEN** the public status is the status in the map
-- **PENDING** Task 3.2 adds the test.
 
 #### Scenario: TC-47-02 A parked job
 
 - **GIVEN** a revision whose job is `Parked`
 - **WHEN** a client reads its status
 - **THEN** the status is `processing`
-- **PENDING** Task 3.2 adds the test.
 
 #### Scenario: TC-47-03 A newer revision is ready
 
 - **GIVEN** revision 1 and revision 2 of one document, and revision 2 is ready
 - **WHEN** a client reads revision 1
 - **THEN** the status is `superseded`
-- **PENDING** Task 3.2 adds the test.
 
 #### Scenario: TC-47-13 Failed stays failed
 
@@ -65,7 +61,6 @@ The state of the job of the revision SHALL NOT change the public status.
 - **THEN** the status is `failed`
 - **GIVEN** revision 1 is `processing` and revision 2 is ready
 - **THEN** the status of revision 1 is `superseded`
-- **PENDING** Task 3.2 adds the test.
 
 ### Requirement: A status that is not final gives Retry-After
 
@@ -78,7 +73,6 @@ A response that holds a status of `uploading` or `processing` SHALL have the hea
 - **THEN** the response has `Retry-After` with the configured value
 - **GIVEN** a revision that is final
 - **THEN** the response has no `Retry-After`
-- **PENDING** Task 3.2 adds the test.
 
 #### Scenario: The configured value
 
