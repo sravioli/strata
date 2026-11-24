@@ -42,7 +42,7 @@
 ## 8. Integration and gates
 
 - [x] 8.1 Run `make` and `make l1`. Verify: each target passes, the coverage of `CONSTRAINTS.md` is 90 % or more, and `python3 scripts/check-test-cases.py --report` shows each scenario of this change as `implemented`, except the scenarios with a `PENDING` marker for change 4 or #102. If the coverage is below 90 %, add tests. Do not lower the number.
-- [ ] 8.2 Update the implementation-point lists in the comments of #49. Tick each point that this change implements, and name the change that implements each other point. Verify: each point of #5 and #7 that change 3 owns is ticked.
+- [x] 8.2 Update the implementation-point lists in the comments of #49. Tick each point that this change implements, and name the change that implements each other point. Verify: each point of #5 and #7 that change 3 owns is ticked.
 
 ## Workflow follow-up
 
