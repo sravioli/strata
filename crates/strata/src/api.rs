@@ -4,8 +4,12 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::FromRef;
+use axum::extract::{FromRef, MatchedPath, Request, State};
+use axum::middleware::Next;
+use axum::response::Response;
 use axum::routing::{get, post};
+use tracing::Instrument;
+use tracing::field::Empty;
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
@@ -29,6 +33,8 @@ pub struct AppState {
     pub in_flight: Arc<tokio::sync::Semaphore>,
     /// The statement timeout of a search (`search::TIMEOUT`).
     pub search_timeout: std::time::Duration,
+    /// The instruments of 0133.
+    pub metrics: Arc<crate::telemetry::Metrics>,
 }
 
 impl FromRef<AppState> for Auth {
@@ -54,6 +60,7 @@ pub fn state(pool: db::Pool) -> Result<AppState, String> {
         )),
         in_flight: Arc::new(tokio::sync::Semaphore::new(MAX_REQUESTS)),
         search_timeout: crate::search::TIMEOUT,
+        metrics: crate::telemetry::Metrics::global(),
     })
 }
 
@@ -80,7 +87,45 @@ pub fn router(state: AppState) -> Router {
             state.clone(),
             crate::limits::bound,
         ))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), trace))
         .with_state(state)
+}
+
+/// One span for each request, and its duration (0133). The span starts a new trace: the API
+/// does not read a `traceparent` header of a client, an untrusted value.
+async fn trace(State(s): State<AppState>, req: Request, next: Next) -> Response {
+    let method = req.method().as_str().to_owned();
+    let route = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|p| p.as_str().to_owned());
+    let name = match &route {
+        Some(r) => format!("{method} {r}"),
+        None => method.clone(),
+    };
+    let span = tracing::info_span!(
+        "request",
+        otel.name = %name,
+        otel.kind = "server",
+        http.request.method = %method,
+        http.route = route.as_deref(),
+        http.response.status_code = Empty,
+        strata.tenant_id = Empty,
+        strata.account_id = Empty,
+        strata.search.q_length = Empty,
+        strata.search.limit = Empty,
+    );
+    let start = std::time::Instant::now();
+    let response = next.run(req).instrument(span.clone()).await;
+    let status = response.status().as_u16();
+    span.record("http.response.status_code", status);
+    s.metrics.request(
+        &method,
+        route.as_deref(),
+        status,
+        start.elapsed().as_secs_f64(),
+    );
+    response
 }
 
 pub async fn serve(cfg: tokio_postgres::Config, listen: &str) -> Result<(), String> {
@@ -93,9 +138,7 @@ pub async fn serve(cfg: tokio_postgres::Config, listen: &str) -> Result<(), Stri
         .map_err(|e| format!("bind {listen}: {e}"))?;
     tracing::info!(%listen, "strata api");
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
+        .with_graceful_shutdown(crate::stop_signal())
         .await
         .map_err(|e| e.to_string())
 }

@@ -405,6 +405,7 @@ async fn extracted(fixture: &str, content_type: &str) -> (World, Uuid) {
         storage: storage(),
         sandbox: sandbox(&strata_extract(), None, strata::sandbox::LIMITS),
         settings: SETTINGS,
+        metrics: strata::telemetry::Metrics::global(),
     };
     assert!(worker.run_one().await.unwrap().is_some(), "the job runs");
     (w, d)

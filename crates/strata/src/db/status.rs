@@ -18,7 +18,7 @@ pub async fn read_one(
 ) -> Result<Option<Status>, Error> {
     let tenant = tx.tenant_id;
     let p: Params = &[&tenant, &document_id, &revision];
-    let rows = tx.query_and_end(READ_ONE, p, true).await?;
+    let rows = tx.query_and_end(READ_ONE, "read_one", p, true).await?;
     Ok(rows.first().map(|row| Status {
         document_id,
         revision,
@@ -39,7 +39,7 @@ pub async fn read_many(tx: TenantTx, ids: &[(Uuid, i32)]) -> Result<Vec<Status>,
     let tenant = tx.tenant_id;
     let (documents, revisions): (Vec<Uuid>, Vec<i32>) = ids.iter().copied().unzip();
     let p: Params = &[&tenant, &documents, &revisions];
-    let rows = tx.query_and_end(READ_MANY, p, true).await?;
+    let rows = tx.query_and_end(READ_MANY, "read_many", p, true).await?;
     Ok(rows
         .iter()
         .map(|row| Status {

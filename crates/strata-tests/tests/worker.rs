@@ -511,7 +511,9 @@ fn worker_with(
             poll: Duration::from_millis(20),
             poll_max: Duration::from_millis(100),
             cleanup_every: Duration::from_millis(100),
+            queue_every: Duration::from_millis(100),
         },
+        metrics: strata::telemetry::Metrics::global(),
     }
 }
 

@@ -6,8 +6,9 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-# The helper `testing::tenant_tx` for the L1 tests (tech design 0003).
-testing = []
+# The helper `testing::tenant_tx` for the L1 tests (tech design 0003), and the in-memory
+# exporters of `telemetry::for_tests` (tech design 0133).
+testing = ["opentelemetry_sdk/testing"]
 
 [dependencies]
 strata-core = { path = "../core" }
@@ -15,6 +16,7 @@ strata-extract = { path = "../strata-extract" }
 axum = { version = "=0.8.9", default-features = false, features = [
   "http1",
   "json",
+  "matched-path",
   "tokio",
 ] }
 base64 = "=0.23.1"
@@ -55,6 +57,24 @@ tokio = { version = "=1.54.1", features = [
 tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
+# OTLP/HTTP over the hyper of this crate, with no tonic (tech design 0133). The hyper client
+# needs a Tokio runtime, so the processors are the async-runtime ones of the SDK.
+opentelemetry = "=0.33.1"
+opentelemetry_sdk = { version = "=0.33.1", features = [
+  "rt-tokio",
+  "experimental_trace_batch_span_processor_with_async_runtime",
+  "experimental_logs_batch_log_processor_with_async_runtime",
+  "experimental_metrics_periodicreader_with_async_runtime",
+] }
+opentelemetry-otlp = { version = "=0.33.1", default-features = false, features = [
+  "http-proto",
+  "hyper-client",
+  "trace",
+  "logs",
+  "metrics",
+] }
+opentelemetry-appender-tracing = "=0.33.1"
+tracing-opentelemetry = { version = "=0.34.0", default-features = false }
 uuid = { version = "=1.29.3", features = ["serde"] }
 # Signs the S3 requests only (owner, 2026-11-22). hyper sends them.
 rusty-s3 = { version = "=0.12.0", default-features = false, features = [

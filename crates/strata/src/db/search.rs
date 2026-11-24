@@ -1,5 +1,6 @@
 //! The query of the search route (tech design 0049).
 
+use tracing::Instrument;
 use uuid::Uuid;
 
 use super::{Error, Params, TenantTx};
@@ -36,7 +37,7 @@ pub async fn search(tx: TenantTx, q: &str, limit: i64, timeout_ms: u64) -> Resul
         let p: Params = &[&tenant, &q, &limit];
         let ((), rows, ()) = tokio::try_join!(
             c.batch_execute(&set),
-            c.query(&st, p),
+            c.query(&st, p).instrument(crate::db::span("search")),
             c.batch_execute("commit")
         )?;
         rows

@@ -42,6 +42,7 @@
 //! ```
 
 use std::time::Duration;
+use tracing::Instrument;
 
 use deadpool_postgres::{Manager, ManagerConfig, Object, RecyclingMethod, Runtime};
 use strata_core::authorization::{Decision, Principal, Scope};
@@ -72,6 +73,17 @@ impl Error {
     /// True when the wait for a connection reached its limit.
     pub fn is_pool_timeout(&self) -> bool {
         matches!(self, Error::Pool(PoolError::Timeout(_)))
+    }
+
+    /// A fixed class for the log: the SQLSTATE, or the kind of the error. The text of a PostgreSQL
+    /// error can hold a value of a client, for example in its detail (0133).
+    pub fn class(&self) -> &str {
+        match self {
+            Error::Pool(PoolError::Timeout(_)) => "pool timeout",
+            Error::Pool(_) => "pool",
+            Error::Postgres(e) if e.is_closed() => "connection closed",
+            Error::Postgres(e) => e.code().map_or("postgres", |c| c.code()),
+        }
     }
 
     /// True when PostgreSQL stopped the statement at its `statement_timeout`.
@@ -213,10 +225,14 @@ impl IdentityTx {
         );
         let (_, _, binding, tenant_active, account) = tokio::try_join!(
             c.batch_execute("begin"),
-            c.query_one(&bind, p_bind),
-            c.query_opt(&binding, p_binding),
-            c.query_opt(&tenant, &[]),
-            c.query_opt(&account, p_account),
+            c.query_one(&bind, p_bind)
+                .instrument(crate::db::span("bind_context")),
+            c.query_opt(&binding, p_binding)
+                .instrument(crate::db::span("read_binding")),
+            c.query_opt(&tenant, &[])
+                .instrument(crate::db::span("read_tenant")),
+            c.query_opt(&account, p_account)
+                .instrument(crate::db::span("read_account")),
         )?;
         let Some(binding) = binding else {
             tx.end("rollback").await?;
@@ -230,8 +246,12 @@ impl IdentityTx {
                 // Step 9: a first request creates the account. Two at the same time give one.
                 let create = c.prepare_cached(CREATE_ACCOUNT).await?;
                 let read = c.prepare_cached(READ_ACCOUNT).await?;
-                let (_, row) =
-                    tokio::try_join!(c.execute(&create, p_account), c.query_one(&read, p_account))?;
+                let (_, row) = tokio::try_join!(
+                    c.execute(&create, p_account)
+                        .instrument(crate::db::span("create_account")),
+                    c.query_one(&read, p_account)
+                        .instrument(crate::db::span("read_account"))
+                )?;
                 row
             }
         };
@@ -305,6 +325,7 @@ impl TenantTx {
     async fn query_and_end(
         self,
         sql: &str,
+        name: &'static str,
         params: Params<'_>,
         commit: bool,
     ) -> Result<Vec<tokio_postgres::Row>, Error> {
@@ -312,7 +333,10 @@ impl TenantTx {
             let c = self.tx.conn();
             let st = c.prepare_cached(sql).await?;
             let end = if commit { "commit" } else { "rollback" };
-            let (rows, ()) = tokio::try_join!(c.query(&st, params), c.batch_execute(end))?;
+            let (rows, ()) = tokio::try_join!(
+                c.query(&st, params).instrument(span(name)),
+                c.batch_execute(end)
+            )?;
             rows
         };
         self.tx.release();
@@ -324,6 +348,22 @@ impl TenantTx {
     pub fn client(&self) -> &Object {
         self.tx.conn()
     }
+}
+
+/// The span of one query (0133): the name of its constant in lower case, and no SQL text and no
+/// parameter.
+/// A query outside a request or a job, as the poll of the worker, gets no span: one trace each
+/// second is noise.
+pub fn span(name: &'static str) -> tracing::Span {
+    if tracing::Span::current().is_none() {
+        return tracing::Span::none();
+    }
+    tracing::info_span!(
+        "query",
+        otel.name = name,
+        otel.kind = "client",
+        db.system.name = "postgresql",
+    )
 }
 
 /// The tenant of the tenant context and one text that went to PostgreSQL as a parameter.
