@@ -141,6 +141,12 @@ The API SHALL read the status of the issuer, the binding, the tenant and the acc
 - **WHEN** an operator sets the account to not active, and the account sends a request
 - **THEN** the API rejects the request
 
+#### Scenario: TC-4-03 An account that is not active, on each account action
+
+- **GIVEN** an account that is not active in an active tenant
+- **WHEN** the account sends a request for each account action: a start of an upload, a finish, the status of one revision, the batch status, and a search
+- **THEN** the API rejects each request and runs no query on documents
+
 ### Requirement: The key cache of each issuer
 
 Each API process SHALL keep the keys of each issuer in memory, with the rules of "Signing keys" in 0021:
