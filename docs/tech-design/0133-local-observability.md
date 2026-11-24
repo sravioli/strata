@@ -1,7 +1,7 @@
 - Issue: [#133](https://github.com/sravioli/strata/issues/133)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-24
-- Decided by:
+- Decided by: sravioli, 2026-11-24
 
 # Observability, local: OpenTelemetry and Grafana
 
@@ -70,7 +70,7 @@ strata worker┘               ▲  ▲  ▲  └─ Prometheus (metrics)
 - The worker has one span for each job, `job ProcessDocument` or `job RemoveFiles`. Its parent is the `traceparent` of the job row, if the row has one. Each attempt is a child span, with `strata.attempt` (the attempt number), `strata.job_id` and the result.
 - The call of `strata-extract` has its own span. It records the format, the run time, the exit class of `sandbox.rs` and the number of text parts. It records no text.
 
-**Log events.** The OTLP log layer exports each `tracing` event at the level of `RUST_LOG`, with the trace ID and the span ID of its span. The event `request for an actor` of `auth/mod.rs` moves after the identity transaction and records `account_id`, not `act_sub` (amended 0021). The implementation also changes the scenario TC-21-13 of the spec `request-authentication` and its test in `auth.rs`. Some events record the `Display` text of an error, for example of `tokio_postgres` or `object_store`. The implementation checks each such event. An event whose text can hold a value of a client gets a fixed error class instead of the text.
+**Log events.** The OTLP log layer exports each `tracing` event at the level of `RUST_LOG`, with the trace ID and the span ID of its span. The event `request for an actor` of `auth/mod.rs` moves after the identity transaction and records `account_id`, not `act_sub` (amended 0021). The implementation also changes the scenario TC-21-13 of the spec `request-authentication` and its test in `auth.rs`. Some events record the `Display` text of an error, for example of `tokio_postgres` or of the HTTP client of the storage. The implementation checks each such event. An event whose text can hold a value of a client gets a fixed error class instead of the text.
 
 **The trace across the queue.** Migration V5 adds `traceparent text` to `jobs`. The column is null, or it holds a value of the W3C format. That is version `00`, a trace ID of 32 lowercase hex digits, a span ID of 16 and flags of 2. A check constraint enforces the format. `WRITE_FINISH` writes the context of the span of the finish request, so the job and the request belong to the same trace. A job that the API queues with no active span, and each `RemoveFiles` job, has null. The worker reads the column at the claim. A null or invalid value gives a new root span and no error. A retry of a job reuses the same `traceparent`, so all attempts are in one trace.
 
@@ -148,13 +148,13 @@ L0 tests cover the parse and the format of `traceparent`, and the attribute sets
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-133-01 | L1 | Given `OTEL_EXPORTER_OTLP_ENDPOINT` is not set. When `strata api` and `strata worker` start and serve a request and a job. Then they open no connection for telemetry, and the stderr log is as before. | | pending |
-| TC-133-02 | L1 | Given the exporters write to memory. When an account finishes an upload and the worker runs the job. Then the job row has a `traceparent` with the trace ID of the finish request. The span of the job, its attempt and the extraction have the same trace ID. The span of the job is a child of the span of the finish. | | pending |
-| TC-133-03 | L1 | Given the exporters write to memory, and a PDF with a unique word. When an account uploads the PDF, the worker extracts it, and the account searches for the word, also with a token that has an `act` claim. Then no span attribute, no log record and no metric attribute holds the word, the `sub` or `act.sub` of the token, or the signed upload URL. | | pending |
-| TC-133-04 | L1 | Given the exporters write to memory. When two tenants each send requests to each route and each run a job. Then no metric data point has an attribute that holds a tenant ID, a document ID, an account ID or a revision number. | | pending |
-| TC-133-05 | L1 | Given a job row with a `traceparent` that is not in the W3C format. When the row is written. Then PostgreSQL rejects it. Given a job row with null. When the worker claims it. Then the job runs, and its span is a root span. | | pending |
-| TC-133-06 | L1 | Given `OTEL_EXPORTER_OTLP_ENDPOINT` points to a port where nothing listens. When an account uploads a document and searches. Then each request gets the same answer as with telemetry off, and the job ends `Done`. At SIGTERM, each service stops in less than 5 s. | | pending |
-| TC-133-07 | L2 | Given `make dev`, run locally. When `strata.hurl` runs. Then Tempo has one trace with the spans of the finish, the job and the extraction. Loki has the log records of both services. Prometheus has the series `http_server_request_duration_seconds` for each route of the run. | | pending |
+| TC-133-01 | L1 | Given `OTEL_EXPORTER_OTLP_ENDPOINT` is not set. When `strata api` and `strata worker` start and serve a request and a job. Then they open no connection for telemetry, and the stderr log is as before. | sravioli, 2026-11-24 | pending |
+| TC-133-02 | L1 | Given the exporters write to memory. When an account finishes an upload and the worker runs the job. Then the job row has a `traceparent` with the trace ID of the finish request. The span of the job, its attempt and the extraction have the same trace ID. The span of the job is a child of the span of the finish. | sravioli, 2026-11-24 | pending |
+| TC-133-03 | L1 | Given the exporters write to memory, and a PDF with a unique word. When an account uploads the PDF, the worker extracts it, and the account searches for the word, also with a token that has an `act` claim. Then no span attribute, no log record and no metric attribute holds the word, the `sub` or `act.sub` of the token, or the signed upload URL. | sravioli, 2026-11-24 | pending |
+| TC-133-04 | L1 | Given the exporters write to memory. When two tenants each send requests to each route and each run a job. Then no metric data point has an attribute that holds a tenant ID, a document ID, an account ID or a revision number. | sravioli, 2026-11-24 | pending |
+| TC-133-05 | L1 | Given a job row with a `traceparent` that is not in the W3C format. When the row is written. Then PostgreSQL rejects it. Given a job row with null. When the worker claims it. Then the job runs, and its span is a root span. | sravioli, 2026-11-24 | pending |
+| TC-133-06 | L1 | Given `OTEL_EXPORTER_OTLP_ENDPOINT` points to a port where nothing listens. When an account uploads a document and searches. Then each request gets the same answer as with telemetry off, and the job ends `Done`. At SIGTERM, each service stops in less than 5 s. | sravioli, 2026-11-24 | pending |
+| TC-133-07 | L2 | Given `make dev`, run locally. When `strata.hurl` runs. Then Tempo has one trace with the spans of the finish, the job and the extraction. Loki has the log records of both services. Prometheus has the series `http_server_request_duration_seconds` for each route of the run. | sravioli, 2026-11-24 | pending |
 
 ## Unresolved questions
 
