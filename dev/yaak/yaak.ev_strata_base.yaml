@@ -12,7 +12,7 @@ parentId: null
 variables:
 - enabled: true
   name: base_url
-  value: ${[ secure(value='YENC_eUE0azNuQwHqYl9wbhNNWIkS7jWxDjr1ZQwa4IKuZRAqlg71sG0r9HLRrB2umaz0qMGC4G566747aEWsd75GATc/HPkr') ]}
+  value: http://127.0.0.1:8080
   id: mSMmhtbeuu
 - enabled: true
   name: token
