@@ -303,6 +303,9 @@ async fn a_different_algorithm_fails() {
 async fn claims_of_time_and_audience() {
     let (_su, _a, p1, api) = setup().await;
     // Each case reads the clock when it builds its token, so a slow run does not move the bounds.
+    // The future cases are 120 s ahead, not 61: both clocks count whole seconds, so at 61 a tick
+    // between the token and the check lands on the edge of the 60 s leeway. The L0 tests of
+    // `claims::check` test the edge itself with a fixed clock.
     let cases: Vec<(&str, Change)> = vec![
         (
             "aud",
@@ -316,11 +319,11 @@ async fn claims_of_time_and_audience() {
         ),
         (
             "nbf future",
-            Box::new(|c| drop(c.insert("nbf".into(), json!(now() + 61)))),
+            Box::new(|c| drop(c.insert("nbf".into(), json!(now() + 120)))),
         ),
         (
             "iat future",
-            Box::new(|c| drop(c.insert("iat".into(), json!(now() + 61)))),
+            Box::new(|c| drop(c.insert("iat".into(), json!(now() + 120)))),
         ),
         (
             "lifetime",
