@@ -146,4 +146,3 @@ A client that reads the `Location` of a finish until the status is final SHALL s
 - **GIVEN** the walking skeleton on a laptop
 - **WHEN** a client uploads a document and reads the `Location` URL until the status is final
 - **THEN** the status is `ready`, and a search finds the document
-- **PENDING** Task 7.2 adds the L2 test.

@@ -73,7 +73,6 @@ The search SHALL read the text parts of the tenant of the caller only. A documen
 - **GIVEN** tenants A and B each own a document that contains a word no other document contains
 - **WHEN** an account of A searches for the word of B through the public API
 - **THEN** the response contains no result and no count that reveals the document of B
-- **PENDING** Task 7.2 adds the L2 test.
 
 #### Scenario: TC-4-09 Two accounts of one tenant and one of a different tenant
 
@@ -81,7 +80,6 @@ The search SHALL read the text parts of the tenant of the caller only. A documen
 - **WHEN** each account uploads a document and then searches through the public API
 - **THEN** the two accounts of one tenant see the same two documents
 - **AND** the third account sees only its own document
-- **PENDING** Task 7.2 adds the L2 test.
 
 ### Requirement: The search finds only the current text
 

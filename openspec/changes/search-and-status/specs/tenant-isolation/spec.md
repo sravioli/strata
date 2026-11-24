@@ -52,4 +52,3 @@ An L2 test SHALL call each endpoint of the public API, over HTTP, with the ident
 - **GIVEN** tenants A and B each own data
 - **WHEN** an account of A calls each endpoint of the public API with identifiers of B
 - **THEN** no response contains data of B or a count that reveals data of B
-- **PENDING** Task 7.2 adds the L2 test.

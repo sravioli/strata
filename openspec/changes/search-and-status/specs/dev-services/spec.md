@@ -29,7 +29,6 @@
 - **THEN** the status is `ready`
 - **AND** a search of A for the word returns the document
 - **AND** the same search of B returns no result
-- **PENDING** Task 7.2 adds the L2 test.
 
 #### Scenario: The processes stop after a failed test
 
