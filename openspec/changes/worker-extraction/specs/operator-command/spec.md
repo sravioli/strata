@@ -11,7 +11,6 @@
 - **GIVEN** a `Parked` job
 - **WHEN** the operator requeues it
 - **THEN** the job is `Waiting` with `attempts` at zero, and a worker runs it
-- **PENDING** Task 7.1 adds the test.
 
 #### Scenario: Only the parked jobs of the tenant
 

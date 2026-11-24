@@ -4,6 +4,8 @@
 use clap::{Args, Subcommand, ValueEnum};
 use tokio_postgres::Client;
 
+use strata_core::job::{ErrorClass, Event, Job, JobState, job_step};
+
 use crate::auth::claims::MAX_CLAIM_BYTES;
 use crate::auth::keys::jwks_uri;
 
@@ -17,6 +19,17 @@ pub enum Admin {
     Binding(BindingCmd),
     #[command(subcommand)]
     Account(AccountCmd),
+    #[command(subcommand)]
+    Job(JobCmd),
+}
+
+#[derive(Subcommand, Debug)]
+pub enum JobCmd {
+    /// Requeue each `Parked` job of the tenant. Prints the count.
+    Requeue {
+        #[arg(long)]
+        tenant: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -167,6 +180,39 @@ fn one(rows: u64, what: &str) -> Result<(), String> {
     }
 }
 
+/// The requeue of 0005: one statement writes the result of `job_step` for `Requeue` to each
+/// `Parked` job of the tenant, and gives the count. A tenant that does not exist is an error,
+/// and the statement then writes nothing.
+pub async fn requeue(c: &Client, tenant: &str) -> Result<i64, String> {
+    let parked = Job {
+        state: JobState::Parked,
+        attempts: 0,
+        run_after: 0,
+        lease_until: 0,
+        ended_at: 0,
+        last_error: ErrorClass::NoError,
+    };
+    // `Requeue` sets the same values on each parked job. Its `run_after` is the time of the
+    // step: `now()` of the statement.
+    let j = job_step(parked, Event::Requeue, 0);
+    let (state, error) = (format!("{:?}", j.state), format!("{:?}", j.last_error));
+    let attempts = i32::try_from(j.attempts).unwrap_or(0);
+    let row = c
+        .query_one(
+            "with t as (select tenant_id from tenants where name = $1), \
+             r as (update jobs set state = $2, attempts = $3, last_error = $4, run_after = now() \
+             where state = 'Parked' and tenant_id = (select tenant_id from t) returning 1) \
+             select exists (select from t), (select count(*) from r)",
+            &[&tenant, &state, &attempts, &error],
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    if !row.get::<_, bool>(0) {
+        return Err("no such tenant".into());
+    }
+    Ok(row.get(1))
+}
+
 /// Runs one operator command with a connection of `strata_operator`.
 pub async fn run(c: &Client, cmd: Admin) -> Result<(), String> {
     let db = |e: tokio_postgres::Error| e.to_string();
@@ -296,6 +342,7 @@ pub async fn run(c: &Client, cmd: Admin) -> Result<(), String> {
                 .map_err(db)?;
             one(n, "account")?;
         }
+        Admin::Job(JobCmd::Requeue { tenant }) => println!("{}", requeue(c, &tenant).await?),
     }
     Ok(())
 }

@@ -6,6 +6,7 @@ mod common;
 
 use common::*;
 use std::time::Duration;
+use strata::admin::requeue;
 use strata::db::job::{ClaimTx, Claimed, End, Finish, end_job, keep_lease, renew};
 use strata::db::{POOL_SIZE, POOL_WAIT, Pool, pool};
 use strata::extraction::Part;
@@ -21,6 +22,7 @@ use uuid::Uuid;
 struct Db {
     su: Client,
     worker: Pool,
+    name: String,
 }
 
 async fn db() -> Db {
@@ -28,6 +30,7 @@ async fn db() -> Db {
     Db {
         su: connect(&config_in("strata", &name)).await,
         worker: pool(config_in("strata_worker", &name), POOL_SIZE, POOL_WAIT).unwrap(),
+        name,
     }
 }
 
@@ -988,4 +991,130 @@ async fn the_cleanup_runs_in_the_worker() {
     .await;
     let gone = "select not exists (select from jobs where job_id = $1)";
     loop_until(&worker(&d, 100), &d.su, gone, id).await;
+}
+
+// The requeue of the operator (task 7.1).
+
+/// A connection of `strata_operator` to the database of the test.
+async fn operator(d: &Db) -> Client {
+    connect(&config_in("strata_operator", &d.name)).await
+}
+
+async fn name_of(su: &Client, tenant: Uuid) -> String {
+    su.query_one("select name from tenants where tenant_id = $1", &[&tenant])
+        .await
+        .unwrap()
+        .get(0)
+}
+
+const PARKED: &str = "state = 'Parked', attempts = 5, last_error = 'JobFailed'";
+
+/// TC-5-07
+#[tokio::test]
+async fn tc_5_07_requeue_a_parked_job() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (_, id) = job(&d.su, t, PARKED).await;
+    let n = requeue(&operator(&d).await, &name_of(&d.su, t).await).await;
+    assert_eq!(n, Ok(1));
+    assert_eq!(
+        row(&d.su, id).await,
+        ("Waiting".into(), 0, "NoError".into())
+    );
+    // A worker runs it: the claim is its first attempt.
+    assert!(worker(&d, 100).run_one().await.unwrap().is_some());
+    assert_eq!(row(&d.su, id).await.1, 1);
+}
+
+/// TC-5-05
+#[tokio::test]
+async fn tc_5_05_park_and_requeue() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (_, id) = job(&d.su, t, "").await;
+    let set_status = "update tenants set status = $2 where tenant_id = $1";
+    d.su.execute(set_status, &[&t, &"not-active"])
+        .await
+        .unwrap();
+    let w = worker(&d, 100);
+    w.run_one().await.unwrap().unwrap();
+    assert_eq!(
+        row(&d.su, id).await,
+        ("Parked".into(), 0, "TenantNotActive".into())
+    );
+    d.su.execute(set_status, &[&t, &"active"]).await.unwrap();
+    let n = requeue(&operator(&d).await, &name_of(&d.su, t).await).await;
+    assert_eq!(n, Ok(1));
+    assert_eq!(row(&d.su, id).await.0, "Waiting");
+    assert!(w.run_one().await.unwrap().is_some(), "a worker runs it");
+    assert_eq!(row(&d.su, id).await.1, 1);
+}
+
+/// Scenario "Only the parked jobs of the tenant".
+#[tokio::test]
+async fn only_the_parked_jobs_of_the_tenant() {
+    let d = db().await;
+    let (acme, globex) = (tenant(&d.su).await, tenant(&d.su).await);
+    let (_, parked) = job(&d.su, acme, PARKED).await;
+    let (_, waiting) = job(&d.su, acme, "attempts = 2, last_error = 'JobFailed'").await;
+    let (_, other) = job(&d.su, globex, PARKED).await;
+    let all = "select state, attempts, last_error, run_after from jobs where job_id = $1";
+    let snapshot = |id| {
+        let su = &d.su;
+        async move {
+            let r = su.query_one(all, &[&id]).await.unwrap();
+            (
+                r.get::<_, String>(0),
+                r.get::<_, i32>(1),
+                r.get::<_, String>(2),
+                r.get::<_, std::time::SystemTime>(3),
+            )
+        }
+    };
+    let (w_before, o_before) = (snapshot(waiting).await, snapshot(other).await);
+    let n = requeue(&operator(&d).await, &name_of(&d.su, acme).await).await;
+    assert_eq!(n, Ok(1));
+    assert_eq!(
+        row(&d.su, parked).await,
+        ("Waiting".into(), 0, "NoError".into())
+    );
+    assert_eq!(snapshot(waiting).await, w_before);
+    assert_eq!(snapshot(other).await, o_before);
+}
+
+/// Scenario "A tenant that does not exist", through the command line.
+#[tokio::test]
+async fn a_tenant_that_does_not_exist() {
+    #[derive(clap::Parser)]
+    struct Cli {
+        #[command(subcommand)]
+        admin: strata::admin::Admin,
+    }
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (_, id) = job(&d.su, t, PARKED).await;
+    let name = unique("nobody");
+    let cmd = <Cli as clap::Parser>::try_parse_from(["admin", "job", "requeue", "--tenant", &name])
+        .unwrap()
+        .admin;
+    let err = strata::admin::run(&operator(&d).await, cmd)
+        .await
+        .unwrap_err();
+    assert!(err.contains("no such tenant"), "{err}");
+    assert_eq!(
+        row(&d.su, id).await,
+        ("Parked".into(), 5, "JobFailed".into())
+    );
+    // The same command with a tenant that exists runs.
+    let cmd = <Cli as clap::Parser>::try_parse_from([
+        "admin",
+        "job",
+        "requeue",
+        "--tenant",
+        &name_of(&d.su, t).await,
+    ])
+    .unwrap()
+    .admin;
+    strata::admin::run(&operator(&d).await, cmd).await.unwrap();
+    assert_eq!(row(&d.su, id).await.0, "Waiting");
 }

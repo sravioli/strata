@@ -37,7 +37,7 @@
 
 ## 7. Operator command
 
-- [ ] 7.1 Add `strata admin job requeue --tenant <name>`. One statement updates each `Parked` job of the tenant with the result of `job_step` for `Requeue`, and the command prints the count. Verify: the L1 tests TC-5-07, the second half of TC-5-05, "Only the parked jobs of the tenant" and "A tenant that does not exist" pass. Remove the pending markers of TC-5-05 and TC-5-07.
+- [x] 7.1 Add `strata admin job requeue --tenant <name>`. One statement updates each `Parked` job of the tenant with the result of `job_step` for `Requeue`, and the command prints the count. Verify: the L1 tests TC-5-07, the second half of TC-5-05, "Only the parked jobs of the tenant" and "A tenant that does not exist" pass. Remove the pending markers of TC-5-05 and TC-5-07.
 
 ## 8. Integration and gates
 

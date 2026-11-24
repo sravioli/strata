@@ -75,7 +75,6 @@ When the tenant of a `Waiting` job is not active at the claim, the job SHALL be 
 - **THEN** the job is `Parked` with `TenantNotActive`, and `attempts` does not change
 - **WHEN** the operator sets the tenant to active and requeues the parked jobs of the tenant
 - **THEN** the job is `Waiting`, and a worker runs it
-- **PENDING** Task 7.1 adds the test.
 
 ### Requirement: A job that ran gives the same state again
 
