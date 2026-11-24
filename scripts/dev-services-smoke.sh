@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Tests the services of compose.yaml (spec dev-services). Run after: docker compose up --wait
-# Needs psql, the aws CLI, python3 and docker compose.
+# Tests the services of compose.yaml (spec dev-services). Run after: $COMPOSE up --wait
+# Needs psql, the aws CLI, python3, and docker compose or podman compose. COMPOSE names the
+# command (make l1 sets it). The default is docker compose.
 set -euo pipefail
 
 # The development values of compose.yaml.
@@ -37,12 +38,20 @@ head -c 4096 /dev/urandom >"$tmp/in"
 cmp "$tmp/in" "$tmp/out"
 echo "ok: Garage writes an object and reads back the same bytes"
 
-docker compose ps --format json | python3 -c '
+${COMPOSE:-docker compose} ps --format json | python3 -c '
 import json, sys
 text = sys.stdin.read().strip()
 rows = json.loads(text) if text.startswith("[") else [json.loads(l) for l in text.splitlines()]
-bad = [(r["Service"], p["URL"], p["PublishedPort"]) for r in rows for p in r.get("Publishers") or []
-       if p.get("PublishedPort") and p.get("URL") != "127.0.0.1"]
+# (service, host address) of each published port. Docker Compose gives "Publishers";
+# podman compose gives the "Ports" of podman ps.
+ports = [(r["Service"], p.get("URL")) for r in rows for p in r.get("Publishers") or []
+         if p.get("PublishedPort")]
+# In the Docker output "Ports" and "Labels" are text, so only a list is the podman form.
+ports += [((r.get("Labels") or {}).get("com.docker.compose.service"), p.get("host_ip"))
+          for r in rows if isinstance(r.get("Ports"), list) for p in r["Ports"] if p.get("host_port")]
+if not ports:
+    sys.exit("fail: no published port in the output of compose ps")
+bad = [p for p in ports if p[1] != "127.0.0.1"]
 if bad:
     sys.exit(f"fail: ports not bound to 127.0.0.1: {bad}")
 '

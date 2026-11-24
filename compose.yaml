@@ -1,4 +1,4 @@
-# Local services for development and L1 tests. Start: docker compose up --wait
+# Local services for development and L1 tests. Start: docker compose up --wait (or podman compose).
 # The passwords and keys are for development only. Each port binds to 127.0.0.1.
 name: strata
 
