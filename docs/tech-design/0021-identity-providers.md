@@ -144,7 +144,7 @@ Step 3 uses a value that the API did not verify. The API uses that value only to
 
 The API ignores the `scope` claim in v1. See "Scopes".
 
-If the token has an `act` claim, the API writes `act.sub` in the request log. The value is cut to 256 bytes. The `act` claim has no other effect in v1.
+If the token has an `act` claim, the API writes the account ID of the caller in the request log. The event says that the token has an actor. The `act` claim has no other effect in v1. Amended on 2026-11-24 (#133): the log has the account ID, not `act.sub`, because the logs go to telemetry and `act.sub` is personal data.
 
 ### Signing keys
 
@@ -263,7 +263,7 @@ L0: the claim rules of step 6, for each claim and each limit, with no database a
 | TC-21-10 | L1 | Given keys in the cache of P1. When 100 tokens with unknown `kid` values arrive in one minute. Then the API fetches the JWKS of P1 at most one time in that minute. | sravioli, 2026-11-20 | pending |
 | TC-21-11 | L1 | Given keys in the cache of P1. When the JWKS URL of P1 stops responding. Then the API accepts valid P1 tokens with the keys that it has. Given an issuer whose keys the API never fetched. Then the API rejects all its tokens. | sravioli, 2026-11-20 | pending |
 | TC-21-12 | L1 | Given a P1 token signed by an attacker key, with a `jku`, `jwk`, `x5u` or `x5c` header that gives that key. When a client sends it. Then the API rejects the request and makes no request to the URL. | sravioli, 2026-11-20 | pending |
-| TC-21-13 | L1 | Given a valid P1 token with an `act` claim. When a client sends it. Then the request log contains `act.sub`, and the response is equal to the response for the same token without `act`. | sravioli, 2026-11-20 | pending |
+| TC-21-13 | L1 | Amended on 2026-11-24 (#133): the account ID, not `act.sub`. Given a valid P1 token with an `act` claim. When a client sends it. Then the request log contains the account ID of the caller and no `act.sub`. The response is equal to the response for the same token without `act`. | sravioli, 2026-11-20 | pending |
 | TC-21-14 | L1 | For each step that rejects a token. Then the status code and the body of the response are equal. | sravioli, 2026-11-20 | pending |
 | TC-21-15 | L1 | Given bindings for issuers P1 and P2. When a runtime role selects from `issuer_bindings` with no settings, or with only `app.issuer_id`. Then the result is empty. | sravioli, 2026-11-20 | pending |
 | TC-21-16 | L1 | Given a token larger than 8 KiB. When a client sends it. Then the API rejects the request before it parses the token. | sravioli, 2026-11-20 | pending |
