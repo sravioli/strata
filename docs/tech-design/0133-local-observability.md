@@ -43,7 +43,7 @@ The owner decided four points in #133 on 2026-11-24:
 
 Further constraints:
 
-- **Off by default.** With `OTEL_EXPORTER_OTLP_ENDPOINT` unset, a service exports nothing and opens no connection. The stderr log stays as it is. So `make l1`, `make l2` and CI do not change.
+- **Off by default.** With `OTEL_EXPORTER_OTLP_ENDPOINT` unset, a service exports nothing and opens no connection. The stderr log stays as it is. So `make l1` and CI do not change. `make dev` sets the variable locally (see "Local services").
 - **No tenant ID in a metric attribute.** Tenant IDs, document IDs, account IDs and revision numbers go only in span attributes and log fields. A metric attribute has a small, fixed set of values: a route template, a method, a status code, a job kind, a result class.
 - **No document text and no query text** in a span, a log record or a metric. The search route records the length of `q` and the `limit`, not `q`.
 - **No personal data.** A span has the `account_id` (a UUID of Strata), not the `sub` of the token. Tech design 0021 wrote `act.sub` in the request log (TC-21-13). This design amends 0021: the event writes the `account_id` of the caller instead (decided by the owner, 2026-11-24).
