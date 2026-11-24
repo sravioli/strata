@@ -177,6 +177,7 @@ async fn an_expired_lease_gives_the_job_to_a_second_worker() {
     // The renewal that writes nothing stops the extraction of the first worker.
     let s = sandbox(
         &hostile(),
+        None,
         Limits {
             wall: Duration::from_secs(60),
             ..LIMITS
@@ -312,9 +313,7 @@ async fn claim(d: &Db) -> Claimed {
 /// The transaction that ends a claimed job, as the worker opens it after the run.
 async fn end(pool: &Pool, c: &Claimed, f: Finish) -> End {
     let tx = ClaimTx::resume(pool, c).await.unwrap();
-    end_job(tx.into_tenant().await.unwrap().unwrap(), c, f)
-        .await
-        .unwrap()
+    end_job(tx, c, f).await.unwrap()
 }
 
 fn text(words: &str) -> Finish {
@@ -500,6 +499,7 @@ fn worker_with(
         storage,
         sandbox: sandbox(
             extract,
+            None,
             Limits {
                 wall: Duration::from_secs(10),
                 ..LIMITS
@@ -801,7 +801,7 @@ async fn retries_one_time(body: &[u8], limits: Limits, class: &str) {
     let (doc, id) = job(&d.su, t, "").await;
     object(t, doc, 1, body).await;
     let w = Worker {
-        sandbox: sandbox(&hostile(), limits),
+        sandbox: sandbox(&hostile(), None, limits),
         ..worker(&d, 100)
     };
     loop_until(&w, &d.su, RETRY_MARK, id).await;
@@ -939,12 +939,12 @@ async fn tc_7_10_a_worker_that_stops_while_an_extraction_runs() {
     object(t, doc, 1, b"forever").await;
     // A cgroup of this test only, so that the test sees the process of the first worker.
     let base = std::path::PathBuf::from(std::env::var(strata::sandbox::CGROUP).expect("make l1"));
-    let _ = sandbox(&hostile(), LIMITS); // the controllers of the base cgroup
+    let _ = sandbox(&hostile(), None, LIMITS); // the controllers of the base cgroup
     let own = base.join(unique("test"));
     std::fs::create_dir(&own).unwrap();
     let wall = Duration::from_secs(2);
     let first = Worker {
-        sandbox: sandbox_in(&hostile(), Some(&own), Limits { wall, ..LIMITS }),
+        sandbox: sandbox(&hostile(), Some(&own), Limits { wall, ..LIMITS }),
         ..worker(&d, 100)
     };
     // The first worker stops while its extraction runs.

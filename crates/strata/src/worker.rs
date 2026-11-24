@@ -107,7 +107,7 @@ impl Worker {
         };
         // At the claim: no extraction for a revision that the tenant does not have, or that
         // `may_extract` refuses (0047). The job ends in the transaction of the claim.
-        let revision = job::read_revision(&mut tx, claimed.document_id, claimed.revision).await?;
+        let revision = job::read_revision(&mut tx, &claimed).await?;
         if !revision.is_some_and(may_extract) {
             return job::end_job(tx, &claimed, Finish::NoExtraction)
                 .await
@@ -146,14 +146,7 @@ impl Worker {
                 Finish::Failure
             }
         };
-        let Some(tx) = ClaimTx::resume(&self.pool, &claimed)
-            .await?
-            .into_tenant()
-            .await?
-        else {
-            // `resume` gives a `Running` job of an active tenant, so this does not occur.
-            return Ok(Some(End::LeaseLost));
-        };
+        let tx = ClaimTx::resume(&self.pool, &claimed).await?;
         job::end_job(tx, &claimed, finish).await.map(Some)
     }
 }

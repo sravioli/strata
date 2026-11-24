@@ -19,7 +19,7 @@ const SHORT: Limits = Limits {
 };
 
 async fn hostile_run(input: &str, limits: Limits) -> Run {
-    sandbox(&hostile(), limits)
+    sandbox(&hostile(), None, limits)
         .run(input.as_bytes(), std::future::pending())
         .await
 }
@@ -39,7 +39,7 @@ async fn strata_extract_gives_the_text_of_a_pdf_in_the_sandbox() {
         env!("CARGO_MANIFEST_DIR")
     ))
     .unwrap();
-    let run = sandbox(&strata_extract(), LIMITS)
+    let run = sandbox(&strata_extract(), None, LIMITS)
         .run(&pdf, std::future::pending())
         .await;
     assert_eq!(
@@ -126,10 +126,10 @@ async fn more_than_1_gb_of_memory() {
 async fn the_kernel_stops_the_child_of_the_process_for_memory() {
     // A cgroup of this test only, so that the test can see that the run leaves no cgroup.
     let base = std::path::PathBuf::from(std::env::var(strata::sandbox::CGROUP).expect("make l1"));
-    let _ = sandbox(&hostile(), SHORT); // the controllers of the base cgroup
+    let _ = sandbox(&hostile(), None, SHORT); // the controllers of the base cgroup
     let own = base.join(unique("test"));
     std::fs::create_dir(&own).unwrap();
-    let s = sandbox_in(
+    let s = sandbox(
         &hostile(),
         Some(&own),
         Limits {
@@ -205,6 +205,7 @@ async fn a_crash_and_output_that_fails_the_check() {
 async fn a_cancelled_run_stops() {
     let s = sandbox(
         &hostile(),
+        None,
         Limits {
             wall: Duration::from_secs(60),
             ..LIMITS
@@ -222,7 +223,7 @@ async fn a_cancelled_run_stops() {
 async fn nsjail_cannot_start_the_sandbox() {
     let not_a_program =
         std::path::PathBuf::from(format!("{}/fixtures/README.md", env!("CARGO_MANIFEST_DIR")));
-    let run = sandbox(&not_a_program, SHORT)
+    let run = sandbox(&not_a_program, None, SHORT)
         .run(b"x", std::future::pending())
         .await;
     assert_eq!(run.stop, Stop::SandboxFailure);

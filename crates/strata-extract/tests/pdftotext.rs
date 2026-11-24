@@ -1,9 +1,9 @@
 //! L0 tests of `strata-extract` with the real `pdftotext`, outside the sandbox (task 2.2 of change
 //! worker-extraction). The test files are in `crates/strata-tests/fixtures/`.
 
-use strata_extract::{PDFTOTEXT, exit, run};
+use strata_extract::{Exit, PDFTOTEXT, run};
 
-fn extract(name: &str) -> (i32, Vec<u8>) {
+fn extract(name: &str) -> (Exit, Vec<u8>) {
     let path = format!(
         "{}/../strata-tests/fixtures/{name}",
         env!("CARGO_MANIFEST_DIR")
@@ -15,7 +15,7 @@ fn extract(name: &str) -> (i32, Vec<u8>) {
 
 fn document(name: &str) -> serde_json::Value {
     let (code, out) = extract(name);
-    assert_eq!(code, exit::OK, "{name}");
+    assert_eq!(code, Exit::Ok, "{name}");
     serde_json::from_slice(&out).unwrap()
 }
 
@@ -45,19 +45,16 @@ fn a_pdf_with_only_an_owner_password_opens() {
 fn a_pdf_with_a_user_password_is_an_encrypted_file() {
     assert_eq!(
         extract("user-password.pdf"),
-        (exit::ENCRYPTED_FILE, Vec::new())
+        (Exit::EncryptedFile, Vec::new())
     );
 }
 
 #[test]
 fn a_pdf_with_a_broken_structure_is_a_malformed_file() {
-    assert_eq!(extract("broken.pdf"), (exit::MALFORMED_FILE, Vec::new()));
+    assert_eq!(extract("broken.pdf"), (Exit::MalformedFile, Vec::new()));
 }
 
 #[test]
 fn a_zip_archive_with_the_name_report_pdf_is_not_a_pdf() {
-    assert_eq!(
-        extract("report.pdf"),
-        (exit::UNSUPPORTED_FORMAT, Vec::new())
-    );
+    assert_eq!(extract("report.pdf"), (Exit::UnsupportedFormat, Vec::new()));
 }

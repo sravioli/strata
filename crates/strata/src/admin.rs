@@ -8,6 +8,7 @@ use strata_core::job::{ErrorClass, Event, Job, JobState, job_step};
 
 use crate::auth::claims::MAX_CLAIM_BYTES;
 use crate::auth::keys::jwks_uri;
+use crate::db::job::JobRow;
 
 #[derive(Subcommand, Debug)]
 pub enum Admin {
@@ -194,16 +195,14 @@ pub async fn requeue(c: &Client, tenant: &str) -> Result<i64, String> {
     };
     // `Requeue` sets the same values on each parked job. Its `run_after` is the time of the
     // step: `now()` of the statement.
-    let j = job_step(parked, Event::Requeue, 0);
-    let (state, error) = (format!("{:?}", j.state), format!("{:?}", j.last_error));
-    let attempts = i32::try_from(j.attempts).unwrap_or(0);
+    let j = JobRow::of(&job_step(parked, Event::Requeue, 0));
     let row = c
         .query_one(
             "with t as (select tenant_id from tenants where name = $1), \
              r as (update jobs set state = $2, attempts = $3, last_error = $4, run_after = now() \
              where state = 'Parked' and tenant_id = (select tenant_id from t) returning 1) \
              select exists (select from t), (select count(*) from r)",
-            &[&tenant, &state, &attempts, &error],
+            &[&tenant, &j.state, &j.attempts, &j.last_error],
         )
         .await
         .map_err(|e| e.to_string())?;

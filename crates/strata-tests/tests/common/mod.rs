@@ -269,7 +269,7 @@ pub fn strata_extract() -> std::path::PathBuf {
 
 /// The sandbox of the worker around `extract`, in `cgroup` (default `STRATA_CGROUP`). The tests
 /// run in the delegated cgroup of `scripts/in-cgroup.sh` (`make l1`): they never skip.
-pub fn sandbox_in(
+pub fn sandbox(
     extract: &std::path::Path,
     cgroup: Option<&std::path::Path>,
     limits: strata::sandbox::Limits,
@@ -293,11 +293,4 @@ pub fn sandbox_in(
         limits,
     )
     .unwrap()
-}
-
-pub fn sandbox(
-    extract: &std::path::Path,
-    limits: strata::sandbox::Limits,
-) -> strata::sandbox::Sandbox {
-    sandbox_in(extract, None, limits)
 }

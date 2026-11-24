@@ -49,6 +49,10 @@ async fn run(cli: Cli) -> Result<(), String> {
         Cmd::Migrate => strata::migrate::run(&cfg).await,
         Cmd::Worker => {
             use strata::db::{POOL_SIZE, POOL_WAIT, pool};
+            // The spec job-queue: the worker connects as strata_worker, never with more rights.
+            if cfg.get_user() != Some("strata_worker") {
+                return Err("STRATA_DATABASE_URL: strata worker connects as strata_worker".into());
+            }
             let worker = strata::worker::Worker {
                 pool: pool(cfg, POOL_SIZE, POOL_WAIT)?,
                 storage: strata::storage::Storage::from_env()?,

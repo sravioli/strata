@@ -12,20 +12,44 @@ use std::process::{Command, ExitStatus, Stdio};
 pub const MAX_INPUT: u64 = 100 * 1024 * 1024;
 /// The output limit of 0007. The worker also stops the process at this limit.
 pub const MAX_OUTPUT: u64 = 50 * 1024 * 1024;
-/// `pdftotext` in the read-only file system of the sandbox.
+/// `pdftotext` of the system (`poppler-utils`), in the read-only file system of the sandbox. The
+/// image of the worker pins it (#43).
 pub const PDFTOTEXT: &str = "/usr/bin/pdftotext";
 
 /// The exit codes of `strata-extract`. Each is below 128 and is not 255, so it is different from
 /// a stop on a signal (128 + the signal) and from a failure of nsjail (255).
-pub mod exit {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(i32)]
+pub enum Exit {
     /// The JSON document is on standard output.
-    pub const OK: i32 = 0;
-    pub const UNSUPPORTED_FORMAT: i32 = 10;
-    pub const ENCRYPTED_FILE: i32 = 11;
-    pub const MALFORMED_FILE: i32 = 12;
-    pub const OUTPUT_TOO_LARGE: i32 = 13;
+    Ok = 0,
+    UnsupportedFormat = 10,
+    EncryptedFile = 11,
+    MalformedFile = 12,
+    OutputTooLarge = 13,
     /// The parser stopped on a signal or did not start, or the input was above the limit.
-    pub const CRASH: i32 = 20;
+    Crash = 20,
+}
+
+impl Exit {
+    pub const ALL: [Exit; 6] = [
+        Exit::Ok,
+        Exit::UnsupportedFormat,
+        Exit::EncryptedFile,
+        Exit::MalformedFile,
+        Exit::OutputTooLarge,
+        Exit::Crash,
+    ];
+
+    /// The exit code of the process.
+    pub fn code(self) -> i32 {
+        self as i32
+    }
+
+    /// The value of an exit code, or `None` for a code that `strata-extract` does not give.
+    pub fn from_code(code: i32) -> Option<Exit> {
+        Self::ALL.into_iter().find(|e| e.code() == code)
+    }
 }
 
 /// The format, from the first bytes only. The file name and the content type are not trusted.
@@ -63,24 +87,24 @@ pub fn pdf_document(text: &str) -> serde_json::Value {
 /// file" for a user password and for a broken file alike, so the bytes decide.
 // shortcut: a broken file with the bytes `/Encrypt` gets EncryptedFile, not MalformedFile. Both
 // fail the revision with no retry; read the message of pdftotext if the class must be exact.
-pub fn pdftotext_failure(status: ExitStatus, bytes: &[u8]) -> i32 {
+pub fn pdftotext_failure(status: ExitStatus, bytes: &[u8]) -> Exit {
     match status.code() {
-        Some(1 | 3) if bytes.windows(8).any(|w| w == b"/Encrypt") => exit::ENCRYPTED_FILE,
-        Some(1 | 3 | 99) => exit::MALFORMED_FILE,
+        Some(1 | 3) if bytes.windows(8).any(|w| w == b"/Encrypt") => Exit::EncryptedFile,
+        Some(1 | 3 | 99) => Exit::MalformedFile,
         // A stop on a signal has no code. The process is PID 1, so it reports the crash itself.
-        _ => exit::CRASH,
+        _ => Exit::Crash,
     }
 }
 
 /// Reads the file from `input`, writes the JSON document to `output`, and gives the exit code.
-pub fn run(pdftotext: &str, input: impl Read, mut output: impl Write) -> i32 {
+pub fn run(pdftotext: &str, input: impl Read, mut output: impl Write) -> Exit {
     let mut bytes = Vec::new();
     if input.take(MAX_INPUT + 1).read_to_end(&mut bytes).is_err() || bytes.len() as u64 > MAX_INPUT
     {
-        return exit::CRASH;
+        return Exit::Crash;
     }
     if detect(&bytes) == Format::Unsupported {
-        return exit::UNSUPPORTED_FORMAT;
+        return Exit::UnsupportedFormat;
     }
     let Ok(mut child) = Command::new(pdftotext)
         .args(["-q", "-enc", "UTF-8", "-eol", "unix", "-", "-"])
@@ -90,7 +114,7 @@ pub fn run(pdftotext: &str, input: impl Read, mut output: impl Write) -> i32 {
         .stderr(Stdio::inherit())
         .spawn()
     else {
-        return exit::CRASH;
+        return Exit::Crash;
     };
     // A parser that stops early closes the pipe: the error of the write is not the result.
     let _ = child.stdin.take().map(|mut stdin| stdin.write_all(&bytes));
@@ -102,23 +126,23 @@ pub fn run(pdftotext: &str, input: impl Read, mut output: impl Write) -> i32 {
     if text.len() as u64 > MAX_OUTPUT {
         let _ = child.kill();
         let _ = child.wait();
-        return exit::OUTPUT_TOO_LARGE;
+        return Exit::OutputTooLarge;
     }
     let status = match child.wait() {
         Ok(status) => status,
-        Err(_) => return exit::CRASH,
+        Err(_) => return Exit::Crash,
     };
     if !status.success() {
         return pdftotext_failure(status, &bytes);
     }
     if !matches!(read, Some(Ok(_))) {
-        return exit::CRASH;
+        return Exit::Crash;
     }
     let document = pdf_document(&String::from_utf8_lossy(&text));
     if serde_json::to_writer(&mut output, &document).is_err() || output.flush().is_err() {
-        return exit::CRASH;
+        return Exit::Crash;
     }
-    exit::OK
+    Exit::Ok
 }
 
 #[cfg(test)]
@@ -172,7 +196,7 @@ mod tests {
                 &b"PK\x03\x04 report.pdf"[..],
                 &mut out
             ),
-            exit::UNSUPPORTED_FORMAT
+            Exit::UnsupportedFormat
         );
         assert!(out.is_empty());
     }
@@ -181,7 +205,7 @@ mod tests {
     fn a_parser_that_does_not_start_is_a_crash() {
         assert_eq!(
             run("/nonexistent/pdftotext", &b"%PDF-1.7"[..], Vec::new()),
-            exit::CRASH
+            Exit::Crash
         );
     }
 
@@ -190,21 +214,16 @@ mod tests {
         let input = io::repeat(b'%').take(MAX_INPUT + 1);
         assert_eq!(
             run("/nonexistent/pdftotext", input, Vec::new()),
-            exit::CRASH
+            Exit::Crash
         );
     }
 
     #[test]
-    fn each_exit_code_is_below_128() {
-        for code in [
-            exit::OK,
-            exit::UNSUPPORTED_FORMAT,
-            exit::ENCRYPTED_FILE,
-            exit::MALFORMED_FILE,
-            exit::OUTPUT_TOO_LARGE,
-            exit::CRASH,
-        ] {
-            assert!((0..128).contains(&code));
+    fn each_exit_code_is_below_128_and_reads_back() {
+        for e in Exit::ALL {
+            assert!((0..128).contains(&e.code()));
+            assert_eq!(Exit::from_code(e.code()), Some(e));
         }
+        assert_eq!(Exit::from_code(1), None);
     }
 }

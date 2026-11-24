@@ -52,11 +52,11 @@ fn api_stops_when_a_storage_setting_is_wrong() {
     }
 }
 
-/// Scenario "A setting that is missing" of the spec job-queue: `strata worker` stops with an
-/// error that names the variable. Each case fails before the first connection, so the test needs
-/// no service.
+/// Scenario "A setting that is missing" of the spec job-queue, and the role of the worker:
+/// `strata worker` stops with an error that names the variable. Each case fails before the first
+/// connection, so the test needs no service.
 #[test]
-fn worker_stops_when_a_sandbox_setting_is_wrong() {
+fn worker_stops_when_a_setting_is_wrong() {
     let not_a_cgroup = std::env::temp_dir();
     let not_a_cgroup = not_a_cgroup.to_str().unwrap();
     let base = [
@@ -81,6 +81,11 @@ fn worker_stops_when_a_sandbox_setting_is_wrong() {
         ("STRATA_CGROUP", None),
         ("STRATA_EXTRACT", Some("/no/such/strata-extract")),
         ("STRATA_CGROUP", Some(not_a_cgroup)),
+        // The spec job-queue: `strata worker` connects as `strata_worker` only.
+        (
+            "STRATA_DATABASE_URL",
+            Some("postgres://strata_api@localhost:6432/strata"),
+        ),
     ];
     for (name, value) in cases {
         let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_strata"));

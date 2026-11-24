@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 use strata_core::revision::FailureClass;
-use strata_extract::exit;
+use strata_extract::Exit;
 
 use crate::sandbox::{Run, Stop};
 
@@ -42,16 +42,18 @@ pub fn outcome(run: Run) -> Outcome {
         Stop::Cancelled => Outcome::Cancelled,
         Stop::SandboxFailure => Outcome::SandboxFailure,
         Stop::Crash => Outcome::Failed(ExtractionCrash),
-        Stop::Exit(exit::OK) => match check(&run.output) {
-            Some(parts) => Outcome::Text(parts),
-            None => Outcome::Failed(InvalidOutput),
+        Stop::Exit(code) => match Exit::from_code(code) {
+            Some(Exit::Ok) => match check(&run.output) {
+                Some(parts) => Outcome::Text(parts),
+                None => Outcome::Failed(InvalidOutput),
+            },
+            Some(Exit::UnsupportedFormat) => Outcome::Failed(UnsupportedFormat),
+            Some(Exit::EncryptedFile) => Outcome::Failed(EncryptedFile),
+            Some(Exit::MalformedFile) => Outcome::Failed(MalformedFile),
+            Some(Exit::OutputTooLarge) => Outcome::Failed(ExtractionOutputTooLarge),
+            // A code that `strata-extract` does not give is a crash too.
+            Some(Exit::Crash) | None => Outcome::Failed(ExtractionCrash),
         },
-        Stop::Exit(exit::UNSUPPORTED_FORMAT) => Outcome::Failed(UnsupportedFormat),
-        Stop::Exit(exit::ENCRYPTED_FILE) => Outcome::Failed(EncryptedFile),
-        Stop::Exit(exit::MALFORMED_FILE) => Outcome::Failed(MalformedFile),
-        Stop::Exit(exit::OUTPUT_TOO_LARGE) => Outcome::Failed(ExtractionOutputTooLarge),
-        // `exit::CRASH`, and each code that `strata-extract` does not give.
-        Stop::Exit(_) => Outcome::Failed(ExtractionCrash),
     }
 }
 
@@ -153,22 +155,25 @@ mod tests {
             (Stop::Cancelled, Outcome::Cancelled),
             (Stop::SandboxFailure, Outcome::SandboxFailure),
             (
-                Stop::Exit(exit::UNSUPPORTED_FORMAT),
+                Stop::Exit(Exit::UnsupportedFormat.code()),
                 Outcome::Failed(UnsupportedFormat),
             ),
             (
-                Stop::Exit(exit::ENCRYPTED_FILE),
+                Stop::Exit(Exit::EncryptedFile.code()),
                 Outcome::Failed(EncryptedFile),
             ),
             (
-                Stop::Exit(exit::MALFORMED_FILE),
+                Stop::Exit(Exit::MalformedFile.code()),
                 Outcome::Failed(MalformedFile),
             ),
             (
-                Stop::Exit(exit::OUTPUT_TOO_LARGE),
+                Stop::Exit(Exit::OutputTooLarge.code()),
                 Outcome::Failed(ExtractionOutputTooLarge),
             ),
-            (Stop::Exit(exit::CRASH), Outcome::Failed(ExtractionCrash)),
+            (
+                Stop::Exit(Exit::Crash.code()),
+                Outcome::Failed(ExtractionCrash),
+            ),
             (Stop::Exit(1), Outcome::Failed(ExtractionCrash)),
         ];
         for (stop, expected) in cases {

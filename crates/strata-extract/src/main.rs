@@ -6,5 +6,5 @@ fn main() {
         std::io::stdin().lock(),
         std::io::stdout().lock(),
     );
-    std::process::exit(code);
+    std::process::exit(code.code());
 }

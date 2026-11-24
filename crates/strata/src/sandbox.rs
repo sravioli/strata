@@ -19,8 +19,8 @@ pub const NSJAIL: &str = "STRATA_NSJAIL";
 pub const EXTRACT: &str = "STRATA_EXTRACT";
 pub const CGROUP: &str = "STRATA_CGROUP";
 
-/// `pdftotext` of the system (`poppler-utils`). The image of the worker pins it (#43).
-pub const PDFTOTEXT: &str = "/usr/bin/pdftotext";
+// The path of `pdftotext` is a value of `strata-extract`, which runs it in the sandbox.
+use strata_extract::PDFTOTEXT;
 
 /// The calls that fail with `EPERM` (owner, 2026-11-22). The list allows each other call: #103
 /// owns the allowlist of 0007. seccomp does not see the operations of an io_uring ring, so the
@@ -128,8 +128,8 @@ impl Sandbox {
         self.limits
     }
 
-    /// The arguments of nsjail for one run in the cgroup `run`.
-    fn args(&self, run: &Path) -> Vec<OsString> {
+    /// The arguments of nsjail for one run in `cgroup`, the cgroup of the run.
+    fn args(&self, cgroup: &Path) -> Vec<OsString> {
         let l = &self.limits;
         let mib = |b: u64| (b / (1024 * 1024)).max(1).to_string();
         let mut a: Vec<OsString> = Vec::new();
@@ -158,7 +158,7 @@ impl Sandbox {
             push(&v);
         }
         a.push("--cgroupv2_mount".into());
-        a.push(run.into());
+        a.push(cgroup.into());
         // A read-only root with only the binaries and their libraries: no file of the worker.
         for dir in ["/lib", "/lib64", "/usr/lib", "/usr/lib64"] {
             let p = Path::new(dir);
@@ -171,6 +171,8 @@ impl Sandbox {
                     a.push("--bindmount_ro".into());
                     a.push(dir.into());
                 }
+                // Not a link and not a folder: this system has no such folder, so the root of
+                // the sandbox does not get it.
                 Err(_) => {}
             }
         }
@@ -195,26 +197,26 @@ impl Sandbox {
     /// when `cancel` ends.
     pub async fn run(&self, input: &[u8], cancel: impl Future<Output = ()>) -> Run {
         static N: AtomicU64 = AtomicU64::new(0);
-        let run = self.cgroup.join(format!(
+        let cgroup = self.cgroup.join(format!(
             "run-{}-{}",
             std::process::id(),
             N.fetch_add(1, Ordering::Relaxed)
         ));
-        if let Err(e) = std::fs::create_dir(&run) {
+        if let Err(e) = std::fs::create_dir(&cgroup) {
             tracing::error!(error = %e, "the cgroup of a run");
             return Run {
                 stop: Stop::SandboxFailure,
                 output: Vec::new(),
             };
         }
-        let result = self.run_in(&run, input, cancel).await;
-        remove_cgroup(&run).await;
+        let result = self.run_in(&cgroup, input, cancel).await;
+        remove_cgroup(&cgroup).await;
         result
     }
 
-    async fn run_in(&self, run: &Path, input: &[u8], cancel: impl Future<Output = ()>) -> Run {
+    async fn run_in(&self, cgroup: &Path, input: &[u8], cancel: impl Future<Output = ()>) -> Run {
         let child = Command::new(&self.nsjail)
-            .args(self.args(run))
+            .args(self.args(cgroup))
             .env_clear()
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -252,7 +254,7 @@ impl Sandbox {
                         output.extend_from_slice(&buf[..n.min(limit - output.len())]);
                         if output.len() >= limit {
                             too_large = true;
-                            kill(run);
+                            kill(cgroup);
                             break;
                         }
                     }
@@ -281,7 +283,7 @@ impl Sandbox {
         let status = match status {
             Some(s) => s,
             None => {
-                kill(run);
+                kill(cgroup);
                 // nsjail ends when its process ends. A stop of nsjail itself would leave its cgroup.
                 match tokio::time::timeout(Duration::from_secs(10), child.wait()).await {
                     Ok(s) => s,
@@ -292,7 +294,7 @@ impl Sandbox {
                 }
             }
         };
-        let oom = oom_kills(run).await > 0;
+        let oom = oom_kills(cgroup).await > 0;
         let stop = match (oom, too_large, stopped, status.map(|s| s.code())) {
             (true, ..) => Stop::Memory,
             (_, true, ..) => Stop::OutputTooLarge,
@@ -309,24 +311,24 @@ impl Sandbox {
 }
 
 /// Stops each process in the cgroup of the run (cgroup v2, `cgroup.kill`).
-fn kill(run: &Path) {
-    if let Err(e) = std::fs::write(run.join("cgroup.kill"), "1") {
+fn kill(cgroup: &Path) {
+    if let Err(e) = std::fs::write(cgroup.join("cgroup.kill"), "1") {
         tracing::error!(error = %e, "cgroup.kill");
     }
 }
 
 /// The count of processes that the kernel stopped for memory in the cgroup of the run and its
 /// children. The count stays after nsjail removes its child cgroup.
-async fn oom_kills(run: &Path) -> u64 {
+async fn oom_kills(cgroup: &Path) -> u64 {
     // The kernel can count the stop a short time after the process ends.
     for _ in 0..50 {
-        let events = std::fs::read_to_string(run.join("cgroup.events")).unwrap_or_default();
+        let events = std::fs::read_to_string(cgroup.join("cgroup.events")).unwrap_or_default();
         if events.lines().any(|l| l == "populated 0") {
             break;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    std::fs::read_to_string(run.join("memory.events"))
+    std::fs::read_to_string(cgroup.join("memory.events"))
         .unwrap_or_default()
         .lines()
         .find_map(|l| l.strip_prefix("oom_kill ")?.parse().ok())
@@ -334,21 +336,21 @@ async fn oom_kills(run: &Path) -> u64 {
 }
 
 /// Removes the cgroup of the run and the child cgroups that nsjail left.
-async fn remove_cgroup(run: &Path) {
+async fn remove_cgroup(cgroup: &Path) {
     for _ in 0..50 {
-        if let Ok(entries) = std::fs::read_dir(run) {
+        if let Ok(entries) = std::fs::read_dir(cgroup) {
             for e in entries.flatten() {
                 if e.file_type().is_ok_and(|t| t.is_dir()) {
                     let _ = std::fs::remove_dir(e.path());
                 }
             }
         }
-        if std::fs::remove_dir(run).is_ok() {
+        if std::fs::remove_dir(cgroup).is_ok() {
             return;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    tracing::error!(cgroup = %run.display(), "the cgroup of a run stays");
+    tracing::error!(cgroup = %cgroup.display(), "the cgroup of a run stays");
 }
 
 #[cfg(test)]

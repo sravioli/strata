@@ -635,7 +635,7 @@ async fn extracted(fixture: &str, content_type: &str) -> (World, Uuid) {
     let worker = Worker {
         pool: db::pool(config_in("strata_worker", &w.db), 4, db::POOL_WAIT).unwrap(),
         storage: storage(),
-        sandbox: sandbox(&strata_extract(), strata::sandbox::LIMITS),
+        sandbox: sandbox(&strata_extract(), None, strata::sandbox::LIMITS),
         settings: SETTINGS,
     };
     assert!(worker.run_one().await.unwrap().is_some(), "the job runs");
