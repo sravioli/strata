@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make dev: the walking skeleton on a laptop (tech design 0049, spec dev-services).
+# make dev: the walking skeleton locally (tech design 0049, spec dev-services).
 # It starts the services, applies the migrations, starts strata-dev, creates the tenants acme and
 # globex with their bindings, and runs strata api and strata worker on the host.
 #   scripts/dev.sh               run in the foreground. Ctrl-C stops each process that it started.

@@ -7,7 +7,7 @@
 
 ## Summary
 
-In v1, Strata issues no access tokens. It verifies the access tokens of external identity providers. An operator registers each trusted issuer in the database and binds the issuer to the tenants that it can name. The API maps the tenant value in a verified token to a Strata tenant through that binding. An account is the pair (issuer, subject). The API creates the account on the first valid request. The API fetches the signing keys of each issuer from its JWKS URL and keeps them in memory. A separate development tool issues tokens for tests and for a laptop. The server binary cannot issue tokens.
+In v1, Strata issues no access tokens. It verifies the access tokens of external identity providers. An operator registers each trusted issuer in the database and binds the issuer to the tenants that it can name. The API maps the tenant value in a verified token to a Strata tenant through that binding. An account is the pair (issuer, subject). The API creates the account on the first valid request. The API fetches the signing keys of each issuer from its JWKS URL and keeps them in memory. A separate development tool issues tokens for tests and for local use. The server binary cannot issue tokens.
 
 ## Motivation
 
@@ -28,7 +28,7 @@ The products of the owner already have identity providers. If Strata also issues
 - **Issuer binding**: a row that maps one tenant value of one trusted issuer to one Strata tenant. An issuer can name only the tenants that it has a binding for.
 - **Tenant value**: the value of the tenant claim in a token. The provider sets it. It is not a Strata `tenant_id`.
 - **Subject**: the value of the account claim in a token. It identifies one user or one client of the provider.
-- **Development issuer**: the issuer of the `strata-dev` tool. It exists only on a laptop and in tests.
+- **Development issuer**: the issuer of the `strata-dev` tool. It exists only locally and in tests.
 
 ### Example: two products
 

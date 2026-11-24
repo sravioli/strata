@@ -4,7 +4,7 @@ Issue: #49
 
 ## Why
 
-Tech design 0049 builds the walking skeleton in four changes. This is change 4, the last one. After change 3, the worker writes the text parts of a `Ready` revision, but no route reads them, and a client cannot read the status of a revision. This change adds the search route and the status routes of 0047. It also adds `make dev` and the L2 tests, so that one PDF goes from upload to a search result on a laptop (TC-49-01).
+Tech design 0049 builds the walking skeleton in four changes. This is change 4, the last one. After change 3, the worker writes the text parts of a `Ready` revision, but no route reads them, and a client cannot read the status of a revision. This change adds the search route and the status routes of 0047. It also adds `make dev` and the L2 tests, so that one PDF goes from upload to a search result locally (TC-49-01).
 
 ## What Changes
 

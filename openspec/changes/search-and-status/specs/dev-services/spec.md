@@ -22,9 +22,9 @@
 
 `make l2` SHALL start the processes of `make dev` in the background, run the L2 tests over HTTP, and stop the processes, also when a test fails. The L2 tests SHALL be test targets with the feature `l2`, so that `make rust` and `make l1` do not run them. An L2 test SHALL fail when the API does not answer. It SHALL not skip.
 
-#### Scenario: TC-49-01 From upload to search on a laptop
+#### Scenario: TC-49-01 From upload to search locally
 
-- **GIVEN** the walking skeleton on a laptop, with the tenants A and B and an account of each
+- **GIVEN** the walking skeleton locally, with the tenants A and B and an account of each
 - **WHEN** the account of A uploads a PDF with a unique word, and polls the status of the revision until it is final
 - **THEN** the status is `ready`
 - **AND** a search of A for the word returns the document

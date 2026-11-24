@@ -9,7 +9,7 @@ tech-design: docs/tech-design/0049-walking-skeleton.md
 
 ## Context and Problem Statement
 
-The accepted designs decide each part of Strata alone, and no design connects them. What is the shortest path from upload to a tenant-scoped lexical search result that runs on a laptop? What are the internal states of a revision? The issue is [#49](https://github.com/sravioli/strata/issues/49).
+The accepted designs decide each part of Strata alone, and no design connects them. What is the shortest path from upload to a tenant-scoped lexical search result that runs locally? What are the internal states of a revision? The issue is [#49](https://github.com/sravioli/strata/issues/49).
 
 ## Considered Options
 
@@ -32,7 +32,7 @@ The decision has these parts:
 * The upload routes are under `/v1/documents`.
 * Crates: `core`, `strata` (`api`, `worker`, `admin`), `strata-extract`, `strata-dev`. Libraries: axum, tokio, tokio-postgres with deadpool-postgres, refinery for the migrations, `object_store`, `jsonwebtoken`. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `rusty-s3` replaces `object_store`, because `object_store` adds a second crypto backend and fails `make deny` (owner, 2026-11-22). The benchmark ([#100](https://github.com/sravioli/strata/issues/100)) found tokio-postgres better than sqlx by more than 20 % on the tenant transaction and on the batch status read (2026-11-22).
 * Statements that do not need an earlier result go to PostgreSQL together, in one round trip.
-* Identifiers are `uuidv7()` UUIDs, and `core` uses `u128`. PgBouncer runs in transaction mode on the laptop too.
+* Identifiers are `uuidv7()` UUIDs, and `core` uses `u128`. PgBouncer runs in transaction mode locally too.
 * Each step reads or writes its rows with one statement.
 
 ### Consequences

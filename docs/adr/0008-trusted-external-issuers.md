@@ -33,7 +33,7 @@ The decision has these parts:
 * The API accepts a token lifetime of 1 hour at most. Clock tolerance is 60 seconds.
 * The API fetches the keys from the JWKS URL and keeps them in memory. Issuer rows and bindings have no cache, so a change has an effect on the next request.
 * Scopes come later. They can only make the rights of an account smaller. An operator can change the rights of an account.
-* A separate `strata-dev` tool issues tokens on a laptop and in tests. The server binary cannot issue tokens.
+* A separate `strata-dev` tool issues tokens locally and in tests. The server binary cannot issue tokens.
 
 ### Consequences
 
