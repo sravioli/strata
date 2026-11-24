@@ -1780,7 +1780,7 @@ name = "strata"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "clap",
  "deadpool-postgres",
  "http-body-util",
@@ -1832,7 +1832,7 @@ name = "strata-tests"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "clap",
  "getrandom 0.3.4",
  "jsonwebtoken",

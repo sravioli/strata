@@ -19,7 +19,7 @@ strata = { path = "../strata", features = ["testing"] }
 strata-core = { path = "../core" }
 strata-dev = { path = "../strata-dev" }
 clap = { version = "=4.6.9", features = ["derive"] }
-base64 = "=0.22.1"
+base64 = "=0.23.1"
 axum = { version = "=0.8.9", default-features = false, features = [
   "http1",
   "json",
