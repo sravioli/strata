@@ -185,9 +185,14 @@ pub async fn document(su: &Client, tenant_id: Uuid, state: &str) -> (Uuid, Uuid)
 
 /// The storage client with the development values of compose.yaml.
 pub fn storage() -> strata::storage::Storage {
+    storage_at("http://localhost:3900")
+}
+
+/// The storage client of `storage`, with a different endpoint.
+pub fn storage_at(endpoint: &str) -> strata::storage::Storage {
     use strata::storage::*;
     let vars = [
-        (ENDPOINT, "http://localhost:3900"),
+        (ENDPOINT, endpoint),
         (ACCESS_KEY, "GK000000000000000000000000"),
         (
             SECRET_KEY,

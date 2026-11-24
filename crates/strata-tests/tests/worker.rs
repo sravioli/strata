@@ -483,11 +483,20 @@ async fn tc_4_07_the_decision_for_a_job() {
 
 /// A worker with the hostile program and short values.
 fn worker(d: &Db, max_object: u64) -> Worker {
+    worker_with(d, max_object, &hostile(), storage())
+}
+
+fn worker_with(
+    d: &Db,
+    max_object: u64,
+    extract: &std::path::Path,
+    storage: strata::storage::Storage,
+) -> Worker {
     Worker {
         pool: d.worker.clone(),
-        storage: storage(),
+        storage,
         sandbox: sandbox(
-            &hostile(),
+            extract,
             Limits {
                 wall: Duration::from_secs(10),
                 ..LIMITS
@@ -667,4 +676,118 @@ async fn a_crash_runs_one_more_time() {
         ("Failed", Some("ExtractionCrash"))
     );
     assert_eq!(row(&d.su, id).await.0, "Done");
+}
+
+/// A storage endpoint that accepts each connection and never answers.
+async fn silent_endpoint() -> String {
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = l.local_addr().unwrap();
+    tokio::spawn(async move {
+        let mut open = Vec::new();
+        while let Ok((s, _)) = l.accept().await {
+            open.push(s);
+        }
+    });
+    format!("http://{addr}")
+}
+
+/// A storage endpoint that closes each connection at once.
+async fn closing_endpoint() -> String {
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = l.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((s, _)) = l.accept().await {
+            drop(s);
+        }
+    });
+    format!("http://{addr}")
+}
+
+/// A second claim of the job after `wait`: the lease of the first worker is lost.
+async fn steal_after(su: &Client, id: Uuid, wait: Duration) -> Uuid {
+    tokio::time::sleep(wait).await;
+    su.query_one(
+        "update jobs set lease_token = gen_random_uuid() where job_id = $1 returning lease_token",
+        &[&id],
+    )
+    .await
+    .unwrap()
+    .get(0)
+}
+
+/// The state and the token of a job.
+async fn lease(su: &Client, id: Uuid) -> (String, Option<Uuid>) {
+    let r = su
+        .query_one(
+            "select state, lease_token from jobs where job_id = $1",
+            &[&id],
+        )
+        .await
+        .unwrap();
+    (r.get(0), r.get(1))
+}
+
+/// A lease lost during the read of the object: the worker writes nothing.
+#[tokio::test]
+async fn a_lease_lost_during_the_read() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    let w = worker_with(&d, 100, &hostile(), storage_at(&silent_endpoint().await));
+    let (end, token) = tokio::join!(
+        w.run_one(),
+        steal_after(&d.su, id, Duration::from_millis(300))
+    );
+    assert_eq!(end.unwrap(), Some(End::LeaseLost));
+    assert_eq!(lease(&d.su, id).await, ("Running".into(), Some(token)));
+    assert_eq!(rev(&d.su, doc, 1).await.0, "Uploaded");
+}
+
+/// A lease lost during the run: the sandbox stops, and the worker writes nothing.
+#[tokio::test]
+async fn a_lease_lost_during_the_run() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, b"forever").await;
+    let w = worker(&d, 100);
+    let started = std::time::Instant::now();
+    let (end, token) = tokio::join!(
+        w.run_one(),
+        steal_after(&d.su, id, Duration::from_millis(500))
+    );
+    assert_eq!(end.unwrap(), Some(End::LeaseLost));
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "before the time limit"
+    );
+    assert_eq!(lease(&d.su, id).await, ("Running".into(), Some(token)));
+    let (state, mark, ..) = rev(&d.su, doc, 1).await;
+    assert_eq!((state.as_str(), mark), ("Uploaded", false));
+}
+
+/// An error of the storage is a failure of the job, with no change to the revision.
+#[tokio::test]
+async fn an_error_of_the_storage() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    let w = worker_with(&d, 100, &hostile(), storage_at(&closing_endpoint().await));
+    w.run_one().await.unwrap().unwrap();
+    assert_failed_run(&d, id, doc).await;
+}
+
+/// nsjail cannot start the sandbox: a failure of the job, with no change to the revision
+/// (owner, 2026-11-22).
+#[tokio::test]
+async fn a_failure_of_the_sandbox_fails_the_job() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, b"x").await;
+    let not_a_program =
+        std::path::PathBuf::from(format!("{}/fixtures/README.md", env!("CARGO_MANIFEST_DIR")));
+    let w = worker_with(&d, 100, &not_a_program, storage());
+    w.run_one().await.unwrap().unwrap();
+    assert_failed_run(&d, id, doc).await;
 }
