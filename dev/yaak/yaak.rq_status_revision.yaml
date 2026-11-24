@@ -1,0 +1,10 @@
+type: http_request
+model: http_request
+id: rq_status_revision
+workspaceId: wk_strata
+folderId: fl_new_revision
+name: Status
+description: 200 with state uploading, processing, ready, failed or superseded. Retry-After while the state is not final. 404 for a revision of a different tenant.
+sortPriority: 3
+method: GET
+url: ${[ base_url ]}/v1/documents/${[ response.body.path(request='rq_start_revision', path='$.document_id') ]}/revisions/${[ response.body.path(request='rq_start_revision', path='$.revision') ]}
