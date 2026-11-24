@@ -16,7 +16,6 @@ Makes the behaviour of `strata api` and `strata worker` visible as OpenTelemetry
 - **WHEN** `strata api` and `strata worker` start and serve a request and a job
 - **THEN** they open no connection for telemetry
 - **AND** the stderr log is as before
-- **PENDING** the L1 test comes with the tasks of this change.
 
 ### Requirement: The telemetry never breaks a request
 
@@ -29,7 +28,6 @@ An export that fails SHALL write an error to stderr and SHALL not change the ans
 - **THEN** each request gets the same answer as with telemetry off
 - **AND** the job ends `Done`
 - **AND** at SIGTERM, each service stops in less than 5 seconds
-- **PENDING** the L1 test comes with the tasks of this change.
 
 ### Requirement: The API makes one span for each request
 
@@ -52,7 +50,6 @@ The finish SHALL write the trace context of its span on the job that it queues. 
 - **THEN** the job row has a `traceparent` with the trace ID of the finish request
 - **AND** the span of the job, its attempt and the extraction have the same trace ID
 - **AND** the span of the job is a child of the span of the finish
-- **PENDING** the L1 test comes with the tasks of this change.
 
 ### Requirement: The API records its metrics
 
@@ -73,7 +70,6 @@ The worker SHALL record `strata.jobs.waiting` and `strata.jobs.oldest_waiting_ag
 - **GIVEN** the exporters write to memory
 - **WHEN** two tenants each send requests to each route and each run a job
 - **THEN** no metric data point has an attribute that holds a tenant ID, a document ID, an account ID or a revision number
-- **PENDING** the L1 test comes with the tasks of this change.
 
 ### Requirement: No content and no personal data in the telemetry
 
@@ -85,7 +81,6 @@ No span attribute, log record or metric attribute SHALL hold document text or th
 - **WHEN** an account uploads the PDF, the worker extracts it, and the account searches for the word
 - **AND** the account sends a request with a token that has an `act` claim
 - **THEN** no span attribute, no log record and no metric attribute holds the word, the `sub` or `act.sub` of the token, or the signed upload URL
-- **PENDING** the L1 test comes with the tasks of this change.
 
 ### Requirement: Local Grafana shows the three signals
 

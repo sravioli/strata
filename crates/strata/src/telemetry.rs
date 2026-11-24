@@ -358,6 +358,9 @@ pub struct ForTests {
     meter: SdkMeterProvider,
 }
 
+#[cfg(feature = "testing")]
+pub use opentelemetry_sdk::trace::SpanData;
+
 /// The same layers as `init`, with exporters that write to memory.
 #[cfg(feature = "testing")]
 pub fn for_tests() -> ForTests {
@@ -400,6 +403,42 @@ impl ForTests {
         let _ = self.tracer.force_flush();
         let _ = self.logger.force_flush();
         let _ = self.meter.force_flush();
+    }
+
+    /// The spans that ended.
+    pub fn spans(&self) -> Vec<SpanData> {
+        self.spans.get_finished_spans().unwrap_or_default()
+    }
+
+    /// Each data point of each exported metric: its name and its attributes as text.
+    pub fn metric_points(&self) -> Vec<(String, Vec<(String, String)>)> {
+        use opentelemetry_sdk::metrics::data::{AggregatedMetrics as A, MetricData as M};
+        fn kv<'a>(a: impl Iterator<Item = &'a KeyValue>) -> Vec<(String, String)> {
+            a.map(|kv| (kv.key.to_string(), kv.value.to_string()))
+                .collect()
+        }
+        fn points<T>(d: &M<T>) -> Vec<Vec<(String, String)>> {
+            match d {
+                M::Gauge(g) => g.data_points().map(|p| kv(p.attributes())).collect(),
+                M::Sum(s) => s.data_points().map(|p| kv(p.attributes())).collect(),
+                M::Histogram(h) => h.data_points().map(|p| kv(p.attributes())).collect(),
+                M::ExponentialHistogram(h) => h.data_points().map(|p| kv(p.attributes())).collect(),
+            }
+        }
+        let mut out = Vec::new();
+        for rm in self.metric_data.get_finished_metrics().unwrap_or_default() {
+            for sm in rm.scope_metrics() {
+                for m in sm.metrics() {
+                    let pts = match m.data() {
+                        A::F64(d) => points(d),
+                        A::U64(d) => points(d),
+                        A::I64(d) => points(d),
+                    };
+                    out.extend(pts.into_iter().map(|p| (m.name().to_owned(), p)));
+                }
+            }
+        }
+        out
     }
 }
 

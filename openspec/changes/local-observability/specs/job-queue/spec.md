@@ -25,4 +25,3 @@
 - **GIVEN** a job row with null
 - **WHEN** the worker claims it
 - **THEN** the job runs, and its span is a root span
-- **PENDING** the L1 test comes with the tasks of this change.

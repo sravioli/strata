@@ -603,7 +603,8 @@ async fn the_global_tables_hold_no_tenant_content() {
             "lease_until",
             "lease_token",
             "ended_at",
-            "last_error"
+            "last_error",
+            "traceparent"
         ]
     );
     assert_eq!(columns(&c, "upload_slots").await, ["slot_id", "created_at"]);

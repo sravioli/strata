@@ -537,7 +537,7 @@ impl std::io::Write for Log {
 /// TC-21-13
 #[tokio::test]
 async fn the_actor_is_in_the_log_and_the_response_does_not_change() {
-    let (_su, _a, p1, api) = setup().await;
+    let (su, _a, p1, api) = setup().await;
     let log = Log::default();
     let writer = log.clone();
     let subscriber = tracing_subscriber::fmt()
@@ -552,7 +552,20 @@ async fn the_actor_is_in_the_log_and_the_response_does_not_change() {
     let (s2, _, b2) = api.get(&plain).await;
     assert_eq!((s1, b1), (s2, b2));
     let text = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
-    assert!(text.contains(&actor), "{text}");
+    // The account ID of the caller, not `act.sub` (0021, amended in #133).
+    let account: Uuid = su
+        .query_one(
+            "select account_id from accounts where issuer_id = $1 and subject = 'u-1'",
+            &[&p1.id],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert!(
+        text.contains(&format!("account_id={account}")) && text.contains("request for an actor"),
+        "{text}"
+    );
+    assert!(!text.contains(&actor), "{text}");
 }
 
 /// TC-21-14 and TC-21-16
