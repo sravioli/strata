@@ -9,6 +9,7 @@ use axum::routing::{get, post};
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
+use crate::query::query;
 use crate::status;
 use crate::storage::Storage;
 use crate::upload::{self, Bounds};
@@ -61,6 +62,7 @@ pub fn router(state: AppState) -> Router {
             "/v1/documents/{document_id}/revisions/{revision}",
             get(status::one),
         )
+        .route("/v1/revisions", query(status::batch))
         .with_state(state)
 }
 

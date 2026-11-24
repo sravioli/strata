@@ -91,7 +91,6 @@ A revision that does not exist, a revision of a different tenant, and a path wit
 - **THEN** the response is equal to the response for a revision that does not exist
 - **WHEN** the account names it in a batch request
 - **THEN** the list omits it
-- **PENDING** Task 3.3 adds the test.
 
 ### Requirement: The batch status
 
@@ -102,14 +101,12 @@ A revision that does not exist, a revision of a different tenant, and a path wit
 - **GIVEN** a batch request with 101 identifiers, or with an identifier that is not valid
 - **WHEN** a client sends it
 - **THEN** the API answers `400`
-- **PENDING** Task 3.3 adds the test.
 
 #### Scenario: TC-47-08 A batch with one status that is not final
 
 - **GIVEN** a batch request with one revision that is `processing` and one that is `ready`
 - **WHEN** a client sends it
 - **THEN** the response has two entries and `Retry-After`
-- **PENDING** Task 3.3 adds the test.
 
 #### Scenario: A repeated entry
 
@@ -130,7 +127,6 @@ The body rules of 0047 SHALL apply to the batch route: no `Content-Type` gives `
 - **THEN** the API answers `415` with `Accept-Query: application/json`
 - **GIVEN** a batch request with a body larger than 16 KB
 - **THEN** the API answers `413`
-- **PENDING** Task 3.3 adds the test.
 
 ### Requirement: The batch path answers only QUERY
 

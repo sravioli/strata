@@ -70,7 +70,7 @@ fn api_text() -> String {
 #[test]
 fn each_route_has_a_test_with_the_identifiers_of_a_different_tenant() {
     let routes = routes(&api_text());
-    assert_eq!(routes.len(), 4, "{routes:?}");
+    assert_eq!(routes.len(), 5, "{routes:?}");
     assert_eq!(
         missing(&routes, &markers(&tests_text())),
         Vec::<Route>::new()

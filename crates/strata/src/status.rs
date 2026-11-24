@@ -130,6 +130,82 @@ async fn read(
     })
 }
 
+/// The most revisions that one batch request names (0047).
+pub const MAX_BATCH: usize = 100;
+
+/// The identifiers of a batch body `{"revisions": [{"document_id": …, "revision": …}, …]}`, in
+/// their order, each one time. `None` for a body that is not valid: another field, an entry that
+/// is not valid, no entry, or more than 100 different entries.
+pub fn parse_batch(v: &Value) -> Option<Vec<(Uuid, i32)>> {
+    let body = v.as_object().filter(|o| o.len() == 1)?;
+    let entries = body.get("revisions")?.as_array()?;
+    let mut ids: Vec<(Uuid, i32)> = Vec::new();
+    for e in entries {
+        let e = e.as_object().filter(|o| o.len() == 2)?;
+        let document_id = e.get("document_id")?.as_str()?.parse::<Uuid>().ok()?;
+        let revision = i32::try_from(e.get("revision")?.as_i64()?).ok()?;
+        if !ids.contains(&(document_id, revision)) {
+            ids.push((document_id, revision));
+        }
+        if ids.len() > MAX_BATCH {
+            return None;
+        }
+    }
+    (!ids.is_empty()).then_some(ids)
+}
+
+/// Why a batch request stops before its read.
+enum BatchStop {
+    Refused(crate::query::Refused),
+    Reject(Reject),
+}
+
+impl IntoResponse for BatchStop {
+    fn into_response(self) -> Response {
+        match self {
+            BatchStop::Refused(r) => r.into_response(),
+            BatchStop::Reject(r) => r.into_response(),
+        }
+    }
+}
+
+impl From<Reject> for BatchStop {
+    fn from(r: Reject) -> Self {
+        BatchStop::Reject(r)
+    }
+}
+
+/// `QUERY /v1/revisions`: the status of up to 100 revisions. Each response of the route has
+/// `Accept-Query: application/json` (0047).
+pub async fn batch(State(s): State<AppState>, req: Request) -> Response {
+    let mut r = no_store(match read_batch(&s, req).await {
+        Ok(r) => r,
+        Err(stop) => stop.into_response(),
+    });
+    r.headers_mut().insert(
+        header::HeaderName::from_static("accept-query"),
+        HeaderValue::from_static("application/json"),
+    );
+    r
+}
+
+async fn read_batch(s: &AppState, req: Request) -> Result<Response, BatchStop> {
+    let (mut parts, v) = crate::query::read(req).await.map_err(BatchStop::Refused)?;
+    let Some(ids) = parse_batch(&v) else {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    };
+    let Caller(id) = Caller::from_request_parts(&mut parts, s).await?;
+    let tx = read_tx(id).await?;
+    let found = q::read_many(tx, &ids).await.map_err(Reject::from)?;
+    let open = found.iter().any(|st| !is_final(st.r.state));
+    let list: Vec<Value> = found.iter().map(status_json).collect();
+    Ok(with_retry_after(
+        (StatusCode::OK, Json(json!({ "revisions": list }))).into_response(),
+        open,
+        s.status_retry_after,
+    ))
+}
+
 /// The setting of the `Retry-After` of a status that is not final, in seconds.
 pub const RETRY_AFTER_VAR: &str = "STRATA_STATUS_RETRY_AFTER";
 /// The default of 0047.
@@ -208,6 +284,45 @@ mod tests {
         assert_eq!(ready["document_id"], Uuid::nil().to_string());
         // RFC 3339, UTC, whole seconds.
         assert_eq!(ready["updated_at"], "2026-11-18T11:15:02Z");
+    }
+
+    fn entry(n: u128, r: i64) -> Value {
+        json!({"document_id": Uuid::from_u128(n).to_string(), "revision": r})
+    }
+
+    #[test]
+    fn the_parse_of_the_batch_body() {
+        let one = json!({"revisions": [entry(1, 1)]});
+        assert_eq!(parse_batch(&one), Some(vec![(Uuid::from_u128(1), 1)]));
+        // A repeated entry counts one time, and the order stays.
+        let repeated = json!({"revisions": [entry(2, 1), entry(1, 1), entry(2, 1)]});
+        assert_eq!(
+            parse_batch(&repeated),
+            Some(vec![(Uuid::from_u128(2), 1), (Uuid::from_u128(1), 1)])
+        );
+        let hundred: Vec<Value> = (0..100).map(|n| entry(n, 1)).collect();
+        assert_eq!(
+            parse_batch(&json!({"revisions": hundred})).map(|v| v.len()),
+            Some(100)
+        );
+        let many: Vec<Value> = (0..101).map(|n| entry(n, 1)).collect();
+        // 101 entries of which two are the same are 100 different revisions.
+        let mut with_repeat: Vec<Value> = (0..100).map(|n| entry(n, 1)).collect();
+        with_repeat.push(entry(0, 1));
+        assert!(parse_batch(&json!({"revisions": with_repeat})).is_some());
+        for bad in [
+            json!({"revisions": many}),
+            json!({"revisions": []}),
+            json!({"revisions": [entry(1, 1)], "x": 1}),
+            json!({"revisions": [{"document_id": "not-a-uuid", "revision": 1}]}),
+            json!({"revisions": [{"document_id": Uuid::nil().to_string()}]}),
+            json!({"revisions": [{"document_id": Uuid::nil().to_string(), "revision": 1.5}]}),
+            json!({"revisions": [{"document_id": Uuid::nil().to_string(), "revision": 1, "y": 2}]}),
+            json!({"revisions": [{"document_id": Uuid::nil().to_string(), "revision": 4_294_967_296_i64}]}),
+            json!([entry(1, 1)]),
+        ] {
+            assert_eq!(parse_batch(&bad), None, "{bad}");
+        }
     }
 
     #[test]

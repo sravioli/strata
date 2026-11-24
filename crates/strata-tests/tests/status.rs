@@ -210,3 +210,134 @@ async fn tc_47_06_a_revision_of_tenant_b() {
     // B reads its own revision.
     assert_eq!(w.get(&w.b, &path(of_b, 1)).await.status, StatusCode::OK);
 }
+
+// ---- The batch status.
+
+fn entry(d: Uuid, r: i32) -> serde_json::Value {
+    serde_json::json!({"document_id": d.to_string(), "revision": r})
+}
+
+fn batch(entries: Vec<serde_json::Value>) -> serde_json::Value {
+    serde_json::json!({ "revisions": entries })
+}
+
+/// Cross-tenant: `QUERY /v1/revisions`. TC-47-06 (the batch): the list omits a revision of B.
+#[tokio::test]
+async fn tc_47_06_the_batch_omits_a_revision_of_tenant_b() {
+    let w = world().await;
+    let of_a = revision(&w.su, w.a.id, "Ready").await;
+    let of_b = revision(&w.su, w.b.id, "Ready").await;
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(of_b, 1), entry(of_a, 1)]),
+        )
+        .await;
+    assert_eq!(a.status, StatusCode::OK);
+    let list = a.body["revisions"].as_array().unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0]["document_id"], of_a.to_string());
+    let only_b = w
+        .query(&w.a, "/v1/revisions", &batch(vec![entry(of_b, 1)]))
+        .await;
+    assert_eq!(only_b.body["revisions"].as_array().unwrap().len(), 0);
+}
+
+/// TC-47-07
+#[tokio::test]
+async fn tc_47_07_a_batch_that_is_not_valid() {
+    let w = world().await;
+    let many: Vec<_> = (0..101).map(|n| entry(Uuid::from_u128(n), 1)).collect();
+    assert_eq!(
+        w.query(&w.a, "/v1/revisions", &batch(many)).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    let bad = serde_json::json!({"revisions": [{"document_id": "x", "revision": 1}]});
+    assert_eq!(
+        w.query(&w.a, "/v1/revisions", &bad).await.status,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+/// TC-47-08
+#[tokio::test]
+async fn tc_47_08_a_batch_with_one_status_that_is_not_final() {
+    let w = world().await;
+    let open = revision(&w.su, w.a.id, "Uploaded").await;
+    let done = revision(&w.su, w.a.id, "Ready").await;
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(open, 1), entry(done, 1)]),
+        )
+        .await;
+    let list = a.body["revisions"].as_array().unwrap();
+    assert_eq!(list.len(), 2);
+    assert_eq!(
+        (list[0]["state"].as_str(), list[1]["state"].as_str()),
+        (Some("processing"), Some("ready"))
+    );
+    assert_eq!(a.headers["retry-after"], "2");
+    assert_eq!(a.headers["cache-control"], "no-store");
+    assert_eq!(a.headers["accept-query"], "application/json");
+    let final_only = w
+        .query(&w.a, "/v1/revisions", &batch(vec![entry(done, 1)]))
+        .await;
+    assert!(final_only.headers.get("retry-after").is_none());
+}
+
+/// TC-47-15
+#[tokio::test]
+async fn tc_47_15_the_body_rules_of_the_batch() {
+    let w = world().await;
+    let body = batch(vec![entry(Uuid::from_u128(1), 1)])
+        .to_string()
+        .into_bytes();
+    let none = w
+        .send(&w.a, "QUERY", "/v1/revisions", None, body.clone())
+        .await;
+    assert_eq!(none.status, StatusCode::BAD_REQUEST);
+    let text = w
+        .send(&w.a, "QUERY", "/v1/revisions", Some("text/plain"), body)
+        .await;
+    assert_eq!(text.status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    assert_eq!(text.headers["accept-query"], "application/json");
+    let large = vec![b' '; 16 * 1024 + 1];
+    let large = w
+        .send(
+            &w.a,
+            "QUERY",
+            "/v1/revisions",
+            Some("application/json"),
+            large,
+        )
+        .await;
+    assert_eq!(large.status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// Scenario "A repeated entry".
+#[tokio::test]
+async fn a_repeated_entry() {
+    let w = world().await;
+    let d = revision(&w.su, w.a.id, "Ready").await;
+    let a = w
+        .query(
+            &w.a,
+            "/v1/revisions",
+            &batch(vec![entry(d, 1), entry(d, 1)]),
+        )
+        .await;
+    assert_eq!(a.body["revisions"].as_array().unwrap().len(), 1);
+}
+
+/// Scenario "A GET to the batch path".
+#[tokio::test]
+async fn a_get_to_the_batch_path() {
+    let w = world().await;
+    let a = w.get(&w.a, "/v1/revisions").await;
+    assert_eq!(a.status, StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(a.headers["allow"], "QUERY");
+    assert_eq!(a.headers["accept-query"], "application/json");
+}
