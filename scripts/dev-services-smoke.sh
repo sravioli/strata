@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests the services of compose.yaml (spec dev-services). Run after: $COMPOSE up --wait
+# Tests the services of compose.yaml (spec dev-services). Run after: $COMPOSE up -d --wait
 # Needs psql, the aws CLI, python3, and docker compose or podman compose. COMPOSE names the
 # command (make l1 sets it). The default is docker compose.
 set -euo pipefail
