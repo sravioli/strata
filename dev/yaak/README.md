@@ -12,7 +12,7 @@ In Yaak, select **Open folder** and choose `dev/yaak`. Yaak keeps the workspace 
 make dev
 ```
 
-It starts the services, the API on `127.0.0.1:8080` and the worker, and binds the tenant values `acme` and `globex`. Set `base_url` to `http://127.0.0.1:8080`.
+It starts the services, the API on `127.0.0.1:8080` and the worker, and binds the tenant values `acme` and `globex`. `base_url` in "Global Variables" is `http://127.0.0.1:8080`. Keep it as plain text: a value in Yaak's encrypted form opens only on the machine that encrypted it.
 
 ## Get a token
 
