@@ -139,6 +139,8 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
+      # The L0 tests of strata-extract run the real pdftotext.
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
       - run: make rust
 
   deny:
@@ -228,7 +230,22 @@ jobs:
           toolchain: stable
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
-      - run: make l1
+      - name: Install pdftotext and the build dependencies of nsjail
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends poppler-utils bison flex pkg-config \
+            protobuf-compiler libprotobuf-dev libnl-route-3-dev
+      - run: make "$PWD/.tools/bin/nsjail"
+      - run: scripts/ci-nsjail-userns.sh .tools/bin/nsjail
+      # A delegated cgroup for the jails (scripts/in-cgroup.sh). Each step starts a new shell,
+      # so the move of the shell into the cgroup and make l1 are in one step.
+      - name: make l1 in a delegated cgroup
+        run: |
+          sudo mkdir /sys/fs/cgroup/strata
+          sudo chown -R "$USER" /sys/fs/cgroup/strata
+          mkdir /sys/fs/cgroup/strata/main
+          echo $$ | sudo tee /sys/fs/cgroup/strata/main/cgroup.procs >/dev/null
+          CGROUP_ROOT=/sys/fs/cgroup/strata make l1
 
   # Make only this job a required check. A skipped job counts as passed.
   ci-ok:

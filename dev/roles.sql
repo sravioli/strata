@@ -31,3 +31,9 @@ begin
   );
 end
 $$;
+
+-- The match of a full-text query (`tsv @@ query`) reveals nothing of a row
+-- other than its result. Without this mark, PostgreSQL never uses the GIN
+-- index of text_parts under the policy of tech design 0003 (tech design 0049,
+-- owner 2026-11-22). Only a superuser can set it, in each database.
+alter function ts_match_vq(tsvector, tsquery) leakproof;

@@ -23,9 +23,9 @@ RANGE ?= origin/main..HEAD
 check: lint prose test-cases rust
 
 # Toolchains that manage themselves stay out of .tools/: setup only checks for them.
-setup: tools $(BIN)/cargo-llvm-cov $(BIN)/cargo-deny $(BIN)/cog $(BIN)/betterleaks $(AENEAS)/charon
+setup: tools $(BIN)/cargo-llvm-cov $(BIN)/cargo-deny $(BIN)/cog $(BIN)/betterleaks $(BIN)/nsjail $(AENEAS)/charon
 	@for c in cargo rustup; do command -v $$c >/dev/null || { echo "missing: $$c (make check needs it)" >&2; exit 1; }; done
-	@for t in verify:lake l1:docker sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
+	@for t in verify:lake l1:docker rust:pdftotext sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
 	@echo "setup ok"
 
 # The pinned lint and SQL tools (hashes in $(REQ)). Reinstalls when a pin changes.
@@ -38,6 +38,13 @@ $(TOOLS)/stamp: $(REQ)/tools.txt $(REQ)/package.json $(REQ)/package-lock.json
 	cp $(REQ)/package.json $(REQ)/package-lock.json $(TOOLS)/npm/
 	npm ci --prefix $(TOOLS)/npm --ignore-scripts --no-audit --no-fund --silent
 	touch $@
+
+# nsjail has no release binaries: a build of the pinned tag and commit ($(REQ)/tools.env).
+# Its build needs g++, make, pkg-config, bison, flex, protobuf and libnl-route-3.
+$(BIN)/nsjail: $(REQ)/tools.env scripts/install-nsjail.sh
+	@for c in g++ make pkg-config bison flex protoc; do command -v $$c >/dev/null || echo "warning: no $$c, so the build of nsjail can fail" >&2; done
+	@pkg-config --exists protobuf libnl-route-3.0 || echo "warning: no protobuf or libnl-route-3.0 headers, so the build of nsjail can fail" >&2
+	scripts/install-nsjail.sh $(BIN)
 
 # The pinned release binaries (URL and SHA-256 in $(REQ)/tools.env).
 $(BIN)/%: $(REQ)/tools.env scripts/install-tool.sh
@@ -94,10 +101,11 @@ test-cases:
 
 # L1: tests against the services of compose.yaml. The services stay up, so local data stays.
 # L0 and L1 run together under coverage. The floor is in CONSTRAINTS.md.
-l1: $(BIN)/cargo-llvm-cov
+# The tests run in a delegated cgroup (scripts/in-cgroup.sh), for the limits of the sandbox.
+l1: $(BIN)/cargo-llvm-cov $(BIN)/nsjail
 	docker compose up --wait
 	scripts/dev-services-smoke.sh
-	cargo llvm-cov --workspace --locked --all-features --fail-under-lines 90
+	scripts/in-cgroup.sh cargo llvm-cov --workspace --locked --all-features --fail-under-lines 90
 
 commits: $(BIN)/cog
 	cog check $(RANGE)

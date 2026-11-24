@@ -32,6 +32,8 @@ struct Tenant {
 struct World {
     su: Client,
     app: Router,
+    /// The database of a world in a new database, or empty.
+    db: String,
     a: Tenant,
     b: Tenant,
     _key: DevKey,
@@ -81,6 +83,7 @@ async fn world_in(su: Client, pool: Pool, bounds: Bounds) -> World {
     let a = tenants.pop().unwrap();
     World {
         su,
+        db: String::new(),
         app: app(pool, bounds),
         a,
         b,
@@ -96,7 +99,9 @@ async fn world() -> World {
 async fn world_in_new_database(bounds: Bounds) -> World {
     let db = new_database(&connect(&superuser()).await).await;
     let pool = db::pool(config_in("strata_api", &db), 4, db::POOL_WAIT).unwrap();
-    world_in(connect(&config_in("strata", &db)).await, pool, bounds).await
+    let mut w = world_in(connect(&config_in("strata", &db)).await, pool, bounds).await;
+    w.db = db;
+    w
 }
 
 struct Answer {
@@ -603,4 +608,148 @@ fn unique_number() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos()
+}
+
+// ---- From the upload to the end of the job (task 6.1).
+
+/// Uploads a fixture with `content_type` through the routes, finishes it, and runs its job with
+/// the real `strata-extract` and `pdftotext` in the sandbox. Gives the world and the document.
+async fn extracted(fixture: &str, content_type: &str) -> (World, Uuid) {
+    use strata::worker::{SETTINGS, Worker};
+    // A new database: the worker claims any due job.
+    let w = world_in_new_database(Bounds::default()).await;
+    let bytes =
+        std::fs::read(format!("{}/fixtures/{fixture}", env!("CARGO_MANIFEST_DIR"))).unwrap();
+    let a = w
+        .start(
+            &w.a,
+            None,
+            json!({"file_name": "report.pdf", "content_type": content_type, "size": bytes.len()}),
+        )
+        .await;
+    assert_eq!(a.status, StatusCode::CREATED, "{}", a.body);
+    let d: Uuid = a.body["document_id"].as_str().unwrap().parse().unwrap();
+    let url: url::Url = a.body["upload_url"].as_str().unwrap().parse().unwrap();
+    assert_eq!(put(&url, &bytes, bytes.len(), Duration::ZERO).await, 200);
+    assert_accepted(&w.finish(&w.a, d, 1).await, d, 1);
+    let worker = Worker {
+        pool: db::pool(config_in("strata_worker", &w.db), 4, db::POOL_WAIT).unwrap(),
+        storage: storage(),
+        sandbox: sandbox(&strata_extract(), None, strata::sandbox::LIMITS),
+        settings: SETTINGS,
+    };
+    assert!(worker.run_one().await.unwrap().is_some(), "the job runs");
+    (w, d)
+}
+
+impl World {
+    /// The state of the job of revision 1, `no_text`, and the (page, text) of each text part.
+    async fn result(&self, d: Uuid) -> (String, bool, Vec<(i32, String)>) {
+        let job: String = self
+            .su
+            .query_one("select state from jobs where document_id = $1", &[&d])
+            .await
+            .unwrap()
+            .get(0);
+        let no_text: bool = self
+            .su
+            .query_one(
+                "select no_text from revisions where document_id = $1 and revision = 1",
+                &[&d],
+            )
+            .await
+            .unwrap()
+            .get(0);
+        let parts = self
+            .su
+            .query(
+                "select location_number, part_text from text_parts \
+                 where document_id = $1 and revision = 1 order by part",
+                &[&d],
+            )
+            .await
+            .unwrap()
+            .iter()
+            .map(|r| (r.get(0), r.get(1)))
+            .collect();
+        (job, no_text, parts)
+    }
+}
+
+fn two_pages() -> Vec<(i32, String)> {
+    vec![(1, "alpha page one".into()), (2, "bravo page two".into())]
+}
+
+/// Scenario "The known text of a PDF".
+#[tokio::test]
+async fn the_known_text_of_a_pdf() {
+    let (w, d) = extracted("two-pages.pdf", "application/pdf").await;
+    assert_eq!(w.state(d, 1).await, ("Ready".into(), None));
+    assert_eq!(w.result(d).await, ("Done".into(), false, two_pages()));
+    let ready: Option<i32> =
+        w.su.query_one(
+            "select ready_revision from documents where document_id = $1",
+            &[&d],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(ready, Some(1));
+}
+
+/// Scenario "A PDF with a content type that is not PDF".
+#[tokio::test]
+async fn a_pdf_with_a_content_type_that_is_not_pdf() {
+    let (w, d) = extracted("two-pages.pdf", "text/plain").await;
+    assert_eq!(w.state(d, 1).await, ("Ready".into(), None));
+    assert_eq!(w.result(d).await.2, two_pages());
+}
+
+/// TC-7-07, and the scenario "A format that is not PDF".
+#[tokio::test]
+async fn tc_7_07_a_zip_archive_with_the_name_report_pdf() {
+    let (w, d) = extracted("report.pdf", "application/pdf").await;
+    assert_eq!(
+        w.state(d, 1).await,
+        ("Failed".into(), Some("UnsupportedFormat".into()))
+    );
+    assert_eq!(w.result(d).await, ("Done".into(), false, vec![]));
+}
+
+/// TC-7-08
+#[tokio::test]
+async fn tc_7_08_a_scanned_pdf_with_no_text() {
+    let (w, d) = extracted("scan-no-text.pdf", "application/pdf").await;
+    assert_eq!(w.state(d, 1).await, ("Ready".into(), None), "not Failed");
+    assert_eq!(w.result(d).await, ("Done".into(), true, vec![]), "NoText");
+}
+
+/// Scenario "A PDF with a user password".
+#[tokio::test]
+async fn a_pdf_with_a_user_password() {
+    let (w, d) = extracted("user-password.pdf", "application/pdf").await;
+    assert_eq!(
+        w.state(d, 1).await,
+        ("Failed".into(), Some("EncryptedFile".into()))
+    );
+    assert_eq!(w.result(d).await, ("Done".into(), false, vec![]));
+}
+
+/// Scenario "A PDF with only an owner password".
+#[tokio::test]
+async fn a_pdf_with_only_an_owner_password() {
+    let (w, d) = extracted("owner-password.pdf", "application/pdf").await;
+    assert_eq!(w.state(d, 1).await, ("Ready".into(), None));
+    assert_eq!(w.result(d).await.2, two_pages());
+}
+
+/// Scenario "A PDF with a broken structure".
+#[tokio::test]
+async fn a_pdf_with_a_broken_structure() {
+    let (w, d) = extracted("broken.pdf", "application/pdf").await;
+    assert_eq!(
+        w.state(d, 1).await,
+        ("Failed".into(), Some("MalformedFile".into()))
+    );
+    assert_eq!(w.result(d).await, ("Done".into(), false, vec![]));
 }

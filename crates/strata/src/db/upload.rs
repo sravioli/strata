@@ -29,7 +29,7 @@ const START_REVISION: &str = "with d as (update documents set last_revision = la
      select $1, d.document_id, d.last_revision, $2, $3, $4, s.slot_id from d, s \
      returning document_id, revision";
 
-const LOCK_REVISION: &str = "select state, retry_mark, error_class, no_text, slot_id \
+pub(super) const LOCK_REVISION: &str = "select state, retry_mark, error_class, no_text, slot_id \
      from revisions where tenant_id = $1 and document_id = $2 and revision = $3 for update";
 
 /// The write of a finish that leaves `AwaitingUpload`: the result of `revision_step`, the removal
@@ -118,17 +118,22 @@ pub async fn lock_revision(
     else {
         return Ok(None);
     };
-    let state: &str = row.get(0);
-    let class: Option<&str> = row.get(2);
     Ok(Some(Locked {
-        revision: Revision {
-            state: parse_state(state),
-            retry_mark: row.get(1),
-            error_class: class.map(parse_class),
-            no_text: row.get(3),
-        },
+        revision: revision_of(&row),
         slot_id: row.get(4),
     }))
+}
+
+/// The revision in the first four columns of `row`: `state`, `retry_mark`, `error_class` and
+/// `no_text`.
+pub(super) fn revision_of(row: &tokio_postgres::Row) -> Revision {
+    let class: Option<&str> = row.get(2);
+    Revision {
+        state: parse_state(row.get(0)),
+        retry_mark: row.get(1),
+        error_class: class.map(parse_class),
+        no_text: row.get(3),
+    }
 }
 
 /// Writes the result of `revision_step` for a revision that leaves `AwaitingUpload`, and ends

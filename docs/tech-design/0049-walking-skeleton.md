@@ -115,11 +115,11 @@ These tables are new. Each table that a tenant owns follows the three rules of 0
 | Column | Meaning |
 |---|---|
 | `tenant_id`, `document_id`, `revision`, `part` | The primary key. `part` counts from 1 in the order of the text. |
-| `location_kind`, `location` | `page`, `sheet` or `slide`, and its number from 1 |
-| `text` | At most 64 KB of text |
-| `tsv` | `tsvector`, generated and stored: `to_tsvector('simple', text)` |
+| `location_kind`, `location_number` | `page`, `sheet` or `slide`, and its number from 1 |
+| `part_text` | At most 64 KB of text |
+| `tsv` | `tsvector`, generated and stored: `to_tsvector('simple', part_text)` |
 
-Index: `create index on text_parts using gin (tenant_id, tsv)`, with the extension `btree_gin`, which has an operator class for `uuid`. Thus a search reads only the index entries of one tenant, and its cost does not depend on the count of tenants (S5 of 0002). Text parts exist only for a revision in the state `Ready`. The worker writes them in the transaction that sets `Ready`. The transaction that sets `Superseded` removes them.
+Index: `create index on text_parts using gin (tenant_id, tsv)`, with the extension `btree_gin`, which has an operator class for `uuid`. Thus a search reads only the index entries of one tenant, and its cost does not depend on the count of tenants (S5 of 0002). Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): under the policy of 0003, PostgreSQL uses the index for `tsv @@ query` only when the function `ts_match_vq` is `leakproof`. Thus the setup of the database marks `ts_match_vq(tsvector, tsquery)` as `leakproof`, as a superuser (owner, 2026-11-22). The columns `location` and `text` became `location_number` and `part_text`, because `sqlfluff` rejects SQL keywords as column names (agent decision, for review in [#122](https://github.com/sravioli/strata/pull/122)). Text parts exist only for a revision in the state `Ready`. The worker writes them in the transaction that sets `Ready`. The transaction that sets `Superseded` removes them.
 
 `upload_slots` is a global table, as `jobs` is (0005). It holds no tenant content, only a random key and a time:
 
@@ -297,8 +297,10 @@ One OpenSpec change for each step, each in its own pull request, in this order:
 
 1. Schema, tenancy and identity. The tables of 0003 and 0021, the roles, `uuidv7()` and PostgreSQL 19, `u128` in `core`, the types of the transactions, `strata admin`, `strata-dev`, and the authentication of the API. The prototype [#100](https://github.com/sravioli/strata/issues/100) chose tokio-postgres.
 2. Upload. `documents`, `revisions`, `upload_slots`, `jobs`, the upload routes, the Garage checks, the cleanup of `jobs` and `upload_slots`, and `revision_step` with its proofs.
-3. The worker and extraction. The claim, the lease, `strata-extract` with `pdftotext` in nsjail, and the transaction that ends a job.
-4. Search and status. `text_parts`, the search route, the status routes of 0047, `make dev`, and TC-49-01.
+3. The worker and extraction. The claim, the lease, `strata-extract` with `pdftotext` in nsjail, `text_parts` with its index and its grants, the transaction that ends a job, and `strata admin job requeue`.
+4. Search and status. The search route, the status routes of 0047, `make dev`, and TC-49-01.
+
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): `text_parts` moves from the fourth change to the third change. The transaction that ends a job writes the text parts when a revision becomes `Ready`. Without the table, the third change sets `Ready` with no text. `strata admin job requeue` is also in the third change, because it belongs to the job lifecycle of 0005 (owner, 2026-11-22).
 
 ## Proof obligations
 
@@ -354,6 +356,8 @@ L0: unit tests cover the split of blocks, the check of the request body and the 
 | TC-49-10 | L1 | Given the nsjail configuration of `strata-extract`. When the extraction process calls `io_uring_setup`, `io_uring_enter` or `io_uring_register`. Then each call fails, and the process does no I/O through a ring. Reason: seccomp does not see the operations of a ring, so a ring can bypass the seccomp list of 0007. | sravioli, 2026-11-22 | pending |
 
 TC-49-01 is TC-47-11 with the search of a second tenant. The owner decided it on 2026-11-21. It runs in CI also, not only before a release. That is a change to `docs/agents/testing.md` for this one test, and the fourth change makes it.
+
+Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the third change has TC-49-03. It also checks the clauses of TC-49-02 and TC-49-06 on text parts, with a `select` on `text_parts`. The clauses of TC-49-02 and TC-49-06 on the search come with the search route in the fourth change (owner, 2026-11-22).
 
 ## Drawbacks
 
@@ -423,6 +427,7 @@ Implementation resolves these points:
 - The exact SQL of the migrations, the grants and the policies, with the policy text of 0003 and 0021 (TC-3-06).
 - The PgBouncer image and its pin.
 - The nsjail configuration and the seccomp list for `pdftotext` ([#103](https://github.com/sravioli/strata/issues/103) completes the list).
+  Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): nsjail has no release binaries. A script builds nsjail 3.6, the latest tag, from source at the pinned commit `f78475530b46d0186111a9096b30725f816b55fe`. `make setup` and CI use the same script. If the CI runner blocks the user namespaces of nsjail, CI loads an AppArmor profile that permits user namespaces for the nsjail binary only. CI does not set `kernel.apparmor_restrict_unprivileged_userns` to 0 (owner, 2026-11-22). The control group limits of 0007 work with no root only in a delegated cgroup that holds no process. Thus the worker runs each extraction in a child cgroup of the delegated cgroup of the setting `STRATA_CGROUP`. A failure of nsjail itself (exit 255) is a normal failure of the job, with no change to the revision (owner, 2026-11-22).
 - The checks of Garage (0006).
 
 These questions belong to later designs:

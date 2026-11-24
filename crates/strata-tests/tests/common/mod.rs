@@ -61,6 +61,17 @@ pub fn api_pool() -> Pool {
     .unwrap()
 }
 
+/// A pool of `strata_worker` through PgBouncer, as `strata worker` has it.
+pub fn worker_pool() -> Pool {
+    migrated();
+    db::pool(
+        config("strata_worker", PGBOUNCER),
+        db::POOL_SIZE,
+        db::POOL_WAIT,
+    )
+    .unwrap()
+}
+
 /// A new name that no earlier run used: a valid tenant name.
 pub fn unique(prefix: &str) -> String {
     static N: AtomicU32 = AtomicU32::new(0);
@@ -174,9 +185,14 @@ pub async fn document(su: &Client, tenant_id: Uuid, state: &str) -> (Uuid, Uuid)
 
 /// The storage client with the development values of compose.yaml.
 pub fn storage() -> strata::storage::Storage {
+    storage_at("http://localhost:3900")
+}
+
+/// The storage client of `storage`, with a different endpoint.
+pub fn storage_at(endpoint: &str) -> strata::storage::Storage {
     use strata::storage::*;
     let vars = [
-        (ENDPOINT, "http://localhost:3900"),
+        (ENDPOINT, endpoint),
         (ACCESS_KEY, "GK000000000000000000000000"),
         (
             SECRET_KEY,
@@ -225,4 +241,56 @@ pub async fn put(url: &url::Url, body: &[u8], first: usize, pause: std::time::Du
         .nth(1)
         .and_then(|c| c.parse().ok())
         .unwrap_or(0)
+}
+
+/// The test program of the spec extraction-sandbox, a binary of this crate.
+pub fn hostile() -> std::path::PathBuf {
+    env!("CARGO_BIN_EXE_hostile-extract").into()
+}
+
+/// The `strata-extract` binary: `STRATA_EXTRACT`, or the binary of the build of this test.
+pub fn strata_extract() -> std::path::PathBuf {
+    if let Some(p) = std::env::var_os(strata::sandbox::EXTRACT) {
+        return p.into();
+    }
+    // The profile folder of the build (`target/debug`, or the folder of `cargo llvm-cov`) holds
+    // the binaries, and the test binary is below it.
+    let exe = std::env::current_exe().unwrap();
+    exe.ancestors()
+        .map(|a| a.join("strata-extract"))
+        .find(|p| p.is_file())
+        .unwrap_or_else(|| {
+            panic!(
+                "build strata-extract first, or set STRATA_EXTRACT ({})",
+                exe.display()
+            )
+        })
+}
+
+/// The sandbox of the worker around `extract`, in `cgroup` (default `STRATA_CGROUP`). The tests
+/// run in the delegated cgroup of `scripts/in-cgroup.sh` (`make l1`): they never skip.
+pub fn sandbox(
+    extract: &std::path::Path,
+    cgroup: Option<&std::path::Path>,
+    limits: strata::sandbox::Limits,
+) -> strata::sandbox::Sandbox {
+    use strata::sandbox::*;
+    let nsjail = std::env::var(NSJAIL)
+        .unwrap_or_else(|_| format!("{}/../../.tools/bin/nsjail", env!("CARGO_MANIFEST_DIR")));
+    let cgroup = match cgroup {
+        Some(c) => c.display().to_string(),
+        None => std::env::var(CGROUP)
+            .expect("STRATA_CGROUP: run the L1 tests with make l1 (scripts/in-cgroup.sh)"),
+    };
+    let extract = extract.display().to_string();
+    Sandbox::from_vars(
+        |k| match k {
+            NSJAIL => Some(nsjail.clone()),
+            EXTRACT => Some(extract.clone()),
+            CGROUP => Some(cgroup.clone()),
+            _ => None,
+        },
+        limits,
+    )
+    .unwrap()
 }
