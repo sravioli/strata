@@ -9,7 +9,7 @@ use axum::routing::{get, post};
 
 use crate::auth::{Auth, keys::KeyCache};
 use crate::db::{self, POOL_SIZE, POOL_WAIT};
-use crate::limits::{Buckets, Clock, MAX_BUCKETS};
+use crate::limits::{Buckets, Clock, MAX_BUCKETS, MAX_REQUESTS};
 use crate::query::query;
 use crate::status;
 use crate::storage::Storage;
@@ -25,6 +25,10 @@ pub struct AppState {
     pub status_retry_after: u64,
     /// The token buckets of the status routes (0047).
     pub buckets: Arc<Buckets>,
+    /// The permits of the requests at the same time (`limits::MAX_REQUESTS`).
+    pub in_flight: Arc<tokio::sync::Semaphore>,
+    /// The statement timeout of a search (`search::TIMEOUT`).
+    pub search_timeout: std::time::Duration,
 }
 
 impl FromRef<AppState> for Auth {
@@ -48,6 +52,8 @@ pub fn state(pool: db::Pool) -> Result<AppState, String> {
             MAX_BUCKETS,
             Clock::system(),
         )),
+        in_flight: Arc::new(tokio::sync::Semaphore::new(MAX_REQUESTS)),
+        search_timeout: crate::search::TIMEOUT,
     })
 }
 
@@ -69,6 +75,11 @@ pub fn router(state: AppState) -> Router {
             get(status::one),
         )
         .route("/v1/revisions", query(status::batch))
+        .route("/v1/search", query(crate::search::search))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::limits::bound,
+        ))
         .with_state(state)
 }
 

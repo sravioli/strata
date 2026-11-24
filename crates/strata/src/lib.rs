@@ -10,6 +10,7 @@ pub mod limits;
 pub mod migrate;
 pub mod query;
 pub mod sandbox;
+pub mod search;
 pub mod status;
 pub mod storage;
 pub mod upload;

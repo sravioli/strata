@@ -167,6 +167,28 @@ impl Inner {
     }
 }
 
+/// The requests that one API process handles at the same time, at most (0049).
+pub const MAX_REQUESTS: usize = 256;
+
+/// The bound of requests at the same time. A request above it gets `503` with `Retry-After: 1`
+/// at once, with no wait (S4 of 0002), and the API logs the rejection.
+pub async fn bound(
+    axum::extract::State(s): axum::extract::State<crate::api::AppState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let Ok(_permit) = s.in_flight.clone().try_acquire_owned() else {
+        tracing::warn!(bound = "requests", "a request rejected at a bound");
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            [(axum::http::header::RETRY_AFTER, "1")],
+        )
+            .into_response();
+    };
+    next.run(req).await
+}
+
 /// The `Retry-After` of `429`: the wait until the next token, in whole seconds, at least 1.
 pub fn retry_after_seconds(wait: Duration) -> u64 {
     wait.as_secs_f64().ceil().max(1.0) as u64

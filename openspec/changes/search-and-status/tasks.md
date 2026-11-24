@@ -7,7 +7,7 @@
 
 ## 2. The QUERY handler
 
-- [ ] 2.1 Add one handler type for a `QUERY` path. It answers each other method with `405` and `Allow: QUERY` before it reads the token or the body. It checks the body rules of 0047 with the code of the start body: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16,384 bytes gives `413`. Verify: the L1 test TC-49-08 passes for `/v1/search`, and the scenario "A GET to the batch path" passes. Remove the pending marker of TC-49-08.
+- [x] 2.1 Add one handler type for a `QUERY` path. It answers each other method with `405` and `Allow: QUERY` before it reads the token or the body. It checks the body rules of 0047 with the code of the start body: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16,384 bytes gives `413`. Verify: the L1 test TC-49-08 passes for `/v1/search`, and the scenario "A GET to the batch path" passes. Remove the pending marker of TC-49-08.
 
 ## 3. Status routes
 
@@ -18,16 +18,16 @@
 ## 4. Limits
 
 - [x] 4.1 Add the token buckets of 0047 to the state of the router: one bucket for each pair (account, revision) with 3 tokens and 1 token for each `Retry-After` interval, and one bucket for each account with 20 tokens and 10 tokens each second. A status request takes its tokens only when each bucket has one. Else it gets `429` with `Retry-After`: the time until the next token, rounded up to whole seconds, and at least 1. Keep at most 100,000 buckets, and remove the bucket that the API used least recently at the bound. The bound and the time source are one value, so a test can set them. Verify: L0 tests of the bucket and of the bound, and the L1 tests TC-47-05, TC-47-12 and TC-47-14, and the scenarios "A batch with one empty bucket" and "The bucket used least recently goes first", pass. Remove their pending markers.
-- [ ] 4.2 Add the bound of 256 requests at the same time to the router of `strata api`. A request above the bound gets `503` with `Retry-After: 1` and no body at once, and the API logs the rejection. The bound is one value, so a test can set it. Verify: the scenario "A request above the bound" passes as an L1 test.
+- [x] 4.2 Add the bound of 256 requests at the same time to the router of `strata api`. A request above the bound gets `503` with `Retry-After: 1` and no body at once, and the API logs the rejection. The bound is one value, so a test can set it. Verify: the scenario "A request above the bound" passes as an L1 test.
 
 ## 5. Search
 
-- [ ] 5.1 Add `QUERY /v1/search` with the action `Search`, on the handler type of 2.1. Check `q` (1 to 1,000 characters) and `limit` (1 to 100, 20 when it is absent). Read the text parts of the scope of the caller with `websearch_to_tsquery('simple', $q)` and `ts_rank`, keep the best part of each document, and give at most `limit` results, best first, with `document_id`, `revision`, `score` and `location`. Follow the pipelining rule of 0049. Verify: the L1 tests TC-49-05, TC-49-07, TC-4-01 and TC-47-17, the search clauses of TC-49-02 and TC-49-06, and the scenarios "A body with the default limit", "A body of another media type", "The page of the best match" and "A query that PostgreSQL cannot parse as tsquery syntax" pass. Remove the pending markers of these test cases.
-- [ ] 5.2 Add the statement timeout of 2 seconds to the transaction of the search. A timeout gives `503` with `Retry-After: 1` and no body, and the API logs it with no text of the query. The timeout is one value, so a test can set it. Verify: the scenario "A search at the time limit" passes as an L1 test.
+- [x] 5.1 Add `QUERY /v1/search` with the action `Search`, on the handler type of 2.1. Check `q` (1 to 1,000 characters) and `limit` (1 to 100, 20 when it is absent). Read the text parts of the scope of the caller with `websearch_to_tsquery('simple', $q)` and `ts_rank`, keep the best part of each document, and give at most `limit` results, best first, with `document_id`, `revision`, `score` and `location`. Follow the pipelining rule of 0049. Verify: the L1 tests TC-49-05, TC-49-07, TC-4-01 and TC-47-17, the search clauses of TC-49-02 and TC-49-06, and the scenarios "A body with the default limit", "A body of another media type", "The page of the best match" and "A query that PostgreSQL cannot parse as tsquery syntax" pass. Remove the pending markers of these test cases.
+- [x] 5.2 Add the statement timeout of 2 seconds to the transaction of the search. A timeout gives `503` with `Retry-After: 1` and no body, and the API logs it with no text of the query. The timeout is one value, so a test can set it. Verify: the scenario "A search at the time limit" passes as an L1 test.
 
 ## 6. Authentication
 
-- [ ] 6.1 Verify that an account that is not active gets the rejection of `request-authentication` on each account action: the start of an upload, the finish, the status of one revision, the batch status and the search, and that the API runs no query on documents. Verify: the L1 test TC-4-03 passes, and the check of TC-3-18 finds a test with the identifiers of a different tenant for each new route. Remove the pending marker of TC-4-03.
+- [x] 6.1 Verify that an account that is not active gets the rejection of `request-authentication` on each account action: the start of an upload, the finish, the status of one revision, the batch status and the search, and that the API runs no query on documents. Verify: the L1 test TC-4-03 passes, and the check of TC-3-18 finds a test with the identifiers of a different tenant for each new route. Remove the pending marker of TC-4-03.
 
 ## 7. make dev and the L2 tests
 

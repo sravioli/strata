@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 use strata::api::{AppState, router};
 use strata::auth::{Auth, keys::KeyCache};
 use strata::db::{self, Pool};
-use strata::limits::{Buckets, Clock, MAX_BUCKETS};
+use strata::limits::{Buckets, Clock, MAX_BUCKETS, MAX_REQUESTS};
 use strata::upload::Bounds;
 use strata_dev::DevKey;
 use tokio_postgres::Client;
@@ -36,6 +36,27 @@ pub struct World {
     pub a: Tenant,
     pub b: Tenant,
     pub _key: DevKey,
+    /// The `iss` of the tokens.
+    pub issuer: String,
+}
+
+impl World {
+    /// A token of a new account of the tenant with the tenant value `org` (`acme-corp` is A,
+    /// `globex` is B).
+    pub fn token(&self, org: &str) -> Tenant {
+        let now = strata_dev::now();
+        let claims = json!({"iss": self.issuer, "aud": "strata", "org": org, "sub": unique("u"),
+                            "iat": now - 5, "exp": now + 300});
+        let id = if org == "acme-corp" {
+            self.a.id
+        } else {
+            self.b.id
+        };
+        Tenant {
+            id,
+            token: self._key.sign(&claims),
+        }
+    }
 }
 
 /// A JWKS server for `key`.
@@ -67,6 +88,8 @@ pub fn test_state(pool: Pool, bounds: Bounds) -> AppState {
             MAX_BUCKETS,
             Clock::system(),
         )),
+        in_flight: Arc::new(tokio::sync::Semaphore::new(MAX_REQUESTS)),
+        search_timeout: strata::search::TIMEOUT,
     }
 }
 
@@ -99,6 +122,7 @@ pub async fn world_in(su: Client, pool: Pool, bounds: Bounds) -> World {
         a,
         b,
         _key: key,
+        issuer: name,
     }
 }
 

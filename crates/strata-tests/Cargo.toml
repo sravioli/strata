@@ -77,6 +77,10 @@ name = "status"
 required-features = ["l1"]
 
 [[test]]
+name = "search"
+required-features = ["l1"]
+
+[[test]]
 name = "cleanup"
 required-features = ["l1"]
 

@@ -26,7 +26,6 @@ Finds the documents of the caller's tenant whose text matches the words of a que
 - **GIVEN** a search body with no `q`, a body with a `limit` of 101, and a body above 16 KB
 - **WHEN** the client sends each one
 - **THEN** the API answers `400`, `400` and `413`
-- **PENDING** Task 5.1 adds the test.
 
 ### Requirement: The search path answers only QUERY
 
@@ -37,7 +36,6 @@ The path `/v1/search` SHALL answer each method other than `QUERY` with `405` and
 - **GIVEN** a `GET` and a `POST` to `/v1/search`
 - **WHEN** the API gets them
 - **THEN** it answers `405` with the header `Allow: QUERY`
-- **PENDING** Task 2.1 adds the test.
 
 ### Requirement: The search ranks the best part of each document
 
@@ -63,14 +61,12 @@ The search SHALL read the text parts of the tenant of the caller only. A documen
 - **GIVEN** documents of tenants A and B with the same word
 - **WHEN** A searches for the word
 - **THEN** each result is a document of A
-- **PENDING** Task 5.1 adds the test.
 
 #### Scenario: TC-4-01 Two accounts of one tenant
 
 - **GIVEN** accounts Anna and Bruno of one tenant, and a document that Anna uploaded
 - **WHEN** Bruno searches for the document and reads it
 - **THEN** Bruno finds it and reads it
-- **PENDING** Task 5.1 adds the test.
 
 #### Scenario: TC-3-10 A search for the word of a different tenant
 
@@ -97,7 +93,6 @@ A search SHALL find the text of `Ready` revisions only. It SHALL NOT find the te
 - **WHEN** revision 2, a scanned PDF with no text, becomes ready
 - **THEN** revision 2 is `ready` with `no_text` set to `true`
 - **AND** revision 1 is `superseded`, and a search does not find its text
-- **PENDING** Task 5.1 adds the test.
 
 ### Requirement: The search stops at its time limit
 

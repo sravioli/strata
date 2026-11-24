@@ -453,3 +453,55 @@ async fn the_bucket_used_least_recently_goes_first() {
         assert_eq!(w.get(&w.a, &path(r2, 1)).await.status, StatusCode::OK);
     }
 }
+
+/// Scenario "A request above the bound" (spec request-limits), with a bound of 1. The first
+/// request holds its permit while its body arrives.
+#[tokio::test]
+async fn a_request_above_the_bound() {
+    use tokio::io::AsyncWriteExt;
+    let mut w = world().await;
+    let mut state = test_state(api_pool(), Bounds::default());
+    state.in_flight = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+    w.app = router(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(axum::serve(listener, w.app.clone()).into_future());
+
+    let mut first = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let head = format!(
+        "QUERY /v1/revisions HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {}\r\n\
+         Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{{",
+        w.a.token
+    );
+    first.write_all(head.as_bytes()).await.unwrap();
+    first.flush().await.unwrap();
+    // The first request is in the handler: it waits for the rest of its body.
+    let mut second = None;
+    for _ in 0..50 {
+        let a = w.get(&w.a, "/v1/revisions").await;
+        if a.status == StatusCode::SERVICE_UNAVAILABLE {
+            second = Some(a);
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    let second = second.expect("the second request gets 503 while the first runs");
+    assert_eq!(second.headers["retry-after"], "1");
+    assert_eq!(second.body, serde_json::Value::Null, "no body");
+
+    // The first request ends, and a third request gets its answer.
+    drop(first);
+    let mut third = w.get(&w.a, "/v1/revisions").await;
+    for _ in 0..50 {
+        if third.status != StatusCode::SERVICE_UNAVAILABLE {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        third = w.get(&w.a, "/v1/revisions").await;
+    }
+    assert_eq!(
+        third.status,
+        StatusCode::METHOD_NOT_ALLOWED,
+        "the route answers"
+    );
+}

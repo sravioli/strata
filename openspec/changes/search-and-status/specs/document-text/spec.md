@@ -18,7 +18,6 @@ The worker SHALL split a block above 64 KB at the last whitespace before 64 KB. 
 - **GIVEN** a page of 200 KB of text
 - **WHEN** the worker writes it
 - **THEN** it is in four parts of at most 64 KB, and a search for a word in the last part returns the page
-- **PENDING** Task 5.1 adds the search clause to the test.
 
 #### Scenario: A block with no whitespace
 
@@ -42,7 +41,6 @@ The worker SHALL write the text parts of a revision in the transaction that sets
 - **GIVEN** revision 1 of a document is `Ready`
 - **WHEN** revision 2 becomes `Ready`
 - **THEN** revision 1 is `Superseded`, its text parts do not exist, and a search returns revision 2 only
-- **PENDING** Task 5.1 adds the search clause to the test.
 
 #### Scenario: A Failed revision has no text parts
 

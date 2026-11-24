@@ -29,4 +29,3 @@ The API SHALL read the status of the issuer, the binding, the tenant and the acc
 - **GIVEN** an account that is not active in an active tenant
 - **WHEN** the account sends a request for each account action: a start of an upload, a finish, the status of one revision, the batch status, and a search
 - **THEN** the API rejects each request and runs no query on documents
-- **PENDING** Task 6.1 adds the test.
