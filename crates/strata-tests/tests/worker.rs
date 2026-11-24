@@ -1118,3 +1118,39 @@ async fn a_tenant_that_does_not_exist() {
     strata::admin::run(&operator(&d).await, cmd).await.unwrap();
     assert_eq!(row(&d.su, id).await.0, "Waiting");
 }
+
+/// Scenario "A page of 200 KB goes in four parts", through the write of the end of the job. The
+/// L0 test of `extraction.rs` checks the split.
+#[tokio::test]
+async fn a_page_of_200_kb_is_written_in_four_parts() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, _) = job(&d.su, t, "").await;
+    let page = "word ".repeat(200 * 1024 / 5);
+    let output = serde_json::json!({"format": "pdf", "pages": 1,
+        "blocks": [{"kind": "page", "index": 1, "text": page}]});
+    let parts = strata::extraction::check(output.to_string().as_bytes()).unwrap();
+    let c = claim(&d).await;
+    end(
+        &d.worker,
+        &c,
+        Finish::Extraction(RevisionEvent::Extracted(false), parts),
+    )
+    .await;
+    let rows =
+        d.su.query(
+            "select part, location_number, part_text from text_parts \
+             where document_id = $1 and revision = 1 order by part",
+            &[&doc],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 4);
+    for (i, r) in rows.iter().enumerate() {
+        assert_eq!(r.get::<_, i32>(0), i as i32 + 1);
+        assert_eq!(r.get::<_, i32>(1), 1, "the location of the page");
+        assert!(r.get::<_, &str>(2).len() <= strata::extraction::MAX_PART);
+    }
+    let text: String = rows.iter().map(|r| r.get::<_, &str>(2)).collect();
+    assert_eq!(text, page);
+}
