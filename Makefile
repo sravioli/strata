@@ -17,6 +17,11 @@ export PATH := $(BIN):$(AENEAS):$(TOOLS)/venv/bin:$(TOOLS)/npm/node_modules/.bin
 # The range of `make commits`. CI sets it to the commits of the pull request.
 RANGE ?= origin/main..HEAD
 
+# The compose command of `make l1`: Docker Compose when docker exists (CI), else podman compose.
+# Set it to override, for example `make l1 COMPOSE="podman compose"`.
+COMPOSE ?= $(if $(shell command -v docker),docker compose,podman compose)
+export COMPOSE
+
 .PHONY: check setup tools lint prose rust deny verify sql test-cases l1 commits secrets
 .DEFAULT_GOAL := check
 
@@ -25,7 +30,7 @@ check: lint prose test-cases rust
 # Toolchains that manage themselves stay out of .tools/: setup only checks for them.
 setup: tools $(BIN)/cargo-llvm-cov $(BIN)/cargo-deny $(BIN)/cog $(BIN)/betterleaks $(BIN)/nsjail $(AENEAS)/charon
 	@for c in cargo rustup; do command -v $$c >/dev/null || { echo "missing: $$c (make check needs it)" >&2; exit 1; }; done
-	@for t in verify:lake l1:docker rust:pdftotext sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
+	@for t in verify:lake l1:$(firstword $(COMPOSE)) rust:pdftotext sql:psql; do command -v $${t#*:} >/dev/null || echo "warning: no $${t#*:}, so make $${t%%:*} cannot run"; done
 	@echo "setup ok"
 
 # The pinned lint and SQL tools (hashes in $(REQ)). Reinstalls when a pin changes.
@@ -103,7 +108,7 @@ test-cases:
 # L0 and L1 run together under coverage. The floor is in CONSTRAINTS.md.
 # The tests run in a delegated cgroup (scripts/in-cgroup.sh), for the limits of the sandbox.
 l1: $(BIN)/cargo-llvm-cov $(BIN)/nsjail
-	docker compose up --wait
+	$(COMPOSE) up --wait
 	scripts/dev-services-smoke.sh
 	scripts/in-cgroup.sh cargo llvm-cov --workspace --locked --all-features --fail-under-lines 90
 

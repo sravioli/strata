@@ -41,13 +41,13 @@ The `Makefile` holds the commands of CI. Each CI job of `.github/workflows/ci.ym
   - `cargo-llvm-cov`, `cargo-deny`, `cog` and `betterleaks`: `.github/requirements/tools.env` (URL and SHA-256), with `scripts/install-tool.sh`.
   - Aeneas and Charon: `toolchain.env`, with `scripts/install-aeneas.sh`.
   - nsjail: `.github/requirements/tools.env` (tag and commit), with `scripts/install-nsjail.sh`. nsjail has no release binaries, so the script builds it from source. A tag whose commit is not the pin stops the build. The build needs `g++`, `make`, `pkg-config`, `bison`, `flex`, and the `protobuf` and `libnl-route-3` headers.
-- **Toolchains.** Install these yourself: `uv`, `npm`, the Rust toolchain (`rustup`, with the `llvm-tools-preview` component), and for `make verify` Lean (`elan`) and the nightly `CHARON_RUST` of `toolchain.env`. `make rust` and `make l1` need `pdftotext` (`poppler-utils`). `make l1` also needs Docker, and `make sql` needs `psql` and an empty Postgres. `make setup` warns about each one that is missing.
+- **Toolchains.** Install these yourself: `uv`, `npm`, the Rust toolchain (`rustup`, with the `llvm-tools-preview` component), and for `make verify` Lean (`elan`) and the nightly `CHARON_RUST` of `toolchain.env`. `make rust` and `make l1` need `pdftotext` (`poppler-utils`). `make l1` also needs Docker or Podman, with `psql`, the aws CLI and `python3` for `scripts/dev-services-smoke.sh`, and `make sql` needs `psql` and an empty Postgres. `make setup` warns about each one that is missing.
 - **Linter configuration.** The configuration files are in `.github/linters/`. The targets give the path to each tool, so run a linter through `make`, not directly.
 
 ## Running the levels
 
 - **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request.
-- **L1:** `docker compose up --wait`, then `cargo test --workspace --all-features`. An L1 test target has `required-features = ["l1"]` in its `Cargo.toml`, so L0 does not run it. An L1 test fails when a service is not available. It does not skip. `scripts/dev-services-smoke.sh` tests the services themselves. CI runs L1 on each pull request, with the L0 tests, under `cargo llvm-cov` with the coverage floor of `CONSTRAINTS.md`.
+- **L1:** `docker compose up --wait` (Podman works too: `make l1` uses `podman compose` when `docker` is not installed, and `COMPOSE` overrides the command), then `cargo test --workspace --all-features`. An L1 test target has `required-features = ["l1"]` in its `Cargo.toml`, so L0 does not run it. An L1 test fails when a service is not available. It does not skip. `scripts/dev-services-smoke.sh` tests the services themselves. CI runs L1 on each pull request, with the L0 tests, under `cargo llvm-cov` with the coverage floor of `CONSTRAINTS.md`.
 
 ## Repo tooling
 
