@@ -35,7 +35,6 @@ The worker SHALL renew the lease each 100 seconds, for 300 seconds from the rene
 - **THEN** a second worker claims the job and ends it, and the index holds the revision one time
 - **WHEN** the first worker tries to write its result
 - **THEN** the write fails
-- **PENDING** Task 5.5 adds the test.
 
 #### Scenario: A renewal after a new claim
 

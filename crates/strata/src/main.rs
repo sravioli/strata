@@ -17,6 +17,8 @@ enum Cmd {
         #[arg(long, default_value = "127.0.0.1:8080")]
         listen: String,
     },
+    /// Run the jobs. Connect as strata_worker, through the pooler.
+    Worker,
     /// The operator command. Connect as strata_operator, directly.
     #[command(subcommand)]
     Admin(strata::admin::Admin),
@@ -45,6 +47,17 @@ async fn run(cli: Cli) -> Result<(), String> {
     match cli.cmd {
         Cmd::Api { listen } => strata::api::serve(cfg, &listen).await,
         Cmd::Migrate => strata::migrate::run(&cfg).await,
+        Cmd::Worker => {
+            use strata::db::{POOL_SIZE, POOL_WAIT, pool};
+            let worker = strata::worker::Worker {
+                pool: pool(cfg, POOL_SIZE, POOL_WAIT)?,
+                storage: strata::storage::Storage::from_env()?,
+                sandbox: strata::sandbox::Sandbox::from_env()?,
+                settings: strata::worker::SETTINGS,
+            };
+            worker.run().await;
+            Ok(())
+        }
         Cmd::Admin(cmd) => {
             let (client, conn) = cfg
                 .connect(tokio_postgres::NoTls)

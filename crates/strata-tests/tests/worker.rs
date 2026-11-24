@@ -505,6 +505,9 @@ fn worker_with(
         settings: Settings {
             max_object,
             renew_every: Duration::from_millis(200),
+            poll: Duration::from_millis(20),
+            poll_max: Duration::from_millis(100),
+            cleanup_every: Duration::from_millis(100),
         },
     }
 }
@@ -652,32 +655,6 @@ async fn tc_5_04_a_job_that_fails_at_each_run() {
     assert!(w.run_one().await.unwrap().is_none(), "no worker claims it");
 }
 
-/// A crash in the sandbox sets the retry mark and runs again. The second crash sets `Failed`.
-#[tokio::test]
-async fn a_crash_runs_one_more_time() {
-    let d = db().await;
-    let t = tenant(&d.su).await;
-    let (doc, id) = job(&d.su, t, "").await;
-    object(t, doc, 1, b"crash").await;
-    let w = worker(&d, 100);
-    w.run_one().await.unwrap().unwrap();
-    assert!(rev(&d.su, doc, 1).await.1, "the retry mark");
-    assert_eq!(row(&d.su, id).await.0, "Waiting");
-    d.su.execute(
-        "update jobs set run_after = now() where job_id = $1",
-        &[&id],
-    )
-    .await
-    .unwrap();
-    w.run_one().await.unwrap().unwrap();
-    let (state, _, class, ..) = rev(&d.su, doc, 1).await;
-    assert_eq!(
-        (state.as_str(), class.as_deref()),
-        ("Failed", Some("ExtractionCrash"))
-    );
-    assert_eq!(row(&d.su, id).await.0, "Done");
-}
-
 /// A storage endpoint that accepts each connection and never answers.
 async fn silent_endpoint() -> String {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -777,8 +754,8 @@ async fn an_error_of_the_storage() {
     assert_failed_run(&d, id, doc).await;
 }
 
-/// nsjail cannot start the sandbox: a failure of the job, with no change to the revision
-/// (owner, 2026-11-22).
+/// Scenario "nsjail cannot start the sandbox": a failure of the job, with no change to the
+/// revision (owner, 2026-11-22).
 #[tokio::test]
 async fn a_failure_of_the_sandbox_fails_the_job() {
     let d = db().await;
@@ -790,4 +767,225 @@ async fn a_failure_of_the_sandbox_fails_the_job() {
     let w = worker_with(&d, 100, &not_a_program, storage());
     w.run_one().await.unwrap().unwrap();
     assert_failed_run(&d, id, doc).await;
+}
+
+// The loop of `strata worker` (task 5.5).
+
+/// Runs the loop of `w` until the query `sql`, with the job as `$1`, gives true. Panics after
+/// 30 seconds.
+async fn loop_until(w: &Worker, su: &Client, sql: &str, id: Uuid) {
+    let reached = async {
+        while !su.query_one(sql, &[&id]).await.unwrap().get::<_, bool>(0) {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::select! {
+        () = w.run() => unreachable!("the loop does not end"),
+        () = reached => {}
+        () = tokio::time::sleep(Duration::from_secs(30)) => panic!("not reached: {sql}"),
+    }
+}
+
+const DONE: &str = "select state = 'Done' from jobs where job_id = $1";
+const RETRY_MARK: &str = "select r.retry_mark from revisions r join jobs j \
+     on (r.document_id, r.revision) = (j.document_id, j.revision) where j.job_id = $1";
+
+/// A file that fails at each run with a class that retries one time: the first run sets the
+/// retry mark and the job retries, and the second run sets `Failed` with `class`.
+async fn retries_one_time(body: &[u8], limits: Limits, class: &str) {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, body).await;
+    let w = Worker {
+        sandbox: sandbox(&hostile(), limits),
+        ..worker(&d, 100)
+    };
+    loop_until(&w, &d.su, RETRY_MARK, id).await;
+    assert_eq!(rev(&d.su, doc, 1).await.0, "Uploaded", "processing");
+    assert_eq!(
+        row(&d.su, id).await,
+        ("Waiting".into(), 1, "JobFailed".into())
+    );
+    d.su.execute(
+        "update jobs set run_after = now() where job_id = $1",
+        &[&id],
+    )
+    .await
+    .unwrap();
+    loop_until(&w, &d.su, DONE, id).await;
+    let (state, _, error_class, ..) = rev(&d.su, doc, 1).await;
+    assert_eq!(
+        (state.as_str(), error_class.as_deref()),
+        ("Failed", Some(class))
+    );
+}
+
+/// TC-7-04
+#[tokio::test]
+async fn tc_7_04_the_time_limit_retries_one_time() {
+    let limits = Limits {
+        wall: Duration::from_secs(1),
+        ..LIMITS
+    };
+    retries_one_time(b"forever", limits, "ExtractionTimeout").await;
+}
+
+/// TC-7-12
+#[tokio::test]
+async fn tc_7_12_a_crash_at_each_run() {
+    retries_one_time(b"crash", LIMITS, "ExtractionCrash").await;
+}
+
+/// TC-7-13
+#[tokio::test]
+async fn tc_7_13_output_that_fails_the_check_retries_one_time() {
+    retries_one_time(b"invalid", LIMITS, "InvalidOutput").await;
+}
+
+/// Sets the lease of a job in the past, as the end of the lease of a worker that stopped.
+async fn expire(su: &Client, id: Uuid) {
+    su.execute(
+        "update jobs set lease_until = now() - interval '1 second' where job_id = $1",
+        &[&id],
+    )
+    .await
+    .unwrap();
+}
+
+/// TC-5-03
+#[tokio::test]
+async fn tc_5_03_a_worker_that_stops() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, b"text").await;
+    // The first worker claims the job, then stops.
+    let first = claim(&d).await;
+    expire(&d.su, id).await;
+    loop_until(&worker(&d, 100), &d.su, DONE, id).await;
+    assert_eq!(parts(&d.su, doc, 1).await, ["hostile"]);
+    assert_eq!(end(&d.worker, &first, text("late")).await, End::LeaseLost);
+    assert_eq!(parts(&d.su, doc, 1).await, ["hostile"], "one time");
+    assert_eq!(rev(&d.su, doc, 1).await.0, "Ready");
+}
+
+/// TC-7-14
+#[tokio::test]
+async fn tc_7_14_a_worker_that_stops_does_not_use_the_retry() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, b"crash").await;
+    // The first worker stops during the first run: no result, so no retry mark.
+    claim(&d).await;
+    expire(&d.su, id).await;
+    assert!(!rev(&d.su, doc, 1).await.1);
+    let w = worker(&d, 100);
+    loop_until(&w, &d.su, RETRY_MARK, id).await;
+    assert_eq!(rev(&d.su, doc, 1).await.0, "Uploaded");
+    assert_eq!(row(&d.su, id).await.0, "Waiting");
+    d.su.execute(
+        "update jobs set run_after = now() where job_id = $1",
+        &[&id],
+    )
+    .await
+    .unwrap();
+    loop_until(&w, &d.su, DONE, id).await;
+    let (state, _, error_class, ..) = rev(&d.su, doc, 1).await;
+    assert_eq!(
+        (state.as_str(), error_class.as_deref()),
+        ("Failed", Some("ExtractionCrash"))
+    );
+}
+
+/// The processes in the cgroups below `dir`, at each depth: nsjail adds its own cgroup below the
+/// cgroup of the run.
+fn processes(dir: &std::path::Path) -> usize {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| {
+            let here = std::fs::read_to_string(e.path().join("cgroup.procs"))
+                .unwrap_or_default()
+                .lines()
+                .count();
+            here + processes(&e.path())
+        })
+        .sum()
+}
+
+/// Removes the empty cgroups below `dir`, the deepest first.
+fn remove_cgroups(dir: &std::path::Path) {
+    for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        if e.path().is_dir() {
+            remove_cgroups(&e.path());
+            let _ = std::fs::remove_dir(e.path());
+        }
+    }
+}
+
+/// TC-7-10
+#[tokio::test]
+async fn tc_7_10_a_worker_that_stops_while_an_extraction_runs() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, b"forever").await;
+    // A cgroup of this test only, so that the test sees the process of the first worker.
+    let base = std::path::PathBuf::from(std::env::var(strata::sandbox::CGROUP).expect("make l1"));
+    let _ = sandbox(&hostile(), LIMITS); // the controllers of the base cgroup
+    let own = base.join(unique("test"));
+    std::fs::create_dir(&own).unwrap();
+    let wall = Duration::from_secs(2);
+    let first = Worker {
+        sandbox: sandbox_in(&hostile(), Some(&own), Limits { wall, ..LIMITS }),
+        ..worker(&d, 100)
+    };
+    // The first worker stops while its extraction runs.
+    let _ = tokio::time::timeout(Duration::from_millis(700), first.run()).await;
+    drop(first);
+    assert_eq!(row(&d.su, id).await.0, "Running");
+    assert!(processes(&own) > 0, "the extraction runs");
+
+    expire(&d.su, id).await;
+    // The second run gives text, so the test can see which run wrote the result.
+    object(t, doc, 1, b"text").await;
+    loop_until(&worker(&d, 100), &d.su, DONE, id).await;
+    assert_eq!(parts(&d.su, doc, 1).await, ["hostile"]);
+
+    // The first process stops at its time limit at the latest (nsjail adds 1 second).
+    let deadline = std::time::Instant::now() + wall + Duration::from_secs(5);
+    while processes(&own) > 0 {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the first process runs on"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(
+        parts(&d.su, doc, 1).await,
+        ["hostile"],
+        "nothing writes its output"
+    );
+    assert_eq!(rev(&d.su, doc, 1).await.0, "Ready");
+    remove_cgroups(&own);
+    std::fs::remove_dir(&own).unwrap();
+}
+
+/// Scenario "The cleanup runs in the worker".
+#[tokio::test]
+async fn the_cleanup_runs_in_the_worker() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (_, id) = job(
+        &d.su,
+        t,
+        "state = 'Done', attempts = 1, ended_at = now() - interval '25 hours'",
+    )
+    .await;
+    let gone = "select not exists (select from jobs where job_id = $1)";
+    loop_until(&worker(&d, 100), &d.su, gone, id).await;
 }

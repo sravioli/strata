@@ -124,7 +124,6 @@ Each extraction SHALL have the limits of 0007. They are 1 GB of memory, 60 secon
 - **THEN** the process stops at the time limit, the revision gets the retry mark and stays `processing`, and the job retries
 - **WHEN** the worker extracts it the second time
 - **THEN** the revision is `Failed` with `ExtractionTimeout`, and the job is `Done`
-- **PENDING** Task 5.5 adds the test.
 
 ### Requirement: Each extraction has its own control group
 
@@ -157,7 +156,6 @@ The worker SHALL treat the output as untrusted input. The output SHALL be valid 
 - **THEN** the revision gets the retry mark and stays `processing`, and the job retries
 - **WHEN** the worker extracts it the second time
 - **THEN** the revision is `Failed` with `InvalidOutput`, and the job is `Done`
-- **PENDING** Task 5.5 adds the test.
 
 #### Scenario: Each form of output that fails the check
 
@@ -175,7 +173,6 @@ A process that crashes SHALL be the result `ExtractionCrash`. With no retry mark
 - **THEN** the revision gets the retry mark and stays `processing`, and the job retries
 - **WHEN** the worker extracts it the second time
 - **THEN** the revision is `Failed` with `ExtractionCrash`, and the job is `Done`
-- **PENDING** Task 5.5 adds the test.
 
 #### Scenario: TC-7-14 A worker that stops does not use the retry
 
@@ -184,7 +181,6 @@ A process that crashes SHALL be the result `ExtractionCrash`. With no retry mark
 - **THEN** the revision gets the retry mark, and the job retries
 - **WHEN** a worker extracts the file again
 - **THEN** the revision is `Failed` with `ExtractionCrash`
-- **PENDING** Task 5.5 adds the test.
 
 ### Requirement: A worker that loses its lease writes no output
 
@@ -196,4 +192,3 @@ When the lease of a job expires, the extraction process of the first worker SHAL
 - **WHEN** the lease expires
 - **THEN** a different worker claims the job and extracts the file
 - **AND** the first extraction process stops at its time limit at the latest, and nothing writes its output
-- **PENDING** Task 5.5 adds the test.
