@@ -58,7 +58,6 @@ A normal failure SHALL give `Fail` to `job_step`. Below 5 attempts, the job SHAL
 - **GIVEN** a job that fails at each run
 - **WHEN** it fails for the maximum count of attempts
 - **THEN** the job is `Parked`, `last_error` holds an error class, and no worker claims it
-- **PENDING** Task 5.4 adds the test.
 
 #### Scenario: The backoff after each run
 
@@ -88,7 +87,6 @@ A second run of a job whose revision is no longer `Uploaded` SHALL end with `Suc
 - **GIVEN** a job that ends with success
 - **WHEN** a worker runs the same job a second time
 - **THEN** the state of the revision and of its index does not change
-- **PENDING** Task 5.4 adds the test.
 
 ### Requirement: The worker reads the object with its own credentials
 

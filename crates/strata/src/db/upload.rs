@@ -163,7 +163,7 @@ pub async fn write_finish(
 
 // The names in the database are the names of the Rust variants. The check constraints of V2
 // hold the same lists, so another text cannot come back.
-fn parse_state(s: &str) -> RevisionState {
+pub(super) fn parse_state(s: &str) -> RevisionState {
     match s {
         "AwaitingUpload" => RevisionState::AwaitingUpload,
         "Uploaded" => RevisionState::Uploaded,
@@ -174,7 +174,7 @@ fn parse_state(s: &str) -> RevisionState {
     }
 }
 
-fn parse_class(s: &str) -> FailureClass {
+pub(super) fn parse_class(s: &str) -> FailureClass {
     use FailureClass::*;
     match s {
         "FileTooLarge" => FileTooLarge,

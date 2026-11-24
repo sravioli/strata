@@ -10,6 +10,7 @@ pub mod migrate;
 pub mod sandbox;
 pub mod storage;
 pub mod upload;
+pub mod worker;
 
 /// The one source of the database URL of each subcommand.
 pub const DATABASE_URL: &str = "STRATA_DATABASE_URL";

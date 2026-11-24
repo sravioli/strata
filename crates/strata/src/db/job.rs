@@ -7,7 +7,11 @@
 use std::time::Duration;
 
 use strata_core::authorization::{Action, Decision, Principal, Resource, authorize};
+use strata_core::job::Event as JobEvent;
 use strata_core::job::{ErrorClass, Event, Job, JobState, LEASE_SECONDS, job_step};
+use strata_core::revision::{Event as RevisionEvent, RevisionState, revision_step};
+
+use crate::extraction::Part;
 use uuid::Uuid;
 
 use super::{Error, Params, Pool, READ_TENANT, TenantTx, Tx};
@@ -141,10 +145,36 @@ impl ClaimTx {
 
     /// The decision for the job on the documents of its own tenant (0004).
     pub fn decision(&self) -> Decision {
+        self.decision_on(self.claimed.tenant_id)
+    }
+
+    /// The decision for the job on a document of `tenant`. Only the tenant of the job gets
+    /// "allow" (TC-4-07).
+    pub fn decision_on(&self, tenant: Uuid) -> Decision {
         let resource = Resource {
-            tenant: self.claimed.tenant_id.as_u128(),
+            tenant: tenant.as_u128(),
         };
         authorize(self.principal, Action::ProcessDocument, resource)
+    }
+
+    /// A new transaction in the tenant context of a claimed job, for the end of the job. The
+    /// tenant was active at the claim, and a job that runs continues to its end (TC-4-10).
+    pub async fn resume(pool: &Pool, claimed: &Claimed) -> Result<ClaimTx, Error> {
+        let tx = Tx(Some(pool.get().await?));
+        let c = tx.conn();
+        let set = c.prepare_cached(SET_TENANT).await?;
+        let tenant_text = claimed.tenant_id.to_string();
+        let p: Params = &[&tenant_text];
+        tokio::try_join!(c.batch_execute("begin"), c.query_one(&set, p))?;
+        let principal = Principal::Job {
+            tenant: claimed.tenant_id.as_u128(),
+            tenant_active: true,
+        };
+        Ok(ClaimTx {
+            tx,
+            claimed: claimed.clone(),
+            principal,
+        })
     }
 
     /// The tenant transaction of a `Running` job, from an "allow" decision only. Each other case
@@ -184,6 +214,165 @@ pub async fn keep_lease(pool: &Pool, job_id: Uuid, lease_token: Uuid, every: Dur
             Err(e) => tracing::warn!(%job_id, error = %e, "a renewal of the lease"),
         }
     }
+}
+
+/// What the end of a job writes.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Finish {
+    /// The event of the extraction for `revision_step`, with the text parts for `Extracted`.
+    Extraction(RevisionEvent, Vec<Part>),
+    /// No extraction: the revision is not found, or `may_extract` is false. `Succeed`.
+    NoExtraction,
+    /// A failure of the storage or of the sandbox: `Fail`, with no change to the revision.
+    Failure,
+}
+
+/// The end of a job, or the loss of its lease.
+#[derive(Debug, PartialEq, Eq)]
+pub enum End {
+    Done(Job),
+    /// The `lease_token` changed after the claim: the transaction rolled back.
+    LeaseLost,
+}
+
+const READ_REVISION: &str = "select state, retry_mark, error_class, no_text from revisions \
+     where tenant_id = $1 and document_id = $2 and revision = $3";
+
+/// The revision of a claimed job, for `may_extract` at the claim. `None` when the tenant of the
+/// job has no such revision (TC-3-17). No lock: `end_job` locks the document first and then the
+/// revision, and a lock here before the document could deadlock with it.
+pub async fn read_revision(
+    tx: &mut TenantTx,
+    document_id: Uuid,
+    revision: i32,
+) -> Result<Option<strata_core::revision::Revision>, Error> {
+    let tenant = tx.tenant_id;
+    let c = tx.tx.conn();
+    let st = c.prepare_cached(READ_REVISION).await?;
+    let row = c
+        .query_opt(&st, &[&tenant, &document_id, &revision])
+        .await?;
+    Ok(row.map(|row| {
+        let class: Option<&str> = row.get(2);
+        strata_core::revision::Revision {
+            state: super::upload::parse_state(row.get(0)),
+            retry_mark: row.get(1),
+            error_class: class.map(super::upload::parse_class),
+            no_text: row.get(3),
+        }
+    }))
+}
+
+const LOCK_DOCUMENT: &str = "select floor(extract(epoch from now()))::bigint from documents \
+     where tenant_id = $1 and document_id = $2 for update";
+
+/// The writes of the end of a job, in one statement (the pipelining rule of 0049). Each write
+/// runs only when the update of the job finds the token of the claim (0005), so a lost lease
+/// writes nothing. For a new `Ready` state (`$11`): the text parts, `ready_revision`,
+/// `NewerReady` of `revision_step` for each older revision that it changes, and the removal of
+/// the text parts of those revisions. `$14` is true when `revision_step` changed the revision.
+const END_JOB: &str = "with j as (update jobs set state = $3, attempts = $4, \
+     run_after = to_timestamp($5), lease_until = null, \
+     ended_at = case when $6::float8 > 0 then to_timestamp($6) end, \
+     last_error = $7, lease_token = null \
+     where job_id = $1 and lease_token = $2 returning job_id), \
+     parts as (insert into text_parts \
+     (tenant_id, document_id, revision, part, location_kind, location_number, part_text) \
+     select $8, $9, $10, p.n::integer, 'page', p.location, p.part_text \
+     from unnest($12::integer[], $13::text[]) with ordinality as p (location, part_text, n) \
+     where $11 and exists (select from j)), \
+     ready as (update documents set ready_revision = $10 \
+     where tenant_id = $8 and document_id = $9 and $11 and exists (select from j)), \
+     older as (update revisions set state = 'Superseded', status_at = now() \
+     where tenant_id = $8 and document_id = $9 and revision < $10 \
+     and state in ('AwaitingUpload', 'Uploaded', 'Ready') and $11 and exists (select from j)), \
+     old_parts as (delete from text_parts \
+     where tenant_id = $8 and document_id = $9 and revision < $10 \
+     and $11 and exists (select from j)), \
+     rev as (update revisions set state = $15, retry_mark = $16, error_class = $17, \
+     no_text = $18, status_at = case when state = $15 then status_at else now() end \
+     where tenant_id = $8 and document_id = $9 and revision = $10 \
+     and $14 and exists (select from j)) \
+     select count(*) from j";
+
+/// The transaction that ends a job (0049). It locks the document, so two jobs of one document
+/// end one after the other. A `lease_token` that changed writes nothing.
+pub async fn end_job(mut tx: TenantTx, claimed: &Claimed, result: Finish) -> Result<End, Error> {
+    let (tenant, doc, rev) = (tx.tenant_id, claimed.document_id, claimed.revision);
+    let now = {
+        let c = tx.tx.conn();
+        let lock = c.prepare_cached(LOCK_DOCUMENT).await?;
+        let p: Params = &[&tenant, &doc];
+        c.query_opt(&lock, p)
+            .await?
+            .map_or(claimed.now, |row| secs(row.get(0)))
+    };
+    let locked = super::upload::lock_revision(&mut tx, doc, rev).await?;
+    let mut event = JobEvent::Succeed;
+    let (mut ready, mut changed) = (false, false);
+    let (mut locations, mut texts): (Vec<i32>, Vec<&str>) = (Vec::new(), Vec::new());
+    let mut new = locked.as_ref().map(|l| l.revision);
+    if let (Some(locked), Finish::Extraction(e, parts)) = (&locked, &result) {
+        let old = locked.revision;
+        let next = revision_step(old, *e);
+        if next.retry_mark && !old.retry_mark {
+            event = JobEvent::Fail;
+        }
+        ready = next.state == RevisionState::Ready && old.state != RevisionState::Ready;
+        if ready {
+            locations = parts
+                .iter()
+                .map(|p| i32::try_from(p.location).unwrap_or(i32::MAX))
+                .collect();
+            texts = parts.iter().map(|p| p.text.as_str()).collect();
+        }
+        changed = next != old;
+        new = Some(next);
+    }
+    if result == Finish::Failure {
+        event = JobEvent::Fail;
+    }
+    let job = job_step(claimed.job, event, now);
+    let (state, error) = (format!("{:?}", job.state), format!("{:?}", job.last_error));
+    let attempts = i32::try_from(job.attempts).unwrap_or(i32::MAX);
+    let (run_after, ended_at) = (job.run_after as f64, job.ended_at as f64);
+    let new = new.unwrap_or(strata_core::revision::Revision {
+        state: RevisionState::Uploaded,
+        retry_mark: false,
+        error_class: None,
+        no_text: false,
+    });
+    let rev_state = format!("{:?}", new.state);
+    let class = new.error_class.map(|c| format!("{c:?}"));
+    let p: Params = &[
+        &claimed.job_id,
+        &claimed.lease_token,
+        &state,
+        &attempts,
+        &run_after,
+        &ended_at,
+        &error,
+        &tenant,
+        &doc,
+        &rev,
+        &ready,
+        &locations,
+        &texts,
+        &changed,
+        &rev_state,
+        &new.retry_mark,
+        &class,
+        &new.no_text,
+    ];
+    let c = tx.tx.conn();
+    let st = c.prepare_cached(END_JOB).await?;
+    let ended: i64 = c.query_one(&st, p).await?.get(0);
+    if ended != 1 {
+        tx.rollback().await?;
+        return Ok(End::LeaseLost);
+    }
+    tx.commit().await?;
+    Ok(End::Done(job))
 }
 
 fn secs(v: i64) -> u64 {

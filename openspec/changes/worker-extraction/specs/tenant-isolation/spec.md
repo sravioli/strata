@@ -46,7 +46,6 @@ The worker SHALL read and write the rows of a job only in the tenant transaction
 - **GIVEN** a job of tenant A whose content names a document of B
 - **WHEN** a worker runs the job
 - **THEN** the worker finds no document and reads no row of B
-- **PENDING** Task 5.4 adds the test.
 
 #### Scenario: TC-4-07 The decision for a job
 
@@ -55,7 +54,6 @@ The worker SHALL read and write the rows of a job only in the tenant transaction
 - **THEN** the decision is "allow"
 - **WHEN** the content of the job names a document of B
 - **THEN** the decision is "deny"
-- **PENDING** Task 5.4 adds the test.
 
 ### Requirement: The tenant status applies at the next claim
 

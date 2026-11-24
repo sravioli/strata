@@ -30,7 +30,6 @@ The worker SHALL end a `ProcessDocument` job with one tenant transaction. It SHA
 - **GIVEN** revision 2 of a document is `Ready`
 - **WHEN** the job of revision 1 ends after that
 - **THEN** revision 1 stays `Superseded`, the worker writes no text for it, and the job is `Done`
-- **PENDING** Task 5.4 adds the test.
 
 ### Requirement: The end of a job follows the result
 
@@ -51,4 +50,3 @@ At the claim, the worker SHALL read the revision. When `may_extract` is false, t
 - **GIVEN** revision 1 is `processing` or `uploading`, and revision 2 of the same document becomes ready
 - **WHEN** the job of revision 1 runs, or the client finishes revision 1
 - **THEN** the job does no extraction, no new job exists, and revision 1 stays `superseded`
-- **PENDING** Task 5.4 adds the test.
