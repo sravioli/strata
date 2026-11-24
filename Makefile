@@ -118,7 +118,9 @@ l1: $(BIN)/cargo-llvm-cov $(BIN)/nsjail
 l2: $(BIN)/nsjail
 	scripts/dev.sh --background
 	status=0; cargo test --locked -p strata-tests --features l2 --test l2 || status=$$?; \
-	  scripts/dev.sh --stop; exit $$status
+	  scripts/dev.sh --stop; \
+	  [ $$status = 0 ] || tail -n 40 .strata-dev/api.log .strata-dev/worker.log .strata-dev/strata-dev.log; \
+	  exit $$status
 
 # The walking skeleton on this machine (scripts/dev.sh). Ctrl-C stops it.
 dev: $(BIN)/nsjail

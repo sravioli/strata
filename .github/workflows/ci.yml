@@ -247,10 +247,39 @@ jobs:
           echo $$ | sudo tee /sys/fs/cgroup/strata/main/cgroup.procs >/dev/null
           CGROUP_ROOT=/sys/fs/cgroup/strata make l1
 
+  # L2: the tests over HTTP against the processes of make dev (scripts/dev.sh). The setup of l1.
+  l2:
+    if: github.event_name == 'pull_request'
+    needs: l1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca  # stable branch, 2026-11
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
+      - name: Install pdftotext and the build dependencies of nsjail
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends poppler-utils bison flex pkg-config \
+            protobuf-compiler libprotobuf-dev libnl-route-3-dev
+      - run: make "$PWD/.tools/bin/nsjail"
+      - run: scripts/ci-nsjail-userns.sh .tools/bin/nsjail
+      # The worker of make dev runs in this delegated cgroup, as in l1.
+      - name: make l2 in a delegated cgroup
+        run: |
+          sudo mkdir /sys/fs/cgroup/strata
+          sudo chown -R "$USER" /sys/fs/cgroup/strata
+          mkdir /sys/fs/cgroup/strata/main
+          echo $$ | sudo tee /sys/fs/cgroup/strata/main/cgroup.procs >/dev/null
+          CGROUP_ROOT=/sys/fs/cgroup/strata make l2
+
   # Make only this job a required check. A skipped job counts as passed.
   ci-ok:
     if: always()
-    needs: [changes, commits, secrets, config, prose, rust, deny, verify, sql, test-cases, l1]
+    needs: [changes, commits, secrets, config, prose, rust, deny, verify, sql, test-cases, l1, l2]
     runs-on: ubuntu-latest
     steps:
       - run: |

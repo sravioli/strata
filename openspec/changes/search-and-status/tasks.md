@@ -33,7 +33,7 @@
 
 - [x] 7.1 Add `scripts/dev.sh` and `make dev`, with the steps of the requirement "One command starts the walking skeleton". Start the services with `$(COMPOSE)`, run `strata migrate` as `strata_owner`, start `strata-dev serve`, and create the tenants, the issuer and the bindings with `strata admin` (a second run skips each one that exists). Start `strata api` and `strata worker`, the worker in `scripts/in-cgroup.sh`. With `--background`, the script waits until the API answers and returns. Ctrl-C, or `scripts/dev.sh --stop`, stops each process that it started. Verify: the scenarios "The first run" and "A second run" pass on the laptop.
 - [x] 7.2 Add the L2 tests to `crates/strata-tests` behind the feature `l2`, and `make l2`. The tests get tokens from the key file of `strata-dev`, and call the API over HTTP. `make l2` starts `scripts/dev.sh --background`, runs the tests, and stops the processes, also when a test fails. Verify: the L2 tests TC-49-01, TC-47-11, TC-3-10, TC-3-19 and TC-4-09, and the scenario "The processes stop after a failed test", pass. Remove their pending markers.
-- [ ] 7.3 Add the `l2` job to `.github/workflows/ci.yml`. It needs the `l1` job, has the same setup of the services, nsjail, the delegated cgroup and `poppler-utils`, and runs `make l2`. Add it to the jobs that `ci-ok` needs. Verify: the scenario "The l2 job runs after l1" passes on the pull request.
+- [x] 7.3 Add the `l2` job to `.github/workflows/ci.yml`. It needs the `l1` job, has the same setup of the services, nsjail, the delegated cgroup and `poppler-utils`, and runs `make l2`. Add it to the jobs that `ci-ok` needs. Verify: the scenario "The l2 job runs after l1" passes on the pull request.
 
 ## 8. Integration and gates
 
