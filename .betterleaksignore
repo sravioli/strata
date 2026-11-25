@@ -4,3 +4,7 @@ a99e91fe300443ca40c319f892d6360a675d70f6:compose.yaml:generic-password:11
 92bbb0873b76dae0a72ae8cb94d23f5cbe0a8517:dev/yaak/README.md:generic-credential-uri:14
 # The Yaak template ${[ token ]}: a variable name, not a token.
 92bbb0873b76dae0a72ae8cb94d23f5cbe0a8517:dev/yaak/yaak.wk_strata.yaml:generic-api-key:12
+# Development URL of the PgBouncer stats user in compose.yaml (dev/pgbouncer-userlist.txt, 127.0.0.1 only). Not a real secret.
+f51863c4dd9d0305eecd18ce30c7a819ce499906:compose.yaml:generic-credential-uri:86
+# Development password of PostgreSQL in the collector config, the same as compose.yaml. Not a real secret.
+f51863c4dd9d0305eecd18ce30c7a819ce499906:dev/otel-collector.yaml:generic-password:13

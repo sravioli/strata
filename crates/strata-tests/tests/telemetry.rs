@@ -202,8 +202,15 @@ async fn tc_133_03_the_word_the_subject_and_the_url_stay_out() {
         "the actor event exists"
     );
     let signature = url.split("X-Amz-Signature=").nth(1).unwrap();
-    for secret in [WORD, sub.as_str(), actor.as_str(), url.as_str(), signature] {
-        assert!(!all.contains(secret), "{secret} is in the telemetry");
+    // The message names the value, so a failure does not print the secret.
+    for (name, secret) in [
+        ("the word", WORD),
+        ("the sub", sub.as_str()),
+        ("the actor", actor.as_str()),
+        ("the upload URL", url.as_str()),
+        ("the signature", signature),
+    ] {
+        assert!(!all.contains(secret), "{name} is in the telemetry");
     }
 }
 
