@@ -21,6 +21,7 @@ The site SHALL sign in through the realm `strata` of the local Keycloak, as the 
 
 #### Scenario: TC-65-06 The realm file
 
+- **PENDING** Test in `scripts/tests/test_keycloak_realm.py`, task 3.2.
 - **GIVEN** `dev/keycloak/strata-realm.json`
 - **WHEN** the test reads it
 - **THEN** the client `strata-web` is public, has only the standard flow, requires PKCE `S256`, and has only redirect URIs and web origins on `http://localhost:4321`
