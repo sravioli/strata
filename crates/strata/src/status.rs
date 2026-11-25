@@ -94,6 +94,7 @@ fn limited(s: &AppState, id: &IdentityTx, revisions: &[(Uuid, i32)]) -> Option<R
         return Some(StatusCode::FORBIDDEN.into_response());
     };
     s.buckets.take(account, revisions).err().map(|wait| {
+        s.metrics.rejection(crate::telemetry::Rejection::RateLimit);
         let seconds = crate::limits::retry_after_seconds(wait);
         (
             StatusCode::TOO_MANY_REQUESTS,

@@ -96,7 +96,7 @@ strata worker┘               ▲  ▲  ▲  └─ Prometheus (metrics)
 
 Garage exposes `/metrics` on its admin port when `dev/garage.toml` has an `[admin]` section. The design adds that section with a development token.
 
-`make dev` always starts the profile and sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` for `strata api` and `strata worker` (decided by the owner, 2026-11-24). When the variable `CI` is set, as in each GitHub Actions job, `scripts/dev.sh` starts neither and sets no endpoint. So `make l2` in CI runs with telemetry off, and a local `make l2` runs with it on. `dev/grafana/strata.json` is one dashboard, provisioned into Grafana: the request rate, the errors and the latency for each route, the rejections, the queue and the extractions.
+`make dev` always starts the profile and sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` for `strata api` and `strata worker` (decided by the owner, 2026-11-24). When the variable `CI` is set, as in each GitHub Actions job, `scripts/dev.sh` starts neither and sets no endpoint. So `make l2` in CI runs with telemetry off, and a local `make l2` runs with it on. `dev/grafana/strata.json` is one dashboard, provisioned into Grafana: the request rate, the errors and the latency for each route, the rejections, the queue and the extractions. Its row Database shows the connections and transactions of PostgreSQL and PgBouncer (decided by the owner, 2026-11-25).
 
 ## Alternatives considered
 

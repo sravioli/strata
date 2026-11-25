@@ -73,6 +73,10 @@ async fn run(s: &AppState, req: Request) -> Result<Response, Stop> {
     let Some((text, limit)) = parse(&v) else {
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };
+    // The length of `q`, never `q` (0133).
+    let span = tracing::Span::current();
+    span.record("strata.search.q_length", text.chars().count());
+    span.record("strata.search.limit", limit);
     let Caller(id) = Caller::from_request_parts(&mut parts, s).await?;
     let scope = authorized_scope(id.principal(), Action::Search);
     let tx = id
@@ -86,6 +90,8 @@ async fn run(s: &AppState, req: Request) -> Result<Response, Stop> {
         Err(e) if e.is_statement_timeout() => {
             // The log holds no text of the query.
             tracing::warn!(timeout_ms, "a search reached its statement timeout");
+            s.metrics
+                .rejection(crate::telemetry::Rejection::SearchTimeout);
             return Err(Reject::Unavailable.into());
         }
         Err(e) => return Err(Reject::from(e).into()),

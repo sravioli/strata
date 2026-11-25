@@ -58,6 +58,35 @@ services:
       timeout: 5s
       retries: 30
 
+  # The profile observability (tech design 0133): `make dev` starts it, except in CI. Without the
+  # profile, `docker compose up` and `make l1` leave these services out.
+  lgtm:
+    # Grafana with Tempo, Loki and Prometheus. Only Grafana has a port on the host: the collector
+    # below sends OTLP to port 4318 of this service on the compose network.
+    image: docker.io/grafana/otel-lgtm:0.41.1@sha256:1b852b77d7bcadb7699bfe7c78a51d059dff85168de674728cf7abf4474645e5
+    profiles: [observability]
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - ./dev/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/strata.yaml:ro
+      - ./dev/grafana/strata.json:/otel-lgtm/strata.json:ro
+
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
+    profiles: [observability]
+    ports: ["127.0.0.1:4318:4318"]
+    volumes:
+      - ./dev/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on: [lgtm, pgbouncer-exporter]
+
+  pgbouncer-exporter:
+    image: docker.io/prometheuscommunity/pgbouncer-exporter:v0.12.1@sha256:30f31b6c2efdad3647f8182cc7c1a3a19e42bae5d17387694989f969371c230d
+    profiles: [observability]
+    # The stats user of dev/pgbouncer.ini, on the admin database of PgBouncer.
+    command:
+      - --pgBouncer.connectionString=postgres://pgbouncer_stats:pgbouncer_stats@pgbouncer:6432/pgbouncer?sslmode=disable
+    depends_on:
+      pgbouncer: {condition: service_healthy}
+
 volumes:
   postgres:
   garage-meta:

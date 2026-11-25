@@ -1,0 +1,7 @@
+# The dashboard of Strata in the Grafana of the service lgtm (tech design 0133).
+apiVersion: 1
+providers:
+  - name: Strata
+    type: file
+    options:
+      path: /otel-lgtm/strata.json

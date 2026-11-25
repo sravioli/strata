@@ -90,6 +90,7 @@ pub fn test_state(pool: Pool, bounds: Bounds) -> AppState {
         )),
         in_flight: Arc::new(tokio::sync::Semaphore::new(MAX_REQUESTS)),
         search_timeout: strata::search::TIMEOUT,
+        metrics: strata::telemetry::Metrics::global(),
     }
 }
 

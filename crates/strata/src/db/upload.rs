@@ -2,6 +2,7 @@
 //! transaction, and each step is one statement (the batching rule of 0049).
 
 use strata_core::revision::{FailureClass, Revision, RevisionState};
+use tracing::Instrument;
 use uuid::Uuid;
 
 use super::{Error, Params, TenantTx};
@@ -34,14 +35,15 @@ pub(super) const LOCK_REVISION: &str = "select state, retry_mark, error_class, n
 
 /// The write of a finish that leaves `AwaitingUpload`: the result of `revision_step`, the removal
 /// of the row of `upload_slots`, and the job when `$9` is true (0005). The Rust code decides `$9`.
+/// `$10` is the `traceparent` of the span of the finish (0133).
 /// `strata_api` can read only `state` of `jobs`, so the insert has no `returning` and no
 /// `on conflict`.
 pub const WRITE_FINISH: &str = "with u as (update revisions set state = $4, retry_mark = $5, \
      error_class = $6, no_text = $7, status_at = now() \
      where tenant_id = $1 and document_id = $2 and revision = $3), \
      s as (delete from upload_slots where slot_id = $8) \
-     insert into jobs (tenant_id, kind, document_id, revision) \
-     select $1, 'ProcessDocument', $2, $3 where $9";
+     insert into jobs (tenant_id, kind, document_id, revision, traceparent) \
+     select $1, 'ProcessDocument', $2, $3, $10 where $9";
 
 /// What the client sent at the start (0006).
 pub struct NewRevision<'a> {
@@ -65,7 +67,10 @@ pub struct Locked {
 pub async fn bound_counts(tx: &mut TenantTx) -> Result<(i64, i64), Error> {
     let c = tx.tx.conn();
     let st = c.prepare_cached(BOUND_COUNTS).await?;
-    let row = c.query_one(&st, &[]).await?;
+    let row = c
+        .query_one(&st, &[])
+        .instrument(crate::db::span("bound_counts"))
+        .await?;
     Ok((row.get(0), row.get(1)))
 }
 
@@ -80,7 +85,9 @@ fn started(rows: Vec<tokio_postgres::Row>) -> Option<Started> {
 pub async fn start_document(tx: TenantTx, new: &NewRevision<'_>) -> Result<Started, Error> {
     let tenant = tx.tenant_id;
     let p: Params = &[&tenant, &new.file_name, &new.content_type, &new.size];
-    let rows = tx.query_and_end(START_DOCUMENT, p, true).await?;
+    let rows = tx
+        .query_and_end(START_DOCUMENT, "start_document", p, true)
+        .await?;
     Ok(started(rows).expect("the insert of a document returns its row"))
 }
 
@@ -99,7 +106,10 @@ pub async fn start_revision(
         &new.size,
         &document_id,
     ];
-    Ok(started(tx.query_and_end(START_REVISION, p, true).await?))
+    Ok(started(
+        tx.query_and_end(START_REVISION, "start_revision", p, true)
+            .await?,
+    ))
 }
 
 /// Locks the revision until the end of the transaction. `None` when the tenant has no such
@@ -114,6 +124,7 @@ pub async fn lock_revision(
     let st = c.prepare_cached(LOCK_REVISION).await?;
     let Some(row) = c
         .query_opt(&st, &[&tenant, &document_id, &revision])
+        .instrument(crate::db::span("lock_revision"))
         .await?
     else {
         return Ok(None);
@@ -151,6 +162,7 @@ pub async fn write_finish(
     let class = r.error_class.map(|c| format!("{c:?}"));
     // Only the change from `AwaitingUpload` to `Uploaded` makes a job.
     let job = r.state == RevisionState::Uploaded;
+    let traceparent = crate::telemetry::current_traceparent();
     let p: Params = &[
         &tenant,
         &document_id,
@@ -161,8 +173,10 @@ pub async fn write_finish(
         &r.no_text,
         &slot_id,
         &job,
+        &traceparent,
     ];
-    tx.query_and_end(WRITE_FINISH, p, commit).await?;
+    tx.query_and_end(WRITE_FINISH, "write_finish", p, commit)
+        .await?;
     Ok(())
 }
 

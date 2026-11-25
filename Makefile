@@ -22,7 +22,7 @@ RANGE ?= origin/main..HEAD
 COMPOSE ?= $(if $(shell command -v docker),docker compose,podman compose)
 export COMPOSE
 
-.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 dev commits secrets
+.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 dev hurl commits secrets
 .DEFAULT_GOAL := check
 
 check: lint prose test-cases rust
@@ -125,6 +125,15 @@ l2: $(BIN)/nsjail
 # The walking skeleton on this machine (scripts/dev.sh). Ctrl-C stops it.
 dev: $(BIN)/nsjail
 	scripts/dev.sh
+
+# The flow of dev/strata.hurl against the processes of make dev (tech design 0133).
+FIXTURE := crates/strata-tests/fixtures/two-pages.pdf
+hurl:
+	hurl --test --file-root . dev/strata.hurl \
+	  --variable base_url=http://127.0.0.1:8080 \
+	  --variable acme="$$(target/debug/strata-dev token --tenant acme --sub alice)" \
+	  --variable globex="$$(target/debug/strata-dev token --tenant globex --sub alice)" \
+	  --variable size="$$(stat -c %s $(FIXTURE))"
 
 commits: $(BIN)/cog
 	cog check $(RANGE)

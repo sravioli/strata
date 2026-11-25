@@ -37,6 +37,8 @@ pub fn key(tenant: Uuid, document: Uuid, revision: i32) -> String {
     format!("tenants/{tenant}/documents/{document}/revisions/{revision}/original")
 }
 
+/// A fixed text or a status code. It never holds the text of an error of the HTTP client, which
+/// can hold the signed URL (0133).
 #[derive(Debug, thiserror::Error)]
 #[error("storage: {0}")]
 pub struct Error(String);
@@ -144,7 +146,7 @@ impl Storage {
                 let Some(frame) = body.frame().await else {
                     break;
                 };
-                let frame = frame.map_err(|e| Error(e.to_string()))?;
+                let frame = frame.map_err(|_| Error("the read of the body failed".into()))?;
                 if let Ok(data) = frame.into_data() {
                     bytes.extend_from_slice(&data[..data.len().min(limit - bytes.len())]);
                 }
@@ -178,11 +180,19 @@ impl Storage {
             .method(method)
             .uri(url.as_str())
             .body(Empty::new())
-            .map_err(|e| Error(e.to_string()))?;
+            .map_err(|_| Error("the request is not valid".into()))?;
         tokio::time::timeout(TIMEOUT, self.http.request(req))
             .await
             .map_err(|_| Error("timeout".into()))?
-            .map_err(|e| Error(e.to_string()))
+            .map_err(|e| {
+                // The kind of a connection error, with no text.
+                let class = if e.is_connect() {
+                    "no connection"
+                } else {
+                    "the send failed"
+                };
+                Error(class.into())
+            })
     }
 }
 

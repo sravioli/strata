@@ -3,6 +3,7 @@
 //! so the cleanup needs no tenant context.
 
 use std::time::Duration;
+use tracing::Instrument;
 
 use tokio_postgres::Client;
 
@@ -26,12 +27,16 @@ const REMOVE_OLD_SLOTS: &str = "delete from upload_slots where slot_id in (selec
 /// One batch of the cleanup of `Done` jobs, on a connection of `strata_worker`. Returns the count
 /// of removed rows.
 pub async fn remove_done_jobs(c: &Client) -> Result<u64, tokio_postgres::Error> {
-    c.execute(REMOVE_DONE_JOBS, &[&BATCH]).await
+    c.execute(REMOVE_DONE_JOBS, &[&BATCH])
+        .instrument(crate::db::span("remove_done_jobs"))
+        .await
 }
 
 /// One batch of the cleanup of `upload_slots`, on a connection of `strata_api`.
 pub async fn remove_old_slots(c: &Client) -> Result<u64, tokio_postgres::Error> {
-    c.execute(REMOVE_OLD_SLOTS, &[&BATCH]).await
+    c.execute(REMOVE_OLD_SLOTS, &[&BATCH])
+        .instrument(crate::db::span("remove_old_slots"))
+        .await
 }
 
 /// The task of `strata api` that runs `remove_old_slots` each 60 seconds. A failed run goes to the
@@ -42,13 +47,13 @@ pub async fn old_slots_task(pool: Pool) {
     loop {
         every.tick().await;
         let run = async {
-            let c = pool.get().await.map_err(|e| e.to_string())?;
-            remove_old_slots(&c).await.map_err(|e| e.to_string())
+            let c = pool.get().await.map_err(crate::db::Error::from)?;
+            remove_old_slots(&c).await.map_err(crate::db::Error::from)
         };
         match run.await {
             Ok(0) => {}
             Ok(n) => tracing::info!(rows = n, "removed old rows of upload_slots"),
-            Err(error) => tracing::warn!(%error, "cleanup of upload_slots failed"),
+            Err(e) => tracing::warn!(error = e.class(), "cleanup of upload_slots failed"),
         }
     }
 }

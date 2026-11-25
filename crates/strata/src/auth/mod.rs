@@ -9,6 +9,7 @@ pub mod keys;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::Instrument;
 
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::{HeaderValue, StatusCode, header, request::Parts};
@@ -79,7 +80,7 @@ impl From<db::Error> for Reject {
             tracing::warn!("no connection before the end of the wait");
             Reject::Unavailable
         } else {
-            tracing::error!(error = %e, "database error");
+            tracing::error!(error = e.class(), "database error");
             Reject::Internal
         }
     }
@@ -150,6 +151,7 @@ pub async fn authenticate(auth: &Auth, token: &str) -> Result<IdentityTx, Reject
             .await
             .map_err(db::Error::from)?;
         conn.query_opt(&st, &[&iss])
+            .instrument(crate::db::span("read_issuer"))
             .await
             .map_err(db::Error::from)?
     };
@@ -188,9 +190,6 @@ pub async fn authenticate(auth: &Auth, token: &str) -> Result<IdentityTx, Reject
         max_lifetime_s: issuer.max_lifetime_s,
     };
     let claimed = claims::check(&verified.claims, &rules, now()).ok_or(Unauthorized)?;
-    if let Some(act) = &claimed.act_sub {
-        tracing::info!(act_sub = %act, "request for an actor");
-    }
 
     // Steps 7 to 10 in the identity transaction.
     match IdentityTx::open(
@@ -201,7 +200,20 @@ pub async fn authenticate(auth: &Auth, token: &str) -> Result<IdentityTx, Reject
     )
     .await?
     {
-        Identity::Active(tx) => Ok(*tx),
+        Identity::Active(tx) => {
+            // The span of the request gets the IDs of Strata, never the `sub` (0133).
+            let span = tracing::Span::current();
+            span.record("strata.tenant_id", tracing::field::display(tx.tenant_id()));
+            if let strata_core::authorization::Principal::Account { account, .. } = tx.principal() {
+                let account_id = Uuid::from_u128(account);
+                span.record("strata.account_id", tracing::field::display(account_id));
+                // The log has the account ID of the caller, not `act.sub` (0021, amended in #133).
+                if claimed.act_sub.is_some() {
+                    tracing::info!(%account_id, "request for an actor");
+                }
+            }
+            Ok(*tx)
+        }
         Identity::NoBinding => Err(Unauthorized),
         Identity::NotActive => Err(Reject::Forbidden),
     }

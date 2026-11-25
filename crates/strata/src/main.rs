@@ -28,12 +28,23 @@ enum Cmd {
 
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .init();
-    match run(Cli::parse()).await {
+    let cli = Cli::parse();
+    // Only the services export telemetry (tech design 0133).
+    let service = match cli.cmd {
+        Cmd::Api { .. } => Some("strata-api"),
+        Cmd::Worker => Some("strata-worker"),
+        _ => None,
+    };
+    let guard = match strata::telemetry::init(service.unwrap_or("strata"), service.is_some()) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    let result = run(cli).await;
+    guard.shutdown().await;
+    match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");
@@ -58,8 +69,12 @@ async fn run(cli: Cli) -> Result<(), String> {
                 storage: strata::storage::Storage::from_env()?,
                 sandbox: strata::sandbox::Sandbox::from_env()?,
                 settings: strata::worker::SETTINGS,
+                metrics: strata::telemetry::Metrics::global(),
             };
-            worker.run().await;
+            tokio::select! {
+                () = worker.run() => {}
+                () = strata::stop_signal() => tracing::info!("strata worker stops"),
+            }
             Ok(())
         }
         Cmd::Admin(cmd) => {

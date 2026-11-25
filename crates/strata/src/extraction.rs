@@ -32,6 +32,26 @@ pub enum Outcome {
     Cancelled,
 }
 
+/// The exit class of a stop, for the span and the metric of an extraction (0133).
+pub fn class(stop: &Stop) -> &'static str {
+    match stop {
+        Stop::Memory => "Memory",
+        Stop::OutputTooLarge => "OutputTooLarge",
+        Stop::Timeout => "Timeout",
+        Stop::Cancelled => "Cancelled",
+        Stop::SandboxFailure => "SandboxFailure",
+        Stop::Crash => "Crash",
+        Stop::Exit(code) => match Exit::from_code(*code) {
+            Some(Exit::Ok) => "Ok",
+            Some(Exit::UnsupportedFormat) => "UnsupportedFormat",
+            Some(Exit::EncryptedFile) => "EncryptedFile",
+            Some(Exit::MalformedFile) => "MalformedFile",
+            Some(Exit::OutputTooLarge) => "ExitOutputTooLarge",
+            Some(Exit::Crash) | None => "ExitCrash",
+        },
+    }
+}
+
 /// The map from each stop of a run to its result (0007, and the task 1.2 of #49).
 pub fn outcome(run: Run) -> Outcome {
     use FailureClass::*;

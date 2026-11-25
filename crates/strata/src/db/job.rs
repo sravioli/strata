@@ -6,6 +6,7 @@
 //! opens it again for the end of the same job, and `end_job` writes only with its token.
 
 use std::time::Duration;
+use tracing::Instrument;
 
 use strata_core::authorization::{Action, Decision, Principal, Resource, authorize};
 use strata_core::job::Event as JobEvent;
@@ -25,7 +26,7 @@ const CLAIM: &str = "select job_id, tenant_id, document_id, revision, state, att
      floor(extract(epoch from run_after))::bigint, \
      coalesce(floor(extract(epoch from lease_until))::bigint, 0), \
      coalesce(floor(extract(epoch from ended_at))::bigint, 0), last_error, \
-     floor(extract(epoch from now()))::bigint, lease_token \
+     floor(extract(epoch from now()))::bigint, lease_token, traceparent \
      from jobs where kind = 'ProcessDocument' \
      and (state = 'Waiting' and run_after <= now() or state = 'Running' and lease_until <= now()) \
      order by run_after limit 1 for update skip locked";
@@ -40,6 +41,11 @@ const WRITE_CLAIM: &str = "update jobs set state = $2, attempts = $3, run_after 
      ended_at = case when $6::float8 > 0 then to_timestamp($6) end, last_error = $7, \
      lease_token = case when $2 = 'Running' then gen_random_uuid() end \
      where job_id = $1 and lease_token is not distinct from $8 returning lease_token";
+
+/// The count and the age of the oldest `Waiting` job of each kind (0133). Rows only: no tenant.
+const QUEUE: &str = "select kind, count(*), \
+     coalesce(extract(epoch from now() - min(run_after)), 0)::float8 \
+     from jobs where state = 'Waiting' group by kind";
 
 /// A renewal writes only for the token of the claim (0005).
 const RENEW: &str = "update jobs set lease_until = now() + make_interval(secs => $3) \
@@ -57,6 +63,8 @@ pub struct Claimed {
     pub lease_token: Option<Uuid>,
     /// The time of the claim, in seconds (`now()` of PostgreSQL).
     pub now: u64,
+    /// The trace context of the request that queued the job (0133), or `None`.
+    pub traceparent: Option<String>,
 }
 
 /// The columns of a job row that `job_step` gives, as SQL parameters. The names are the names of
@@ -114,7 +122,11 @@ impl ClaimTx {
             c.prepare_cached(READ_TENANT),
             c.prepare_cached(WRITE_CLAIM),
         )?;
-        let (_, row) = tokio::try_join!(c.batch_execute("begin"), c.query_opt(&claim, &[]))?;
+        let (_, row) = tokio::try_join!(
+            c.batch_execute("begin"),
+            c.query_opt(&claim, &[])
+                .instrument(crate::db::span("claim"))
+        )?;
         let Some(row) = row else {
             tx.end("rollback").await?;
             return Ok(None);
@@ -139,6 +151,7 @@ impl ClaimTx {
             },
             lease_token: None,
             now,
+            traceparent: row.get(12),
         };
         let mut tenant_active = false;
         if claimed.job.state == JobState::Running {
@@ -147,7 +160,12 @@ impl ClaimTx {
         if claimed.job.state == JobState::Waiting {
             let tenant_text = claimed.tenant_id.to_string();
             let p: Params = &[&tenant_text];
-            let (_, status) = tokio::try_join!(c.query_one(&set, p), c.query_opt(&tenant, &[]))?;
+            let (_, status) = tokio::try_join!(
+                c.query_one(&set, p)
+                    .instrument(crate::db::span("set_tenant")),
+                c.query_opt(&tenant, &[])
+                    .instrument(crate::db::span("read_tenant"))
+            )?;
             tenant_active = status.is_some_and(|r| r.get::<_, bool>(0));
             claimed.job = job_step(claimed.job, Event::Claim(tenant_active), now);
         }
@@ -162,7 +180,11 @@ impl ClaimTx {
             &j.last_error,
             &read_token,
         ];
-        claimed.lease_token = c.query_one(&write, p).await?.get(0);
+        claimed.lease_token = c
+            .query_one(&write, p)
+            .instrument(crate::db::span("write_claim"))
+            .await?
+            .get(0);
         let principal = job_principal(claimed.tenant_id, tenant_active);
         Ok(Some(ClaimTx {
             tx,
@@ -198,7 +220,11 @@ impl ClaimTx {
         let set = c.prepare_cached(SET_TENANT).await?;
         let tenant_text = claimed.tenant_id.to_string();
         let p: Params = &[&tenant_text];
-        tokio::try_join!(c.batch_execute("begin"), c.query_one(&set, p))?;
+        tokio::try_join!(
+            c.batch_execute("begin"),
+            c.query_one(&set, p)
+                .instrument(crate::db::span("set_tenant"))
+        )?;
         Ok(TenantTx {
             tx,
             tenant_id: claimed.tenant_id,
@@ -226,7 +252,10 @@ pub async fn renew(pool: &Pool, job_id: Uuid, lease_token: Uuid) -> Result<bool,
     let c = pool.get().await?;
     let st = c.prepare_cached(RENEW).await?;
     let secs = LEASE_SECONDS as f64;
-    Ok(c.execute(&st, &[&job_id, &lease_token, &secs]).await? == 1)
+    Ok(c.execute(&st, &[&job_id, &lease_token, &secs])
+        .instrument(crate::db::span("renew"))
+        .await?
+        == 1)
 }
 
 /// Renews the lease each `every`, and ends at the first renewal that writes nothing. The worker
@@ -239,7 +268,7 @@ pub async fn keep_lease(pool: &Pool, job_id: Uuid, lease_token: Uuid, every: Dur
         match renew(pool, job_id, lease_token).await {
             Ok(true) => {}
             Ok(false) => return,
-            Err(e) => tracing::warn!(%job_id, error = %e, "a renewal of the lease"),
+            Err(e) => tracing::warn!(%job_id, error = e.class(), "a renewal of the lease"),
         }
     }
 }
@@ -278,6 +307,7 @@ pub async fn read_revision(
     let st = c.prepare_cached(READ_REVISION).await?;
     let p: Params = &[&tenant, &claimed.document_id, &claimed.revision];
     Ok(c.query_opt(&st, p)
+        .instrument(crate::db::span("read_revision"))
         .await?
         .map(|row| super::upload::revision_of(&row)))
 }
@@ -361,8 +391,12 @@ pub async fn end_job(tx: TenantTx, claimed: &Claimed, result: Finish) -> Result<
         )?;
         let d: Params = &[&tenant, &doc];
         let r: Params = &[&tenant, &doc, &rev];
-        let (doc_row, rev_row) =
-            tokio::try_join!(c.query_opt(&lock_doc, d), c.query_opt(&lock_rev, r))?;
+        let (doc_row, rev_row) = tokio::try_join!(
+            c.query_opt(&lock_doc, d)
+                .instrument(crate::db::span("lock_document")),
+            c.query_opt(&lock_rev, r)
+                .instrument(crate::db::span("lock_revision"))
+        )?;
         let now = doc_row.map_or(claimed.now, |row| secs(row.get(0)));
         (now, rev_row.map(|row| super::upload::revision_of(&row)))
     };
@@ -429,7 +463,7 @@ pub async fn end_job(tx: TenantTx, claimed: &Claimed, result: Finish) -> Result<
         &j.lease_until,
         &older,
     ];
-    let rows = tx.query_and_end(END_JOB, p, true).await?;
+    let rows = tx.query_and_end(END_JOB, "end_job", p, true).await?;
     let ended: i64 = rows.first().map_or(0, |r| r.get(0));
     Ok(if ended == 1 {
         End::Done(job)
@@ -462,6 +496,23 @@ fn parse_job_error(s: &str) -> ErrorClass {
         "JobFailed" => ErrorClass::JobFailed,
         other => unreachable!("an error class that the check constraint refuses: {other}"),
     }
+}
+
+/// The rows of `QUEUE` for each kind, 0 for a kind with no `Waiting` job. A job that waits for
+/// its retry has an age of 0.
+pub async fn queue(pool: &Pool) -> Result<Vec<(&'static str, u64, f64)>, Error> {
+    let c = pool.get().await?;
+    let st = c.prepare_cached(QUEUE).await?;
+    let rows = c.query(&st, &[]).await?;
+    Ok(["ProcessDocument", "RemoveFiles"]
+        .into_iter()
+        .map(|kind| {
+            let row = rows.iter().find(|r| r.get::<_, &str>(0) == kind);
+            let waiting = row.map_or(0, |r| u64::try_from(r.get::<_, i64>(1)).unwrap_or(0));
+            let age = row.map_or(0.0, |r| r.get::<_, f64>(2).max(0.0));
+            (kind, waiting, age)
+        })
+        .collect())
 }
 
 #[cfg(test)]

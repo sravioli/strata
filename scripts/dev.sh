@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # make dev: the walking skeleton locally (tech design 0049, spec dev-services).
 # It starts the services, applies the migrations, starts strata-dev, creates the tenants acme and
-# globex with their bindings, and runs strata api and strata worker on the host.
+# globex with their bindings, and runs strata api and strata worker on the host. When CI is not
+# set, it also starts the profile observability, and the API and the worker export to it.
 #   scripts/dev.sh               run in the foreground. Ctrl-C stops each process that it started.
 #   scripts/dev.sh --background  return when the API answers. The logs go to .strata-dev/*.log.
 #   scripts/dev.sh --stop        stop the processes of an earlier run with --background.
@@ -39,8 +40,19 @@ export AWS_ENDPOINT=http://localhost:3900 AWS_ALLOW_HTTP=true AWS_BUCKET_NAME=st
 db() { echo "postgres://$1:$1@localhost:$2/strata"; }
 bin=target/debug
 
+# The telemetry is on locally and off in CI (tech design 0133): the profile observability starts,
+# and strata api and strata worker export to its collector.
+profile=()
+if [ -z "${CI:-}" ]; then
+  profile=(--profile observability)
+  export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+  # Each 10 s, not the 60 s of the SDK, so the dashboard shows a run soon after it ends.
+  export OTEL_METRIC_EXPORT_INTERVAL=10000
+else
+  unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_METRIC_EXPORT_INTERVAL
+fi
 # podman-compose stays attached on a first start without -d.
-${COMPOSE:-docker compose} up -d --wait
+${COMPOSE:-docker compose} "${profile[@]}" up -d --wait
 cargo build --locked -p strata -p strata-dev -p strata-extract
 STRATA_DATABASE_URL=$(db strata_owner 5432) $bin/strata migrate
 
@@ -89,5 +101,6 @@ done
 curl -s -o /dev/null http://127.0.0.1:8080/v1/search || { echo "error: the API does not answer" >&2; exit 1; }
 ok=1
 echo "ok: the API answers on 127.0.0.1:8080. A token: $bin/strata-dev token --tenant acme --sub alice"
+[ -n "${CI:-}" ] || echo "ok: Grafana on http://127.0.0.1:3000 (dashboard Strata)"
 
 if [ -z "$mode" ]; then wait; fi

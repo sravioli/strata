@@ -12,3 +12,9 @@ rpc_secret = "0000000000000000000000000000000000000000000000000000000000000000"
 [s3_api]
 s3_region = "garage"
 api_bind_addr = "[::]:3900"
+
+# /metrics for the collector of the profile observability (tech design 0133). The port is not on
+# the host. Development only.
+[admin]
+api_bind_addr = "[::]:3903"
+metrics_token = "strata-dev-metrics-token"

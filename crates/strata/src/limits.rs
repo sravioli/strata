@@ -180,12 +180,22 @@ pub async fn bound(
     use axum::response::IntoResponse;
     let Ok(_permit) = s.in_flight.clone().try_acquire_owned() else {
         tracing::warn!(bound = "requests", "a request rejected at a bound");
+        s.metrics.rejection(crate::telemetry::Rejection::Bound);
         return (
             axum::http::StatusCode::SERVICE_UNAVAILABLE,
             [(axum::http::header::RETRY_AFTER, "1")],
         )
             .into_response();
     };
+    s.metrics.in_flight(1);
+    // A drop also counts down, when the client goes away before the response.
+    struct Done(Arc<crate::telemetry::Metrics>);
+    impl Drop for Done {
+        fn drop(&mut self) {
+            self.0.in_flight(-1);
+        }
+    }
+    let _done = Done(s.metrics.clone());
     next.run(req).await
 }
 
