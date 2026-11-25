@@ -4,6 +4,7 @@ pub mod admin;
 pub mod api;
 pub mod auth;
 pub mod cleanup;
+pub mod cors;
 pub mod db;
 pub mod extraction;
 pub mod limits;

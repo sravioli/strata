@@ -1,0 +1,44 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Account">
+  <div class="panel">
+    <p id="who" role="status">Reading the session…</p>
+    <button id="sign-in" type="button" hidden>Sign in with Keycloak</button>
+    <button id="sign-out" type="button" hidden>Sign out</button>
+    <p class="muted">Users: <code>alice@acme</code>, <code>bob@acme</code> and <code>alice@globex</code>. The passwords are in <code>dev/README.md</code>.</p>
+  </div>
+</Base>
+
+<script>
+  import { person, signIn, signOut } from "../auth";
+
+  const who = document.getElementById("who")!;
+  const inButton = document.getElementById("sign-in") as HTMLButtonElement;
+  const outButton = document.getElementById("sign-out") as HTMLButtonElement;
+  inButton.addEventListener("click", () => signIn());
+  outButton.addEventListener("click", () => signOut());
+
+  try {
+    const p = await person();
+    if (p) {
+      who.innerHTML = "";
+      who.append("Signed in. Tenant: ");
+      const t = document.createElement("code");
+      t.textContent = p.tenant;
+      who.append(t, ". sub: ");
+      const s = document.createElement("code");
+      s.textContent = p.sub;
+      who.append(s, ".");
+      outButton.hidden = false;
+    } else {
+      who.textContent = "Not signed in.";
+      inButton.hidden = false;
+    }
+  } catch (e) {
+    who.className = "error";
+    who.textContent = `The sign-in failed: ${e instanceof Error ? e.message : String(e)}`;
+    inButton.hidden = false;
+  }
+</script>

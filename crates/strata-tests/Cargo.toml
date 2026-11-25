@@ -99,6 +99,10 @@ name = "telemetry"
 required-features = ["l1"]
 
 [[test]]
+name = "cors"
+required-features = ["l1"]
+
+[[test]]
 name = "routes"
 
 [[test]]

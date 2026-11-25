@@ -2,7 +2,8 @@
 # make dev: the walking skeleton locally (tech design 0049, spec dev-services).
 # It starts the services, applies the migrations, starts strata-dev, creates the tenants acme and
 # globex with their bindings, and runs strata api and strata worker on the host. When CI is not
-# set, it also starts the profile observability, and the API and the worker export to it.
+# set, it also starts the profile observability, the API and the worker export to it, and the API
+# allows the origin of make web.
 #   scripts/dev.sh               run in the foreground. Ctrl-C stops each process that it started.
 #   scripts/dev.sh --background  return when the API answers. The logs go to .strata-dev/*.log.
 #   scripts/dev.sh --stop        stop the processes of an earlier run with --background.
@@ -48,8 +49,11 @@ if [ -z "${CI:-}" ]; then
   export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
   # Each 10 s, not the 60 s of the SDK, so the dashboard shows a run soon after it ends.
   export OTEL_METRIC_EXPORT_INTERVAL=10000
+  # The origin of the site of make web (tech design 0065). A value in the environment wins.
+  export STRATA_CORS_ORIGINS=${STRATA_CORS_ORIGINS-http://localhost:4321}
 else
-  unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_METRIC_EXPORT_INTERVAL
+  # CI runs the API with no CORS layer.
+  unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_METRIC_EXPORT_INTERVAL STRATA_CORS_ORIGINS
 fi
 # podman-compose stays attached on a first start without -d.
 ${COMPOSE:-docker compose} "${profile[@]}" up -d --wait

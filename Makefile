@@ -22,7 +22,7 @@ RANGE ?= origin/main..HEAD
 COMPOSE ?= $(if $(shell command -v docker),docker compose,podman compose)
 export COMPOSE
 
-.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 test dev hurl commits secrets
+.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 test dev web hurl commits secrets
 .DEFAULT_GOAL := check
 
 check: lint prose test-cases rust
@@ -63,7 +63,7 @@ $(AENEAS)/charon: toolchain.env scripts/install-aeneas.sh
 
 # Linters get tracked files only, so local drafts and build output stay out.
 lint: tools
-	git ls-files -z ':(glob)*.md' ':(glob)docs/**/*.md' ':(glob).github/**/*.md' \
+	git ls-files -z ':(glob)*.md' ':(glob)docs/**/*.md' ':(glob).github/**/*.md' ':(glob)web/**/*.md' \
 	  | xargs -0 markdownlint-cli2 --config $(LINTERS)/.markdownlint-cli2.yaml
 	git ls-files -z '*.yml' '*.yaml' | xargs -0 yamllint -c $(LINTERS)/.yamllint.yaml
 	actionlint
@@ -131,6 +131,10 @@ test: test-cases
 # The walking skeleton on this machine (scripts/dev.sh). Ctrl-C stops it.
 dev: $(BIN)/nsjail
 	scripts/dev.sh
+
+# The frontend for demonstrations (tech design 0065), next to the processes of make dev.
+web:
+	scripts/web.sh
 
 # The flow of dev/strata.hurl against the processes of make dev (tech design 0133).
 FIXTURE := crates/strata-tests/fixtures/two-pages.pdf

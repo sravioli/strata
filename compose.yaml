@@ -87,6 +87,23 @@ services:
     depends_on:
       pgbouncer: {condition: service_healthy}
 
+  # The profile frontend (tech design 0065): `make web` starts it. The default start, `make l1`
+  # and `make dev` leave it out. No volume: a new container imports the realm file again.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4
+    profiles: [frontend]
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # A fixed hostname, so `iss` is always http://localhost:8180/realms/strata.
+      KC_HOSTNAME: http://localhost:8180
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports: ["127.0.0.1:8180:8080"]
+    volumes:
+      - ./dev/keycloak/strata-realm.json:/opt/keycloak/data/import/strata-realm.json:ro
+    # The heap of Keycloak is 70% of this limit.
+    mem_limit: 1536m
+
 volumes:
   postgres:
   garage-meta:
