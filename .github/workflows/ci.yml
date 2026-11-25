@@ -23,6 +23,7 @@ jobs:
       deny: ${{ steps.f.outputs.deny }}
       sql: ${{ steps.f.outputs.sql }}
       proofs: ${{ steps.f.outputs.proofs }}
+      web: ${{ steps.f.outputs.web }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -62,6 +63,9 @@ jobs:
               - '**/*.sql'
               - '.github/requirements/**'
               - 'Makefile'
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
             proofs:
               - 'crates/core/**'
               - 'lean/**'
@@ -152,6 +156,28 @@ jobs:
         with:
           persist-credentials: false
       - run: make deny
+
+  # The site of tech design 0065: its types and its static build. The browser test (TC-65-07) needs
+  # Keycloak, so it runs locally only (#141).
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 26
+      - run: npm ci --no-fund --no-audit
+      - run: npx astro check
+      - run: npx astro build
 
   # The checks of tech design 0009 ("The definition of proved"). Any failure fails ci-ok.
   verify:
@@ -279,7 +305,7 @@ jobs:
   # Make only this job a required check. A skipped job counts as passed.
   ci-ok:
     if: always()
-    needs: [changes, commits, secrets, config, prose, rust, deny, verify, sql, test-cases, l1, l2]
+    needs: [changes, commits, secrets, config, prose, rust, deny, web, verify, sql, test-cases, l1, l2]
     runs-on: ubuntu-latest
     steps:
       - run: |

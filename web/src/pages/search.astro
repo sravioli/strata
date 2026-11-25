@@ -1,0 +1,59 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Search">
+  <form id="search" role="search">
+    <label>Words <input name="q" type="search" required maxlength="1000" /></label>
+    <label>Limit <input name="limit" type="number" min="1" max="100" value="20" required /></label>
+    <button type="submit">Search</button>
+  </form>
+  <p id="note" role="status" aria-live="polite"></p>
+  <ol id="hits"></ol>
+</Base>
+
+<script>
+  import { person } from "../auth";
+  import { call, describe, uploads } from "../api";
+
+  const form = document.getElementById("search") as HTMLFormElement;
+  const note = document.getElementById("note")!;
+  const hits = document.getElementById("hits")!;
+  const p = await person();
+  if (!p) {
+    note.textContent = "Sign in on the Account page first.";
+    form.querySelector("button")!.disabled = true;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    hits.replaceChildren();
+    note.className = "muted";
+    note.textContent = "Searching…";
+    try {
+      const a = await call("QUERY", "/v1/search", { q: data.get("q"), limit: Number(data.get("limit")) });
+      if (a.status !== 200) {
+        note.className = "error";
+        note.textContent = `The search failed: ${describe(a)}`;
+        return;
+      }
+      const names = new Map(uploads(p!).map((u) => [u.document_id, u.file_name]));
+      const results = a.json.results as any[];
+      note.className = "";
+      note.textContent = results.length === 1 ? "1 hit." : `${results.length} hits.`;
+      for (const h of results) {
+        const li = document.createElement("li");
+        const name = names.get(h.document_id) ?? "a document of another browser";
+        li.textContent = `${name}, revision ${h.revision}, ${h.location.kind} ${h.location.number} (score ${h.score.toFixed(3)}) `;
+        const c = document.createElement("code");
+        c.textContent = h.document_id;
+        li.append(c);
+        hits.append(li);
+      }
+    } catch (err) {
+      note.className = "error";
+      note.textContent = `The search failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>

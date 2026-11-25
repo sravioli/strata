@@ -1,0 +1,21 @@
+{
+  "name": "strata-web",
+  "private": true,
+  "type": "module",
+  "description": "The local frontend for demonstrations of Strata (tech design 0065).",
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "build": "astro build",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "astro": "7.4.13",
+    "oidc-client-ts": "3.5.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@playwright/test": "1.65.1",
+    "typescript": "6.0.3"
+  }
+}

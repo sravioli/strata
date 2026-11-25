@@ -8,3 +8,7 @@ a99e91fe300443ca40c319f892d6360a675d70f6:compose.yaml:generic-password:11
 f51863c4dd9d0305eecd18ce30c7a819ce499906:compose.yaml:generic-credential-uri:86
 # Development password of PostgreSQL in the collector config, the same as compose.yaml. Not a real secret.
 f51863c4dd9d0305eecd18ce30c7a819ce499906:dev/otel-collector.yaml:generic-password:13
+# Development URL of strata_api in the CORS test (TC-65-05): the password of dev/roles.sql. Not a real secret.
+57148db6f6613b076bbb503ee5094218aba18021:crates/strata-tests/tests/cors.rs:generic-credential-uri:180
+# Development admin password of Keycloak in compose.yaml (profile frontend, 127.0.0.1 only). Not a real secret.
+60d901fc6483f32c19e56cdf370815013dc5dbc1:compose.yaml:generic-password:100

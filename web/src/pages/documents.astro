@@ -1,0 +1,78 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Documents">
+  <p class="muted">The uploads of this browser for the signed-in person. The API has no list route yet (#140).</p>
+  <p id="note" role="status" aria-live="polite"></p>
+  <table id="list" hidden>
+    <caption class="muted">Status from <code>QUERY /v1/revisions</code></caption>
+    <thead><tr><th scope="col">File</th><th scope="col">Document</th><th scope="col">Revision</th><th scope="col">Status</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</Base>
+
+<script>
+  import { person } from "../auth";
+  import { MAX_BATCH, call, describe, uploads } from "../api";
+
+  const note = document.getElementById("note")!;
+  const table = document.getElementById("list") as HTMLTableElement;
+  const body = table.tBodies[0];
+
+  function cell(row: HTMLTableRowElement, text: string, code = false) {
+    const td = row.insertCell();
+    if (code) {
+      const c = document.createElement("code");
+      c.textContent = text;
+      td.append(c);
+    } else td.textContent = text;
+    return td;
+  }
+
+  const p = await person();
+  const list = p ? uploads(p).slice(-MAX_BATCH).reverse() : [];
+  if (!p) note.textContent = "Sign in on the Account page first.";
+  else if (list.length === 0) note.textContent = "No uploads yet. Upload a PDF on the Upload page.";
+  else {
+    const rows = new Map<string, HTMLTableCellElement>();
+    for (const u of list) {
+      const row = body.insertRow();
+      cell(row, u.file_name);
+      cell(row, u.document_id, true);
+      cell(row, String(u.revision));
+      rows.set(`${u.document_id}/${u.revision}`, cell(row, "…"));
+    }
+    table.hidden = false;
+
+    /** One batch read. A status that is not final gets one more read after its Retry-After. */
+    async function read() {
+      const a = await call("QUERY", "/v1/revisions", {
+        revisions: list.map((u) => ({ document_id: u.document_id, revision: u.revision })),
+      });
+      if (a.status !== 200) {
+        note.className = "error";
+        note.textContent = `The status read failed: ${describe(a)}`;
+        return;
+      }
+      for (const s of a.json.revisions) {
+        const td = rows.get(`${s.document_id}/${s.revision}`);
+        if (!td) continue;
+        td.textContent = s.state + (s.error_class ? ` (${s.error_class})` : "") + (s.no_text ? " (no text)" : "");
+        td.dataset.state = s.state;
+      }
+      if (a.retryAfter !== null) {
+        note.className = "muted";
+        note.textContent = `Some uploads are not final. The page reads them again in ${a.retryAfter} s.`;
+        setTimeout(read, a.retryAfter * 1000);
+      } else {
+        note.className = "ok";
+        note.textContent = "Each status is final.";
+      }
+    }
+    read().catch((e) => {
+      note.className = "error";
+      note.textContent = `The status read failed: ${e instanceof Error ? e.message : String(e)}`;
+    });
+  }
+</script>

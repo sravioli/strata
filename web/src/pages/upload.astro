@@ -1,0 +1,87 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Upload">
+  <form id="new">
+    <h2>A new document</h2>
+    <label>PDF file <input name="file" type="file" accept="application/pdf,.pdf" required /></label>
+    <button type="submit">Upload</button>
+  </form>
+  <form id="revision">
+    <h2>A new revision of a document</h2>
+    <label>Document <select name="document" required></select></label>
+    <label>PDF file <input name="file" type="file" accept="application/pdf,.pdf" required /></label>
+    <button type="submit">Upload the revision</button>
+  </form>
+  <p id="result" role="status" aria-live="polite"></p>
+</Base>
+
+<script>
+  import { person } from "../auth";
+  import { call, describe, put, remember, uploads, type Upload } from "../api";
+
+  const result = document.getElementById("result")!;
+  const select = document.querySelector<HTMLSelectElement>("#revision select")!;
+  const forms = document.querySelectorAll<HTMLFormElement>("form");
+
+  function show(text: string, kind: "ok" | "error" | "muted") {
+    result.className = kind;
+    result.textContent = text;
+  }
+
+  const p = await person();
+  function fillDocuments() {
+    select.replaceChildren();
+    if (!p) return;
+    const latest = new Map<string, Upload>();
+    for (const u of uploads(p)) latest.set(u.document_id, u);
+    for (const u of latest.values()) {
+      select.add(new Option(`${u.file_name} (${u.document_id})`, u.document_id));
+    }
+  }
+  fillDocuments();
+  if (!p) {
+    show("Sign in on the Account page first.", "muted");
+    forms.forEach((f) => f.querySelector("button")!.setAttribute("disabled", ""));
+  }
+
+  /** The start, the PUT to the signed URL and the finish. */
+  async function upload(file: File, document_id?: string) {
+    const path = document_id ? `/v1/documents/${document_id}/revisions` : "/v1/documents";
+    show(`Starting the upload of ${file.name}…`, "muted");
+    const start = await call("POST", path, {
+      file_name: file.name,
+      content_type: "application/pdf",
+      size: file.size,
+    });
+    if (start.status !== 201) return show(`The start failed: ${describe(start)}`, "error");
+    const { document_id: d, revision: r, upload_url } = start.json;
+    show(`Sending ${file.name} to the storage…`, "muted");
+    const sent = await put(upload_url, file);
+    if (!sent.ok) return show(`The PUT to the storage failed: ${describe(sent)}`, "error");
+    remember(p!, { document_id: d, revision: r, file_name: file.name });
+    const finish = await call("POST", `/v1/documents/${d}/revisions/${r}/finish`);
+    if (finish.status !== 202) return show(`The finish failed: ${describe(finish)}`, "error");
+    fillDocuments();
+    show(`Uploaded ${file.name}: document ${d}, revision ${r}. See its status on the Documents page.`, "ok");
+  }
+
+  for (const form of forms) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const file = (form.elements.namedItem("file") as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const button = form.querySelector("button")!;
+      button.disabled = true;
+      try {
+        await upload(file, form.id === "revision" ? select.value : undefined);
+        form.reset();
+      } catch (err) {
+        show(`The upload failed: ${err instanceof Error ? err.message : String(err)}`, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+</script>
