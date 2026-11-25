@@ -38,7 +38,7 @@
 
 ## 8. Integration and gates
 
-- [ ] 8.1 Run `make`, `make l1`, `CI=1 make l2`, `make l2` and `make deny`. Verify: each target passes, the coverage of `CONSTRAINTS.md` is at the floor or above, and `python3 scripts/check-test-cases.py --report` shows TC-133-01 to TC-133-07 and TC-21-13 as `implemented`. If the coverage is below the floor, add tests. Do not lower the number.
+- [x] 8.1 Run `make`, `make l1`, `CI=1 make l2`, `make l2` and `make deny`. Verify: each target passes, the coverage of `CONSTRAINTS.md` is at the floor or above, and `python3 scripts/check-test-cases.py --report` shows TC-133-01 to TC-133-07 and TC-21-13 as `implemented`. If the coverage is below the floor, add tests. Do not lower the number.
 - [ ] 8.2 Comment on #133 with the result of the manual run of TC-133-07 and the list of events that task 6.1 changed. Add what task 7.1 found about the Grafana login. Verify: the comment exists, and #132 has each point that this change leaves to production.
 
 ## Workflow follow-up
