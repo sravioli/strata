@@ -22,7 +22,7 @@ RANGE ?= origin/main..HEAD
 COMPOSE ?= $(if $(shell command -v docker),docker compose,podman compose)
 export COMPOSE
 
-.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 dev hurl commits secrets
+.PHONY: check setup tools lint prose rust deny verify sql test-cases l1 l2 test dev hurl commits secrets
 .DEFAULT_GOAL := check
 
 check: lint prose test-cases rust
@@ -121,6 +121,12 @@ l2: $(BIN)/nsjail
 	  scripts/dev.sh --stop; \
 	  [ $$status = 0 ] || tail -n 40 .strata-dev/api.log .strata-dev/worker.log .strata-dev/strata-dev.log; \
 	  exit $$status
+
+# Every test level that exists: the test case check, L0 and L1 (make l1), then L2. L3 has no
+# target yet. One after the other, because L1 and L2 share the services and the ports.
+test: test-cases
+	$(MAKE) l1
+	$(MAKE) l2
 
 # The walking skeleton on this machine (scripts/dev.sh). Ctrl-C stops it.
 dev: $(BIN)/nsjail

@@ -46,6 +46,7 @@ The `Makefile` holds the commands of CI. Each CI job of `.github/workflows/ci.ym
 
 ## Running the levels
 
+- **All:** `make test` runs the test case check with the tests of `scripts/tests/`, then `make l1` (L0 and L1 under coverage), then `make l2`. It needs the services of `compose.yaml`, like `make l1`.
 - **L0:** `cargo test --workspace`. CI runs it on each push to `main` and on each pull request.
 - **L1:** `docker compose up --wait` (Podman works too: `make l1` uses `podman compose` when `docker` is not installed, and `COMPOSE` overrides the command), then `cargo test --workspace --all-features`. An L1 test target has `required-features = ["l1"]` in its `Cargo.toml`, so L0 does not run it. An L1 test fails when a service is not available. It does not skip. `scripts/dev-services-smoke.sh` tests the services themselves. CI runs L1 on each pull request, with the L0 tests, under `cargo llvm-cov` with the coverage floor of `CONSTRAINTS.md`.
 
