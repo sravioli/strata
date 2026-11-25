@@ -1,4 +1,4 @@
-//! The query of the search route (tech design 0049).
+//! The query of the search route (tech designs 0049 and 0145).
 
 use tracing::Instrument;
 use uuid::Uuid;
