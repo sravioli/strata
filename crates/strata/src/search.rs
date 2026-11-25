@@ -74,36 +74,13 @@ pub fn segments(snippet: &str) -> Vec<Value> {
     out
 }
 
-enum Stop {
-    Refused(Refused),
-    Reject(Reject),
-}
-
-impl From<Reject> for Stop {
-    fn from(r: Reject) -> Self {
-        Stop::Reject(r)
-    }
-}
-
-impl IntoResponse for Stop {
-    fn into_response(self) -> Response {
-        match self {
-            Stop::Refused(r) => r.into_response(),
-            Stop::Reject(r) => r.into_response(),
-        }
-    }
-}
-
 /// `QUERY /v1/search` with the action `Search`.
 pub async fn search(State(s): State<AppState>, req: Request) -> Response {
-    match run(&s, req).await {
-        Ok(r) => r,
-        Err(stop) => stop.into_response(),
-    }
+    run(&s, req).await.into_response()
 }
 
-async fn run(s: &AppState, req: Request) -> Result<Response, Stop> {
-    let (mut parts, v) = query::read(req).await.map_err(Stop::Refused)?;
+async fn run(s: &AppState, req: Request) -> Result<Response, Refused> {
+    let (mut parts, v) = query::read(req).await?;
     let Some((text, limit)) = parse(&v) else {
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };

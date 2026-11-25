@@ -37,6 +37,26 @@ pub fn key(tenant: Uuid, document: Uuid, revision: i32) -> String {
     format!("tenants/{tenant}/documents/{document}/revisions/{revision}/original")
 }
 
+/// The longest `ETag` that a revision keeps (the check of V6).
+pub const MAX_ETAG: usize = 1024;
+
+/// The answer to a HEAD of an object.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Head {
+    pub size: u64,
+    /// The `ETag` header as the storage sends it, with its quotes.
+    pub etag: String,
+}
+
+/// The answer to a read of an object.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Object {
+    Missing,
+    /// The object is not the object of the `ETag` of the read.
+    Changed,
+    Bytes(Vec<u8>),
+}
+
 /// A fixed text or a status code. It never holds the text of an error of the HTTP client, which
 /// can hold the signed URL (0133).
 #[derive(Debug, thiserror::Error)]
@@ -106,38 +126,46 @@ impl Storage {
         (url, end)
     }
 
-    /// The size of the object in bytes, or `None` when no object has the key.
-    pub async fn size(&self, key: &str) -> Result<Option<u64>, Error> {
+    /// The size and the `ETag` of the object, or `None` when no object has the key.
+    pub async fn head(&self, key: &str) -> Result<Option<Head>, Error> {
         let url = self
             .bucket
             .head_object(Some(&self.credentials), key)
             .sign(API_EXPIRY);
-        let resp = self.send(Method::HEAD, url).await?;
+        let resp = self.send(Method::HEAD, url, None).await?;
+        let text = |name| resp.headers().get(name).and_then(|v| v.to_str().ok());
         match resp.status() {
-            StatusCode::OK => resp
-                .headers()
-                .get(header::CONTENT_LENGTH)
-                .and_then(|v| v.to_str().ok()?.parse().ok())
-                .map(Some)
-                .ok_or_else(|| Error("HEAD gave no content-length".into())),
+            StatusCode::OK => {
+                let size = text(header::CONTENT_LENGTH).and_then(|v| v.parse().ok());
+                let etag = text(header::ETAG).filter(|v| (1..=MAX_ETAG).contains(&v.len()));
+                match (size, etag) {
+                    (Some(size), Some(etag)) => Ok(Some(Head {
+                        size,
+                        etag: etag.to_owned(),
+                    })),
+                    _ => Err(Error("HEAD gave no content-length or no etag".into())),
+                }
+            }
             StatusCode::NOT_FOUND => Ok(None),
             s => Err(Error(format!("HEAD gave {s}"))),
         }
     }
 
-    /// At most `max` + 1 bytes of the object, so that the caller can see an object above `max`,
-    /// or `None` when no object has the key. The worker reads with its own credentials (0006).
-    pub async fn read(&self, key: &str, max: u64) -> Result<Option<Vec<u8>>, Error> {
+    /// At most `max` + 1 bytes of the object, so that the caller can see an object above `max`.
+    /// With `if_match`, only the object of that `ETag`: an object that changed after the finish is
+    /// `Object::Changed`. The worker reads with its own credentials (0006).
+    pub async fn read(&self, key: &str, max: u64, if_match: Option<&str>) -> Result<Object, Error> {
         let url = self
             .bucket
             .get_object(Some(&self.credentials), key)
             .sign(API_EXPIRY);
         let limit = usize::try_from(max).unwrap_or(usize::MAX).saturating_add(1);
         let read = async {
-            let resp = self.send(Method::GET, url).await?;
+            let resp = self.send(Method::GET, url, if_match).await?;
             match resp.status() {
                 StatusCode::OK => {}
-                StatusCode::NOT_FOUND => return Ok(None),
+                StatusCode::NOT_FOUND => return Ok(Object::Missing),
+                StatusCode::PRECONDITION_FAILED => return Ok(Object::Changed),
                 s => return Err(Error(format!("GET gave {s}"))),
             }
             let mut body = resp.into_body();
@@ -151,7 +179,7 @@ impl Storage {
                     bytes.extend_from_slice(&data[..data.len().min(limit - bytes.len())]);
                 }
             }
-            Ok(Some(bytes))
+            Ok(Object::Bytes(bytes))
         };
         tokio::time::timeout(READ_TIMEOUT, read)
             .await
@@ -164,7 +192,7 @@ impl Storage {
             .bucket
             .delete_object(Some(&self.credentials), key)
             .sign(API_EXPIRY);
-        let resp = self.send(Method::DELETE, url).await?;
+        let resp = self.send(Method::DELETE, url, None).await?;
         match resp.status() {
             s if s.is_success() || s == StatusCode::NOT_FOUND => Ok(()),
             s => Err(Error(format!("DELETE gave {s}"))),
@@ -175,10 +203,13 @@ impl Storage {
         &self,
         method: Method,
         url: Url,
+        if_match: Option<&str>,
     ) -> Result<hyper::Response<hyper::body::Incoming>, Error> {
-        let req = Request::builder()
-            .method(method)
-            .uri(url.as_str())
+        let mut req = Request::builder().method(method).uri(url.as_str());
+        if let Some(etag) = if_match {
+            req = req.header(header::IF_MATCH, etag);
+        }
+        let req = req
             .body(Empty::new())
             .map_err(|_| Error("the request is not valid".into()))?;
         tokio::time::timeout(TIMEOUT, self.http.request(req))

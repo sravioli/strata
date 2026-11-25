@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use strata_core::job::JobState;
-use strata_core::revision::{Event, may_extract};
+use strata_core::revision::{Event, FailureClass, may_extract};
 use tracing::Instrument;
 use tracing::field::Empty;
 
@@ -14,7 +14,7 @@ use crate::db::job::{self, ClaimTx, End, Finish};
 use crate::db::{Error, Pool};
 use crate::extraction::{Outcome, class, outcome};
 use crate::sandbox::Sandbox;
-use crate::storage::{self, Storage};
+use crate::storage::{self, Object, Storage};
 use crate::telemetry::Metrics;
 use crate::upload::MAX_FILE_BYTES;
 
@@ -175,11 +175,11 @@ impl Worker {
         // At the claim: no extraction for a revision that the tenant does not have, or that
         // `may_extract` refuses (0047). The job ends in the transaction of the claim.
         let revision = job::read_revision(&mut tx, &claimed).await?;
-        if !revision.is_some_and(may_extract) {
+        let Some((_, etag)) = revision.filter(|(r, _)| may_extract(*r)) else {
             return job::end_job(tx, &claimed, Finish::NoExtraction)
                 .await
                 .map(Some);
-        }
+        };
         tx.commit().await?;
 
         // A `Running` job always has a token. The nil token renews nothing, so the run stops.
@@ -189,11 +189,15 @@ impl Worker {
         let key = storage::key(claimed.tenant_id, claimed.document_id, claimed.revision);
         let max = self.settings.max_object;
         let read = tokio::select! {
-            r = self.storage.read(&key, max) => r,
+            r = self.storage.read(&key, max, etag.as_deref()) => r,
             () = &mut lost => return Ok(Some(End::LeaseLost)),
         };
+        // An object above the maximum, or not the object that the finish checked, never reaches
+        // the corpus: the revision fails, and the object goes after the end of the job (0006).
+        let mut remove = true;
         let finish = match read {
-            Ok(Some(bytes)) if bytes.len() as u64 <= max => {
+            Ok(Object::Bytes(bytes)) if bytes.len() as u64 <= max => {
+                remove = false;
                 match self.extract(&bytes, lost.as_mut()).await {
                     Outcome::Text(parts) => {
                         Finish::Extraction(Event::Extracted(parts.is_empty()), parts)
@@ -206,15 +210,36 @@ impl Worker {
                     Outcome::Cancelled => return Ok(Some(End::LeaseLost)),
                 }
             }
-            // No object, or an object above the maximum: a failure of the job (0006).
-            Ok(_) => Finish::Failure,
+            Ok(Object::Bytes(_)) => {
+                Finish::Extraction(Event::ExtractFailed(FailureClass::FileTooLarge), Vec::new())
+            }
+            Ok(Object::Changed) => {
+                tracing::warn!(job_id = %claimed.job_id, "the object changed after the finish");
+                Finish::Extraction(
+                    Event::ExtractFailed(FailureClass::MalformedFile),
+                    Vec::new(),
+                )
+            }
+            // No object: a failure of the job (0006).
+            Ok(Object::Missing) => {
+                remove = false;
+                Finish::Failure
+            }
             Err(e) => {
+                remove = false;
                 tracing::warn!(job_id = %claimed.job_id, error = %e, "the read of the object");
                 Finish::Failure
             }
         };
         let tx = ClaimTx::resume(&self.pool, &claimed).await?;
-        job::end_job(tx, &claimed, finish).await.map(Some)
+        let end = job::end_job(tx, &claimed, finish).await?;
+        if remove
+            && matches!(end, End::Done(_))
+            && let Err(e) = self.storage.remove(&key).await
+        {
+            tracing::warn!(job_id = %claimed.job_id, error = %e, "the removal of the object");
+        }
+        Ok(Some(end))
     }
 
     /// The call of `strata-extract`, in its own span with the format, the run time, the exit

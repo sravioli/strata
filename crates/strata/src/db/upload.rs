@@ -35,11 +35,12 @@ pub(super) const LOCK_REVISION: &str = "select state, retry_mark, error_class, n
 
 /// The write of a finish that leaves `AwaitingUpload`: the result of `revision_step`, the removal
 /// of the row of `upload_slots`, and the job when `$9` is true (0005). The Rust code decides `$9`.
-/// `$10` is the `traceparent` of the span of the finish (0133).
+/// `$10` is the `traceparent` of the span of the finish (0133). `$11` is the `ETag` that the
+/// finish checked, so the worker reads only that object (0006).
 /// `strata_api` can read only `state` of `jobs`, so the insert has no `returning` and no
 /// `on conflict`.
 pub const WRITE_FINISH: &str = "with u as (update revisions set state = $4, retry_mark = $5, \
-     error_class = $6, no_text = $7, status_at = now() \
+     error_class = $6, no_text = $7, etag = $11, status_at = now() \
      where tenant_id = $1 and document_id = $2 and revision = $3), \
      s as (delete from upload_slots where slot_id = $8) \
      insert into jobs (tenant_id, kind, document_id, revision, traceparent) \
@@ -155,6 +156,7 @@ pub async fn write_finish(
     revision: i32,
     r: Revision,
     slot_id: Uuid,
+    etag: &str,
     commit: bool,
 ) -> Result<(), Error> {
     let tenant = tx.tenant_id;
@@ -174,6 +176,7 @@ pub async fn write_finish(
         &slot_id,
         &job,
         &traceparent,
+        &etag,
     ];
     tx.query_and_end(WRITE_FINISH, "write_finish", p, commit)
         .await?;

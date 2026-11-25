@@ -292,16 +292,17 @@ pub enum End {
     LeaseLost,
 }
 
-const READ_REVISION: &str = "select state, retry_mark, error_class, no_text from revisions \
+const READ_REVISION: &str = "select state, retry_mark, error_class, no_text, etag from revisions \
      where tenant_id = $1 and document_id = $2 and revision = $3";
 
-/// The revision of a claimed job, for `may_extract` at the claim. `None` when the tenant of the
+/// The revision of a claimed job, for `may_extract` at the claim, and the `ETag` that its finish
+/// checked (null for a finish before V6). `None` when the tenant of the
 /// job has no such revision (TC-3-17). No lock: `end_job` locks the document first and then the
 /// revision, and a lock here before the document could deadlock with it.
 pub async fn read_revision(
     tx: &mut TenantTx,
     claimed: &Claimed,
-) -> Result<Option<Revision>, Error> {
+) -> Result<Option<(Revision, Option<String>)>, Error> {
     let tenant = tx.tenant_id;
     let c = tx.tx.conn();
     let st = c.prepare_cached(READ_REVISION).await?;
@@ -309,7 +310,7 @@ pub async fn read_revision(
     Ok(c.query_opt(&st, p)
         .instrument(crate::db::span("read_revision"))
         .await?
-        .map(|row| super::upload::revision_of(&row)))
+        .map(|row| (super::upload::revision_of(&row), row.get(4))))
 }
 
 const LOCK_DOCUMENT: &str = "select floor(extract(epoch from now()))::bigint from documents \
