@@ -104,6 +104,17 @@ async fn old_rows_of_upload_slots_go_and_new_rows_stay() {
     .await
     .unwrap();
     let api = connect(&config_in("strata_api", &db)).await;
+    // A second API process that runs the cleanup now: this run removes nothing.
+    let mut other = connect(&config_in("strata_api", &db)).await;
+    let held = other.transaction().await.unwrap();
+    held.execute(
+        "select pg_advisory_xact_lock(hashtext('strata.upload_slots'))",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(remove_old_slots(&api).await.unwrap(), 0);
+    held.rollback().await.unwrap();
     assert_eq!(remove_old_slots(&api).await.unwrap(), 1);
     let slots: Vec<Uuid> = su
         .query("select slot_id from upload_slots", &[])
