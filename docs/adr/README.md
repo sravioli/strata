@@ -16,5 +16,6 @@ The ADR numbers and the tech design numbers are different. A tech design has the
 | [0010](0010-generated-hostile-input-corpus.md) | Hostile-input corpus | [0048](../tech-design/0048-hostile-input-corpus.md) | [#48](https://github.com/sravioli/strata/issues/48) |
 | [0011](0011-walking-skeleton-postgres-search.md) | Walking skeleton | [0049](../tech-design/0049-walking-skeleton.md) | [#49](https://github.com/sravioli/strata/issues/49) |
 | [0012](0012-local-observability-opentelemetry.md) | Observability, local | [0133](../tech-design/0133-local-observability.md) | [#133](https://github.com/sravioli/strata/issues/133) |
+| [0013](0013-browser-clients-exact-cors-origins.md) | Browser clients | [0065](../tech-design/0065-demo-frontend.md) | [#65](https://github.com/sravioli/strata/issues/65) |
 
 Copy [0000-template.md](0000-template.md) for a new ADR, and add a row here in the same pull request.
