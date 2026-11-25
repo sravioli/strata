@@ -84,13 +84,12 @@ No span attribute, log record or metric attribute SHALL hold document text or th
 
 ### Requirement: Local Grafana shows the three signals
 
-The local services SHALL include a collector that receives OTLP/HTTP on `127.0.0.1:4318`, and Grafana with Tempo, Loki and Prometheus on `127.0.0.1:3000`. The collector SHALL also read the metrics of PostgreSQL, PgBouncer and Garage. Grafana SHALL have one provisioned dashboard: the request rate, the errors and the latency for each route, the rejections, the queue, the extractions, and the connections and transactions of PostgreSQL and PgBouncer. `scripts/observability-check.sh` SHALL query Tempo, Loki and Prometheus and print what it finds.
+The local services SHALL include a collector that receives OTLP/HTTP on `127.0.0.1:4318`, and Grafana with Tempo, Loki and Prometheus on `127.0.0.1:3000`. The collector SHALL also read the metrics of PostgreSQL, PgBouncer and Garage. Grafana SHALL have one provisioned dashboard: the request rate, the errors and the latency for each route, the rejections, the queue, the extractions, PostgreSQL and PgBouncer. `scripts/observability-check.sh` SHALL query and print the three signals.
 
 #### Scenario: TC-133-07 The signals of a run reach Grafana
 
-- **GIVEN** `make dev`, run locally
-- **WHEN** `strata.hurl` runs
+- **GIVEN** `make dev`, run locally by a developer. CI does not run this check (decided by the owner on 2026-11-24)
+- **WHEN** `strata.hurl` runs, and then `scripts/observability-check.sh`
 - **THEN** Tempo has one trace with the spans of the finish, the job and the extraction
 - **AND** Loki has the log records of both services
 - **AND** Prometheus has the series `http_server_request_duration_seconds` for each route of the run
-- **PENDING** a manual check, decided by the owner on 2026-11-24. A developer runs `scripts/observability-check.sh`, which carries the ID, and looks at the dashboard. CI does not run it. The script comes with the tasks of this change.
