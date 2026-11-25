@@ -1,7 +1,7 @@
 - Issue: [#145](https://github.com/sravioli/strata/issues/145)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-25
-- Decided by:
+- Decided by: sravioli, 2026-11-25
 
 # What a search hit is: one location, with a snippet
 
@@ -166,12 +166,12 @@ L0 tests cover the split of the output of `ts_headline` into segments. The cases
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-145-01 | L1 | Given a document of tenant A with the word `quartz` three times on page 2, one time on page 1 and two times on page 3. When A searches for `quartz`. Then the response has three hits of the document, in the order page 2, page 3, page 1. Each score is less than or equal to the score before it. | | pending |
-| TC-145-02 | L1 | Given a page of 200 KB in four parts, with the word `obsidian` in parts 2 and 4. When an account searches for `obsidian`. Then the response has one hit for that page. | | pending |
-| TC-145-03 | L1 | Given a document with the word `basalt` on five pages, and a second document with the word on one page. When an account searches for `basalt` with `limit` 3. Then the response has the three hits with the best scores, of the two documents. | | pending |
-| TC-145-04 | L1 | Given a page with the text `alpha bravo charlie`. When an account searches for `bravo`. Then the hit has three segments: `"alpha "`, then `"bravo"` with `match` set to `true`, then `" charlie"`. | | pending |
-| TC-145-05 | L1 | Given a page with the text `<b>alpha</b> bravo`, and the characters U+0002 and U+0003 around the word `charlie`. When an account searches for `bravo`. Then the only segment with `match` is `bravo`, the word `alpha` is in a segment with no tag, and no segment holds U+0002 or U+0003. | | pending |
-| TC-145-06 | L1 | Given a page of 1,000 words with the word `granite` in the middle. When an account searches for `granite`. Then the snippet has at most 35 words, and one of its segments is `granite` with `match`. | | pending |
+| TC-145-01 | L1 | Given a document of tenant A with the word `quartz` three times on page 2, one time on page 1 and two times on page 3. When A searches for `quartz`. Then the response has three hits of the document, in the order page 2, page 3, page 1. Each score is less than or equal to the score before it. | sravioli, 2026-11-25 | pending |
+| TC-145-02 | L1 | Given a page of 200 KB in four parts, with the word `obsidian` in parts 2 and 4. When an account searches for `obsidian`. Then the response has one hit for that page. | sravioli, 2026-11-25 | pending |
+| TC-145-03 | L1 | Given a document with the word `basalt` on five pages, and a second document with the word on one page. When an account searches for `basalt` with `limit` 3. Then the response has the three hits with the best scores, of the two documents. | sravioli, 2026-11-25 | pending |
+| TC-145-04 | L1 | Given a page with the text `alpha bravo charlie`. When an account searches for `bravo`. Then the hit has three segments: `"alpha "`, then `"bravo"` with `match` set to `true`, then `" charlie"`. | sravioli, 2026-11-25 | pending |
+| TC-145-05 | L1 | Given a page with the text `<b>alpha</b> bravo`, and the characters U+0002 and U+0003 around the word `charlie`. When an account searches for `bravo`. Then the only segment with `match` is `bravo`, the word `alpha` is in a segment with no tag, and no segment holds U+0002 or U+0003. | sravioli, 2026-11-25 | pending |
+| TC-145-06 | L1 | Given a page of 1,000 words with the word `granite` in the middle. When an account searches for `granite`. Then the snippet has at most 35 words, and one of its segments is `granite` with `match`. | sravioli, 2026-11-25 | pending |
 
 TC-49-02, TC-49-05, TC-49-06, TC-3-10, TC-4-01 and TC-4-09 keep their meaning. Their tests read hits, not documents. TC-65-07 shows the snippet in the browser.
 
@@ -216,7 +216,7 @@ The owner answered the questions of #145 on 2026-11-25:
 6. The snippet is a list of segments, with `match` on each matched word.
 7. A snippet is one fragment of 15 to 35 words.
 8. No limit of hits for each document, for now.
-9. This design amends 0049 and ADR 0011 (walking skeleton). The pull request of this design changes their text at each place, with an amendment note. At acceptance, `GLOSSARY.md` gets the terms hit and snippet.
+9. This design amends 0049 and ADR 0011 (walking skeleton). The pull request of this design changes their text at each place, with an amendment note. `GLOSSARY.md` gets the terms location, search hit and snippet.
 
 The owner accepted on 2026-11-25 that a snippet lacks the text of each HTML or XML tag (see "The snippet"). A snippet with the exact text is a later design: [#148](https://github.com/sravioli/strata/issues/148).
 
