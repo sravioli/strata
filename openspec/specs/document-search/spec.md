@@ -1,7 +1,7 @@
 # document-search Specification
 
 ## Purpose
-Finds the documents of the caller's tenant whose text matches the words of a query, best match first, with the page of the best match. The search reads only the text parts of the caller's tenant (tech design 0049).
+Finds the locations of the documents of the caller's tenant whose text matches the words of a query, best match first, each with a snippet of the text around the matched words. The search reads only the text parts of the caller's tenant (tech designs 0049 and 0145).
 
 ## Requirements
 
