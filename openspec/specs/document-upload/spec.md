@@ -42,7 +42,7 @@ Lets an account put the bytes of a document into the object storage of ADR 0005 
 
 ### Requirement: The API checks the start body
 
-The start body SHALL be a JSON object with `file_name`, `content_type` and `size`. `file_name` and `content_type` SHALL each have 1 to 1,024 characters. `size` SHALL be an integer from 0 to 104,857,600 (100 MB). A body with no `Content-Type` SHALL get `400`. A media type other than `application/json` SHALL get `415`. A body above 16,384 bytes SHALL get `413`. A size above 100 MB SHALL get `413`. Each other body that breaks a rule SHALL get `400`. A rejected start SHALL create no row.
+The start body SHALL be a JSON object with `file_name`, `content_type` and `size`. `file_name` and `content_type` SHALL each have 1 to 1,024 characters. `size` SHALL be an integer from 0 to 104,857,600 (100 MB). A body with no `Content-Type` SHALL get `400`. A media type other than `application/json` SHALL get `415`. A body above 16,384 bytes SHALL get `413`. A body that does not arrive in 10 seconds SHALL get `408`. A size above 100 MB SHALL get `413`. Each other body that breaks a rule SHALL get `400`. A rejected start SHALL create no row.
 
 #### Scenario: A size above the maximum
 

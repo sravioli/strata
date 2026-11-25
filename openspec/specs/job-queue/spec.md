@@ -158,7 +158,7 @@ A second run of a job whose revision is no longer `Uploaded` SHALL end with `Suc
 
 ### Requirement: The worker reads the object with its own credentials
 
-The worker SHALL read the object of the revision from the storage with its credentials and the storage settings of 0006. It SHALL read at most 100 MB. Each of these SHALL be a normal failure of the job, with no change to the revision: an object that does not exist, an object above 100 MB, and an error of the storage.
+The worker SHALL read the object of the revision from the storage with its credentials and the storage settings of 0006. It SHALL read at most 100 MB. It SHALL read only the object of the `ETag` that the finish checked (0006). Each of these SHALL be a normal failure of the job, with no change to the revision: an object that does not exist, and an error of the storage. An object above 100 MB SHALL set the revision to `Failed` with `FileTooLarge`. An object that is not the object of the `ETag` SHALL set the revision to `Failed` with `MalformedFile`. In both cases the worker SHALL remove the object after the end of the job.
 
 #### Scenario: An object that does not exist
 
@@ -170,7 +170,13 @@ The worker SHALL read the object of the revision from the storage with its crede
 
 - **GIVEN** a `Waiting` job whose object is above 100 MB
 - **WHEN** a worker runs it
-- **THEN** the worker reads at most 100 MB and 1 byte, the revision does not change, and the job is `Waiting` with its backoff
+- **THEN** the worker reads at most 100 MB and 1 byte, the revision is `Failed` with `FileTooLarge`, the job is `Done`, and the object does not exist
+
+#### Scenario: An object that changed after the finish
+
+- **GIVEN** a revision that the finish set to `Uploaded`, and a second PUT to its URL after the finish
+- **WHEN** a worker runs its job
+- **THEN** the worker extracts nothing, the revision is `Failed` with `MalformedFile`, the job is `Done`, and the object does not exist
 
 ### Requirement: The worker process
 

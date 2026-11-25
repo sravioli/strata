@@ -7,7 +7,7 @@ Finds the locations of the documents of the caller's tenant whose text matches t
 
 ### Requirement: The search route takes one query
 
-`QUERY /v1/search` SHALL take a JSON body with `q` and an optional `limit`. `q` SHALL have 1 to 1,000 characters. `limit` SHALL be an integer from 1 to 100, and 20 when it is absent. Each other value, and each other field, SHALL give `400`. The route SHALL use the action `Search` (0004). The body rules of 0047 SHALL apply: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16 KB gives `413`.
+`QUERY /v1/search` SHALL take a JSON body with `q` and an optional `limit`. `q` SHALL have 1 to 1,000 characters. `limit` SHALL be an integer from 1 to 100, and 20 when it is absent. Each other value, and each other field, SHALL give `400`. The route SHALL use the action `Search` (0004). The body rules of 0047 SHALL apply: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16 KB gives `413`. A body that does not arrive in 10 seconds SHALL give `408`.
 
 #### Scenario: A body with the default limit
 

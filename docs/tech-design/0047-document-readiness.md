@@ -109,6 +109,7 @@ The request body:
   - A different media type gives `415`.
 - A request names 1 to 100 revisions. More than 100 gives `400`. A repeated identifier counts one time.
 - A body larger than 16 KB gives `413`. A body with 100 revisions is approximately 7 KB.
+- A body that does not arrive in 10 seconds gives `408`. Amended on 2026-11-26 ([#154](https://github.com/sravioli/strata/issues/154)). A request holds a permit of the bound of requests (0049) while its body arrives. Without the limit, slow bodies can hold each permit.
 - The response has a list with one entry for each revision that the API found. Each entry has the fields of the single response.
 - The list omits a revision that does not exist or that belongs to a different tenant. Thus the response does not show that a revision of a different tenant exists.
 - Each response of this route has the header `Accept-Query: application/json`.
