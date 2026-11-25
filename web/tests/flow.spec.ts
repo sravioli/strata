@@ -45,5 +45,5 @@ test("TC-65-07 from sign-in to search in the browser", async ({ browser }) => {
 
   const globex = await (await browser.newContext()).newPage();
   await signIn(globex, "alice@globex", "alice-globex-dev");
-  expect((await search(globex)).some((h) => h.includes(document_id))).toBe(false);
+  expect(await search(globex)).toEqual([]);
 });
