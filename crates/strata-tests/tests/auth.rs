@@ -33,6 +33,8 @@ struct Jwks {
     body: Arc<Mutex<Value>>,
     hits: Arc<AtomicUsize>,
     down: Arc<AtomicBool>,
+    /// Each answer waits 2 seconds.
+    slow: Arc<AtomicBool>,
 }
 
 impl Jwks {
@@ -45,6 +47,9 @@ impl Jwks {
             "/jwks.json",
             get(|State(s): State<Jwks>| async move {
                 s.hits.fetch_add(1, Ordering::SeqCst);
+                if s.slow.load(Ordering::SeqCst) {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
                 if s.down.load(Ordering::SeqCst) {
                     return Err(StatusCode::SERVICE_UNAVAILABLE);
                 }
@@ -59,6 +64,15 @@ impl Jwks {
 
     fn hits(&self) -> usize {
         self.hits.load(Ordering::SeqCst)
+    }
+
+    /// Waits up to 5 seconds for more than `n` requests: a refresh runs in the background.
+    async fn hits_above(&self, n: usize) -> bool {
+        let end = Instant::now() + Duration::from_secs(5);
+        while self.hits() <= n && Instant::now() < end {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        self.hits() > n
     }
 }
 
@@ -471,7 +485,7 @@ async fn a_failed_fetch_keeps_the_keys() {
     p1.jwks.down.store(true, Ordering::SeqCst);
     let before = p1.jwks.hits();
     assert_eq!(api.tenant(&token).await, Ok(a), "the keys that it has");
-    assert!(p1.jwks.hits() > before, "the API tried a fetch");
+    assert!(p1.jwks.hits_above(before).await, "the API tried a fetch");
 
     let p3 = issuer_ed(&su).await;
     p3.jwks.down.store(true, Ordering::SeqCst);
@@ -481,6 +495,47 @@ async fn a_failed_fetch_keeps_the_keys() {
         Err(StatusCode::UNAUTHORIZED),
         "never fetched"
     );
+}
+
+/// A refresh of stale keys, or a fetch for an unknown `kid`, does not hold up a request whose
+/// `kid` the cache has.
+#[tokio::test]
+async fn a_fetch_does_not_hold_up_a_cached_key() {
+    let su = connect(&superuser()).await;
+    let a = tenant(&su).await;
+    let p1 = issuer_ed(&su).await;
+    bind(&su, p1.id, "acme-corp", a).await;
+    // Each request finds stale keys.
+    let api = Arc::new(Api::new(
+        api_pool(),
+        KeyCache::with_times(Duration::ZERO, Duration::ZERO),
+    ));
+    let token = p1.token("acme-corp", "u-1");
+    assert_eq!(api.tenant(&token).await, Ok(a));
+    p1.jwks.slow.store(true, Ordering::SeqCst);
+
+    let mut h = Header::new(Algorithm::EdDSA);
+    h.kid = Some("unknown".into());
+    let unknown = jsonwebtoken::encode(
+        &h,
+        &claims(&p1.name, "acme-corp", "u-1"),
+        &p1.key.encoding_key(),
+    )
+    .unwrap();
+    let waits = tokio::spawn({
+        let api = api.clone();
+        async move { api.tenant(&unknown).await }
+    });
+    for _ in 0..3 {
+        let start = Instant::now();
+        assert_eq!(api.tenant(&token).await, Ok(a));
+        assert!(
+            start.elapsed() < Duration::from_secs(1),
+            "{:?}",
+            start.elapsed()
+        );
+    }
+    assert_eq!(waits.await.unwrap(), Err(StatusCode::UNAUTHORIZED));
 }
 
 /// TC-21-12
