@@ -18,7 +18,7 @@ Goals:
 
 Non-goals:
 
-- A hosted demonstration, with a deployed Strata and a production identity provider. This is a separate issue (see "Unresolved questions").
+- A hosted demonstration, with a deployed Strata and a production identity provider ([#142](https://github.com/sravioli/strata/issues/142)).
 - Features that the API does not have: download ([#118](https://github.com/sravioli/strata/issues/118)), removal ([#69](https://github.com/sravioli/strata/issues/69)), version restore ([#101](https://github.com/sravioli/strata/issues/101)) and tenant administration ([#66](https://github.com/sravioli/strata/issues/66)). The site gets a page for each when the API gets the feature.
 - Status push to the browser ([#55](https://github.com/sravioli/strata/issues/55)). The site polls.
 - A change to the rules of tokens of tech design 0021.
@@ -196,9 +196,9 @@ The owner answered the questions of #65 on 2026-11-25 (see "Requirements").
 
 New issues, linked from #65:
 
-- A route that lists the documents of the caller, with paging. Then `/documents` reads it, not `localStorage`.
-- Keycloak in CI, so TC-65-07 runs there.
-- A hosted demonstration: a deployed Strata, a production identity provider, the origins of the site and the CORS rule of its bucket.
+- [#140](https://github.com/sravioli/strata/issues/140): a route that lists the documents of the caller, with paging. Then `/documents` reads it, not `localStorage`.
+- [#141](https://github.com/sravioli/strata/issues/141): Keycloak in CI, so TC-65-07 runs there.
+- [#142](https://github.com/sravioli/strata/issues/142): a hosted demonstration, with a deployed Strata, a production identity provider, the origins of the site and the CORS rule of its bucket.
 
 During implementation:
 
