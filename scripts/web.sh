@@ -53,4 +53,4 @@ cd web
 # npm writes node_modules/.package-lock.json at each install.
 [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci --no-fund
 echo "ok: the site on $site. Sign in as alice@acme, bob@acme or alice@globex (dev/README.md)."
-exec npx astro dev
+ASTRO_TELEMETRY_DISABLED=1 exec npx astro dev

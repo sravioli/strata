@@ -157,7 +157,7 @@ jobs:
           persist-credentials: false
       - run: make deny
 
-  # The site of tech design 0065: its types and its static build. The browser test (TC-65-07) needs
+  # The site of tech design 0065: its types and its static build. The browser test needs
   # Keycloak, so it runs locally only (#141).
   web:
     needs: changes

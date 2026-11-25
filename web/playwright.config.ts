@@ -1,4 +1,4 @@
-// The browser test of TC-65-07. It needs make dev and make web, run locally: it starts no server.
+// The browser test of web/tests. It needs make dev and make web, run locally: it starts no server.
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
