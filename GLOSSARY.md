@@ -48,6 +48,18 @@ _Avoid_: State, job status, processing state
 A public status that does not change, except from `ready` to `superseded`. `ready`, `failed` and `superseded` are final.
 _Avoid_: Terminal state, done, complete
 
+**Location**:
+One page, sheet or slide of a revision. A search points to a location, so a reader can open it.
+_Avoid_: Text part, chunk, position
+
+**Search hit**:
+One location of a current revision whose text matches a search. A document with matches on five pages gives five search hits.
+_Avoid_: Result, match, document result
+
+**Snippet**:
+A short piece of the text of a search hit, around the words that match. It marks each matched word.
+_Avoid_: Excerpt, highlight, preview
+
 **Principal**:
 The actor of an action. It is an account, or a job that Strata runs for one tenant.
 _Avoid_: Subject, caller, actor
