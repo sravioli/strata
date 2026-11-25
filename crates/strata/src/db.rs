@@ -46,7 +46,7 @@ use tracing::Instrument;
 
 use deadpool_postgres::{Manager, ManagerConfig, Object, RecyclingMethod, Runtime};
 use strata_core::authorization::{Decision, Principal, Scope};
-use tokio_postgres::NoTls;
+use tokio_postgres_rustls::MakeRustlsConnect;
 use uuid::Uuid;
 
 pub use deadpool_postgres::{Pool, PoolError};
@@ -92,13 +92,20 @@ impl Error {
     }
 }
 
+/// The TLS of each connection to PostgreSQL. The `sslmode` of `STRATA_DATABASE_URL` decides:
+/// `disable`, `prefer` (the default of the driver: TLS when the server has it) or `require`. A
+/// deployment sets `require`. The certificate of the server must chain to a root of the system.
+pub fn tls() -> Result<MakeRustlsConnect, String> {
+    MakeRustlsConnect::with_native_certs()
+        .map(|(tls, _)| tls)
+        .map_err(|_| "TLS to PostgreSQL: no root certificate on the system".into())
+}
+
 /// A pool for one database.
-// shortcut: no TLS to PostgreSQL, because the skeleton runs only locally and in CI (0049).
-// Add TLS before the first deployment (M3, #61).
 pub fn pool(cfg: tokio_postgres::Config, size: usize, wait: Duration) -> Result<Pool, String> {
     let mgr = Manager::from_config(
         cfg,
-        NoTls,
+        tls()?,
         ManagerConfig {
             recycling_method: RecyclingMethod::Fast,
         },

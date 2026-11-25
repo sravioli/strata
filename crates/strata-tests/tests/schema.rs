@@ -98,6 +98,17 @@ async fn deparse(c: &Client, expr: &str) -> String {
         .get(0)
 }
 
+/// `strata migrate` warns when the setup step of 0049 did not mark the match `leakproof` (#43):
+/// the shared database has the mark of dev/roles.sql, and a new database does not.
+#[tokio::test]
+async fn the_check_of_the_leakproof_match() {
+    let su = connect(&superuser()).await;
+    assert!(strata::migrate::leakproof_match(&su).await.unwrap());
+    let name = new_database(&su).await;
+    let fresh = connect(&config_in("strata", &name)).await;
+    assert!(!strata::migrate::leakproof_match(&fresh).await.unwrap());
+}
+
 #[tokio::test]
 async fn migrations_on_an_empty_database_then_again_then_changed() {
     migrated();

@@ -59,6 +59,11 @@ tower-http = { version = "=0.7.1", default-features = false, features = [
   "cors",
 ] }
 tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
+# TLS to PostgreSQL with the rustls and ring of hyper-rustls: no second crypto backend.
+tokio-postgres-rustls = { version = "=0.14.0", default-features = false, features = [
+  "native-certs",
+  "ring",
+] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 # OTLP/HTTP over the hyper of this crate, with no tonic (tech design 0133). The hyper client
