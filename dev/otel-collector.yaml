@@ -1,0 +1,52 @@
+# The collector of the profile observability (tech design 0133). It receives OTLP/HTTP from
+# `strata api` and `strata worker`, reads the metrics of PostgreSQL, PgBouncer and Garage, and
+# sends everything to the service lgtm. Development only.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+  postgresql:
+    endpoint: postgres:5432
+    transport: tcp
+    username: strata
+    password: strata
+    databases: [strata]
+    collection_interval: 15s
+    tls:
+      insecure: true
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: garage
+          scrape_interval: 15s
+          authorization:
+            credentials: strata-dev-metrics-token
+          static_configs:
+            - targets: ["garage:3903"]
+        - job_name: pgbouncer
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["pgbouncer-exporter:9127"]
+
+processors:
+  batch: {}
+
+exporters:
+  otlphttp:
+    endpoint: http://lgtm:4318
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [otlp, postgresql, prometheus]
+      processors: [batch]
+      exporters: [otlphttp]
