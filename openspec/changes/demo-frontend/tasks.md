@@ -31,7 +31,7 @@
 
 - [x] 5.1 Document `make web`, the seed users and their passwords, the ports, and the command that applies a change to the realm file (`podman compose up -d --force-recreate keycloak`) in `dev/README.md`. Verify: `make lint` passes.
 - [x] 5.2 Run `make`, `make l1`, `CI=1 make l2`, `make l2` and `make deny`. Verify: each target passes, the coverage of `CONSTRAINTS.md` is at the floor or above, and `python3 scripts/check-test-cases.py --report` shows TC-65-01 to TC-65-07 as `implemented`. TC-65-07 keeps its PENDING marker, because CI does not run the browser test (#141). If the coverage is below the floor, add tests. Do not lower the number.
-- [ ] 5.3 Comment on #65 with the results of tasks 1.1, 1.2 and the `npm audit` of task 4.1. Verify: the comment exists.
+- [x] 5.3 Comment on #65 with the results of tasks 1.1, 1.2 and the `npm audit` of task 4.1. Verify: the comment exists.
 
 ## Workflow follow-up
 
