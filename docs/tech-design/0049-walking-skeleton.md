@@ -227,7 +227,7 @@ The worker checks it as 0007 says. It splits a block above 64 KB at the last whi
 - `q` is 1 to 1,000 characters. `limit` is 1 to 100, and 20 when it is absent. Other values get `400`.
 - The body rules of the batch route of 0047 apply: no `Content-Type` gives `400`, another media type gives `415`, and a body above 16 KB gives `413`.
 - The query is `websearch_to_tsquery('simple', $q)`. That function never raises a syntax error on user input. Quotes give a phrase, `or` gives either word, and `-word` excludes a word.
-- The search reads `text_parts` of the scope of the caller only. It ranks each part with `ts_rank`. It keeps the best part of each document, and returns at most `limit` documents, best first.
+- The search reads `text_parts` of the scope of the caller only. It ranks each part with `ts_rank`. It keeps the best part of each document, and returns at most `limit` documents, best first. Amended on 2026-11-25 ([#145](https://github.com/sravioli/strata/issues/145)): the search keeps the best part of each location, and returns at most `limit` hits, best first (tech design 0145).
 
 The response:
 
@@ -235,7 +235,7 @@ The response:
 {"results": [{"document_id": "7b1e…", "revision": 2, "score": 0.42, "location": {"kind": "page", "number": 3}}]}
 ```
 
-The response has no snippets and no pages of results. The design of the search path ([#73](https://github.com/sravioli/strata/issues/73)) decides them, and also ranking other than `ts_rank`.
+The response has no snippets and no pages of results. The design of the search path ([#73](https://github.com/sravioli/strata/issues/73)) decides them, and also ranking other than `ts_rank`. Amended on 2026-11-25 ([#145](https://github.com/sravioli/strata/issues/145)): each hit has a snippet (tech design 0145). #73 still decides the pages of results and the ranking.
 
 The search must rank each match in the tenant. Thus its cost grows with the count of matches in one tenant, and S5 of 0002 does not hold for it. The search has a statement timeout of 2 seconds, and a timeout gives `503` with `Retry-After` (S4 of 0002). [#73](https://github.com/sravioli/strata/issues/73) must remove this limit before M2 ends.
 
@@ -408,7 +408,7 @@ The owner answered these questions on 2026-11-21:
 7. The revision state function is proved, with the statements of the Proof obligations table.
 8. The agent sets the values of the implementation points, and the owner reviews them in this pull request.
 9. One row for each page, sheet or slide, and a split at 64 KB.
-10. `QUERY /v1/search`, with one result for each document and no snippets.
+10. `QUERY /v1/search`, with one result for each document and no snippets. Amended on 2026-11-25 ([#145](https://github.com/sravioli/strata/issues/145)): one hit for each matching location, with a snippet (tech design 0145).
 11. The search rows of a `Superseded` revision go. Restore is [#101](https://github.com/sravioli/strata/issues/101).
 12. The test case TC-49-01, which also runs in CI.
 13. Each step reads or writes its rows with one statement.
@@ -432,7 +432,7 @@ Implementation resolves these points:
 
 These questions belong to later designs:
 
-- Snippets, pages of results, ranking and the cost of a search in a large tenant ([#73](https://github.com/sravioli/strata/issues/73)).
+- Snippets, pages of results, ranking and the cost of a search in a large tenant ([#73](https://github.com/sravioli/strata/issues/73)). Amended on 2026-11-25 ([#145](https://github.com/sravioli/strata/issues/145)): tech design 0145 decides the snippets.
 - Restore of an earlier revision ([#101](https://github.com/sravioli/strata/issues/101)).
 - The rules for several revisions of one document in Lean ([#78](https://github.com/sravioli/strata/issues/78)).
 - Metrics for each bound ([#61](https://github.com/sravioli/strata/issues/61)).
