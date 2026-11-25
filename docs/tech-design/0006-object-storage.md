@@ -117,6 +117,10 @@ A second "finish" for the same revision changes nothing and gives the same answe
 
 The `Signer` of `object_store` signs no headers, so its signed URL cannot limit the size of an upload. Amended on 2026-11-22 ([#49](https://github.com/sravioli/strata/issues/49)): the PUT URL of `rusty-s3` signs only the header `host`, so the same reason applies. The S3 API can sign a `content-length` header, but reports say that Garage rejects a signed `content-length`. Thus the check of step 3 is the limit (O7). A client can put a large object in its own key. That object never becomes part of the corpus, and step 3 or the cleanup removes it.
 
+Amended on 2026-11-26 ([#154](https://github.com/sravioli/strata/issues/154)): the URL permits more PUTs until it expires, also after the finish. Thus the finish keeps the `ETag` of the object that it checked, in `revisions.etag`. The worker reads the object with `If-Match` and that `ETag`. If the object changed after the finish, the revision becomes `Failed` with `MalformedFile`. Issue [#153](https://github.com/sravioli/strata/issues/153) decides a class of its own. If the object is above the maximum, the revision becomes `Failed` with `FileTooLarge`. In both cases the worker removes the object after the end of the job. Thus a second PUT never reaches the corpus, and its object does not stay.
+
+Amended on 2026-11-26 ([#154](https://github.com/sravioli/strata/issues/154)): the HEAD of step 3 runs between two transactions. The finish reads the revision and ends its transaction. Then it reads the size and the `ETag`. Then it does the steps of the identity design again ([#21](https://github.com/sravioli/strata/issues/21)), locks the revision, and writes only if the revision is still `AwaitingUpload`. Thus a slow storage holds no connection of the pool and no row lock.
+
 ### Keys
 
 The key of an original file is `tenants/{tenant_id}/documents/{document_id}/revisions/{revision}/original`. The key is a label for operators. It is not an access control: only signed URLs and the credentials of the API and the worker give access. Later designs add keys under the same revision, for example extracted text.

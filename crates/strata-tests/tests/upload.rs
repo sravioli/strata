@@ -243,6 +243,18 @@ async fn a_finish_with_the_object() {
         ),
         ("ProcessDocument".into(), "Waiting".into(), 0, true)
     );
+    // The finish keeps the ETag of the object that it checked (0006).
+    let key = strata::storage::key(w.a.id, d, r as i32);
+    let head = storage().head(&key).await.unwrap().unwrap();
+    let etag: Option<String> =
+        w.su.query_one(
+            "select etag from revisions where document_id = $1 and revision = $2",
+            &[&d, &(r as i32)],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(etag, Some(head.etag));
 }
 
 /// TC-5-01: when the transaction of the finish rolls back, no job exists.
@@ -256,7 +268,7 @@ async fn a_finish_that_rolls_back_leaves_no_job() {
         .unwrap()
         .unwrap();
     let next = revision_step(locked.revision, Event::Finish);
-    q::write_finish(tx, d, r as i32, next, locked.slot_id, false)
+    q::write_finish(tx, d, r as i32, next, locked.slot_id, "\"etag\"", false)
         .await
         .unwrap();
     assert_eq!(w.jobs(d, r).await, 0);
@@ -283,7 +295,7 @@ async fn a_file_above_the_maximum() {
     assert!(!w.slot_exists(d, r).await);
     let key = strata::storage::key(w.a.id, d, r as i32);
     assert_eq!(
-        storage().size(&key).await.unwrap(),
+        storage().head(&key).await.unwrap().map(|h| h.size),
         None,
         "the object is removed"
     );

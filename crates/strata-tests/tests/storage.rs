@@ -6,7 +6,7 @@ mod common;
 use std::time::Duration;
 
 use common::*;
-use strata::storage::PUT_EXPIRY;
+use strata::storage::{Object, PUT_EXPIRY};
 
 const NOW: Duration = Duration::ZERO;
 
@@ -24,9 +24,9 @@ async fn a_signed_put_writes_its_key() {
         put(&s.sign_put(&key, PUT_EXPIRY).0, &body, body.len(), NOW).await,
         200
     );
-    assert_eq!(s.size(&key).await.unwrap(), Some(1000));
+    assert_eq!(s.head(&key).await.unwrap().map(|h| h.size), Some(1000));
     s.remove(&key).await.unwrap();
-    assert_eq!(s.size(&key).await.unwrap(), None);
+    assert_eq!(s.head(&key).await.unwrap().map(|h| h.size), None);
     // A removal of a key with no object is not an error.
     s.remove(&key).await.unwrap();
 }
@@ -39,7 +39,7 @@ async fn a_url_for_one_key_cannot_write_a_different_key() {
     let mut url = s.sign_put(&key, PUT_EXPIRY).0;
     url.set_path(&format!("/strata/{other}"));
     assert_eq!(put(&url, b"x", 1, NOW).await, 403);
-    assert_eq!(s.size(&other).await.unwrap(), None);
+    assert_eq!(s.head(&other).await.unwrap().map(|h| h.size), None);
 }
 
 /// TC-6-02
@@ -52,7 +52,7 @@ async fn an_expired_url_cannot_write() {
     // Garage answers 400 "Date is too old" for an expired URL.
     let status = put(&url, b"x", 1, NOW).await;
     assert!(matches!(status, 400 | 403), "{status}");
-    assert_eq!(s.size(&key).await.unwrap(), None);
+    assert_eq!(s.head(&key).await.unwrap().map(|h| h.size), None);
 }
 
 /// A slow transfer that starts in time completes: the storage checks the expiry only when the
@@ -64,7 +64,10 @@ async fn a_slow_transfer_that_starts_in_time_completes() {
     let url = s.sign_put(&key, Duration::from_secs(2)).0;
     let body = vec![1u8; 64 * 1024];
     assert_eq!(put(&url, &body, 1024, Duration::from_secs(4)).await, 200);
-    assert_eq!(s.size(&key).await.unwrap(), Some(body.len() as u64));
+    assert_eq!(
+        s.head(&key).await.unwrap().map(|h| h.size),
+        Some(body.len() as u64)
+    );
     s.remove(&key).await.unwrap();
 }
 
@@ -79,7 +82,26 @@ async fn the_worker_reads_at_most_the_limit_and_one_byte() {
         put(&url, &body, body.len(), std::time::Duration::ZERO).await,
         200
     );
-    assert_eq!(s.read(&key, 100_000).await.unwrap(), Some(body.clone()));
-    assert_eq!(s.read(&key, 10).await.unwrap(), Some(body[..11].to_vec()));
-    assert_eq!(s.read(&new_key(), 10).await.unwrap(), None);
+    assert_eq!(
+        s.read(&key, 100_000, None).await.unwrap(),
+        Object::Bytes(body.clone())
+    );
+    assert_eq!(
+        s.read(&key, 10, None).await.unwrap(),
+        Object::Bytes(body[..11].to_vec())
+    );
+    assert_eq!(s.read(&new_key(), 10, None).await.unwrap(), Object::Missing);
+
+    // The read of the ETag of a HEAD gives that object, and only that object.
+    let head = s.head(&key).await.unwrap().unwrap();
+    assert_eq!(
+        s.read(&key, 100_000, Some(&head.etag)).await.unwrap(),
+        Object::Bytes(body.clone())
+    );
+    let (url, _) = s.sign_put(&key, std::time::Duration::from_secs(60));
+    assert_eq!(put(&url, b"other", 5, std::time::Duration::ZERO).await, 200);
+    assert_eq!(
+        s.read(&key, 100_000, Some(&head.etag)).await.unwrap(),
+        Object::Changed
+    );
 }

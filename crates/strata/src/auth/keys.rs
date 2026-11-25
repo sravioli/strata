@@ -29,7 +29,16 @@ pub struct KeyCache {
     http: Http,
     refresh: Duration,
     retry: Duration,
-    issuers: Mutex<HashMap<Uuid, Arc<tokio::sync::Mutex<Entry>>>>,
+    issuers: Mutex<HashMap<Uuid, Arc<Issuer>>>,
+}
+
+/// The cache of one issuer. No request waits for a fetch of keys while the cache has its `kid`.
+#[derive(Default)]
+struct Issuer {
+    /// Never held across an `await`.
+    entry: Mutex<Entry>,
+    /// One fetch at a time for each issuer.
+    fetch: tokio::sync::Mutex<()>,
 }
 
 #[derive(Default)]
@@ -38,6 +47,14 @@ struct Entry {
     algorithm: Option<Algorithm>,
     keys: HashMap<String, DecodingKey>,
     tried: Option<Instant>,
+    /// A refresh of stale keys runs in the background.
+    refreshing: bool,
+}
+
+impl Entry {
+    fn since(&self) -> Option<Duration> {
+        self.tried.map(|t| t.elapsed())
+    }
 }
 
 impl KeyCache {
@@ -62,42 +79,80 @@ impl KeyCache {
         }
     }
 
-    /// The key `kid` of the issuer, or `None`. It can fetch the JWKS, as 0021 says.
+    /// The key `kid` of the issuer, or `None`. It can fetch the JWKS, as 0021 says. A cached key
+    /// comes back at once: the refresh of stale keys runs in the background. Only a `kid` that
+    /// the cache does not have waits for a fetch.
     pub async fn key(
-        &self,
+        self: &Arc<Self>,
         issuer_id: Uuid,
         url: &str,
         alg: Algorithm,
         kid: &str,
     ) -> Option<DecodingKey> {
-        let entry = self
+        let issuer = self
             .issuers
             .lock()
             .unwrap()
             .entry(issuer_id)
             .or_default()
             .clone();
-        let mut e = entry.lock().await;
-        if e.url != url || e.algorithm != Some(alg) {
-            // The operator changed the issuer: the old keys do not apply.
-            *e = Entry {
-                url: url.to_owned(),
-                algorithm: Some(alg),
-                ..Entry::default()
-            };
-        }
-        let since = e.tried.map(|t| t.elapsed());
-        let stale = since.is_none_or(|s| s >= self.refresh);
-        let retry = !e.keys.contains_key(kid) && since.is_none_or(|s| s >= self.retry);
-        if stale || retry {
-            e.tried = Some(Instant::now());
-            match self.fetch(url).await {
-                Ok(body) => e.keys = select_keys(&body, alg),
-                // A failed fetch keeps the last keys.
-                Err(err) => tracing::warn!(%issuer_id, error = %err, "jwks fetch failed"),
+        let (cached, refresh) = {
+            let mut e = issuer.entry.lock().unwrap();
+            if e.url != url || e.algorithm != Some(alg) {
+                // The operator changed the issuer: the old keys do not apply.
+                *e = Entry {
+                    url: url.to_owned(),
+                    algorithm: Some(alg),
+                    ..Entry::default()
+                };
             }
+            let cached = e.keys.get(kid).cloned();
+            let stale = e.since().is_none_or(|s| s >= self.refresh);
+            let refresh = cached.is_some() && stale && !e.refreshing;
+            e.refreshing |= refresh;
+            (cached, refresh)
+        };
+        if let Some(key) = cached {
+            if refresh {
+                let (cache, url) = (self.clone(), url.to_owned());
+                tokio::spawn(async move {
+                    let _one = issuer.fetch.lock().await;
+                    cache.fetch_into(&issuer, issuer_id, &url, alg).await;
+                    issuer.entry.lock().unwrap().refreshing = false;
+                });
+            }
+            return Some(key);
         }
-        e.keys.get(kid).cloned()
+        // A `kid` that the cache does not have: after the fetch that runs now, if one runs.
+        let _one = issuer.fetch.lock().await;
+        let due = {
+            let e = issuer.entry.lock().unwrap();
+            if let Some(key) = e.keys.get(kid) {
+                return Some(key.clone());
+            }
+            let since = e.since();
+            since.is_none_or(|s| s >= self.refresh || s >= self.retry)
+        };
+        if due {
+            self.fetch_into(&issuer, issuer_id, url, alg).await;
+        }
+        issuer.entry.lock().unwrap().keys.get(kid).cloned()
+    }
+
+    /// One fetch of the JWKS of the issuer into its cache. A failed fetch keeps the last keys.
+    async fn fetch_into(&self, issuer: &Issuer, issuer_id: Uuid, url: &str, alg: Algorithm) {
+        issuer.entry.lock().unwrap().tried = Some(Instant::now());
+        match self.fetch(url).await {
+            Ok(body) => {
+                let keys = select_keys(&body, alg);
+                let mut e = issuer.entry.lock().unwrap();
+                // The operator changed the issuer during the fetch: these keys do not apply.
+                if e.url == url && e.algorithm == Some(alg) {
+                    e.keys = keys;
+                }
+            }
+            Err(err) => tracing::warn!(%issuer_id, error = %err, "jwks fetch failed"),
+        }
     }
 
     async fn fetch(&self, url: &str) -> Result<Bytes, String> {

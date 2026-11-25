@@ -634,7 +634,45 @@ async fn an_object_above_the_maximum() {
     let (doc, id) = job(&d.su, t, "").await;
     object(t, doc, 1, b"forever and more").await;
     worker(&d, 10).run_one().await.unwrap().unwrap();
-    assert_failed_run(&d, id, doc).await;
+    assert_failed_revision(&d, t, id, doc, "FileTooLarge").await;
+}
+
+/// The job is `Done`, the revision is `Failed` with `class`, and the object does not exist.
+async fn assert_failed_revision(d: &Db, tenant: Uuid, id: Uuid, doc: Uuid, class: &str) {
+    assert_eq!(row(&d.su, id).await.0, "Done");
+    let (state, _, error_class, ..) = rev(&d.su, doc, 1).await;
+    assert_eq!(
+        (state.as_str(), error_class.as_deref()),
+        ("Failed", Some(class))
+    );
+    assert!(parts(&d.su, doc, 1).await.is_empty());
+    let key = strata::storage::key(tenant, doc, 1);
+    assert_eq!(
+        storage().head(&key).await.unwrap(),
+        None,
+        "the object is removed"
+    );
+}
+
+/// Scenario "An object that changed after the finish".
+#[tokio::test]
+async fn an_object_that_changed_after_the_finish() {
+    let d = db().await;
+    let t = tenant(&d.su).await;
+    let (doc, id) = job(&d.su, t, "").await;
+    object(t, doc, 1, b"the file of the finish").await;
+    let key = strata::storage::key(t, doc, 1);
+    let head = storage().head(&key).await.unwrap().unwrap();
+    d.su.execute(
+        "update revisions set etag = $2 where document_id = $1",
+        &[&doc, &head.etag],
+    )
+    .await
+    .unwrap();
+    // A second PUT with the URL of the start, after the finish.
+    object(t, doc, 1, b"a different file").await;
+    worker(&d, 100).run_one().await.unwrap().unwrap();
+    assert_failed_revision(&d, t, id, doc, "MalformedFile").await;
 }
 
 /// TC-5-04

@@ -115,7 +115,7 @@ A revision that does not exist, a revision of a different tenant, and a path wit
 
 ### Requirement: The body rules of the batch
 
-The body rules of 0047 SHALL apply to the batch route: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16 KB gives `413`. Each response of the route SHALL have `Accept-Query: application/json`.
+The body rules of 0047 SHALL apply to the batch route: no `Content-Type` gives `400`, a media type other than `application/json` gives `415`, and a body above 16 KB gives `413`. A body that does not arrive in 10 seconds SHALL give `408`. Each response of the route SHALL have `Accept-Query: application/json`.
 
 #### Scenario: TC-47-15 The body rules of the batch
 

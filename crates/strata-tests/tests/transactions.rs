@@ -15,6 +15,19 @@ fn one_connection_pool() -> db::Pool {
     db::pool(cfg, 2, db::POOL_WAIT).unwrap()
 }
 
+/// TLS to PostgreSQL: the `sslmode` of the URL decides. The local services have no TLS, so
+/// `require` gives no connection, and the default (`prefer`) connects without TLS.
+#[tokio::test]
+async fn sslmode_require_needs_tls() {
+    migrated();
+    let mut cfg = config("strata_api", POSTGRES);
+    cfg.ssl_mode(tokio_postgres::config::SslMode::Require);
+    let pool = db::pool(cfg, 1, db::POOL_WAIT).unwrap();
+    assert!(pool.get().await.is_err(), "no TLS, no connection");
+    let pool = db::pool(config("strata_api", POSTGRES), 1, db::POOL_WAIT).unwrap();
+    assert!(pool.get().await.is_ok());
+}
+
 async fn tenants_seen(tx: &db::TenantTx) -> Vec<Uuid> {
     let rows = tx
         .client()

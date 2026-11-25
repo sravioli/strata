@@ -79,7 +79,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         }
         Cmd::Admin(cmd) => {
             let (client, conn) = cfg
-                .connect(tokio_postgres::NoTls)
+                .connect(strata::db::tls()?)
                 .await
                 .map_err(|e| format!("connect: {e}"))?;
             tokio::spawn(conn);

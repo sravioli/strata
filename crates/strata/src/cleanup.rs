@@ -15,13 +15,17 @@ pub const BATCH: i64 = 1000;
 pub const EVERY: Duration = Duration::from_secs(60);
 
 /// `Done` jobs that ended more than 24 hours ago (0005). Only `strata_worker` can remove rows of
-/// `jobs`, so the worker of change 3 calls it.
+/// `jobs`, so the worker of change 3 calls it. Two workers remove different rows: each skips the
+/// rows that the other locked.
 const REMOVE_DONE_JOBS: &str = "delete from jobs where job_id in (select job_id from jobs \
-     where state = 'Done' and ended_at < now() - interval '24 hours' order by ended_at limit $1)";
+     where state = 'Done' and ended_at < now() - interval '24 hours' order by ended_at limit $1 for update skip locked)";
 
 /// Rows of `upload_slots` older than the 2 hours of the bound (0006). A revision and its object do
-/// not change: their cleanup waits for #69.
-const REMOVE_OLD_SLOTS: &str = "delete from upload_slots where slot_id in (select slot_id \
+/// not change: their cleanup waits for #69. Each API process runs it, so one transaction lock
+/// lets one process run at a time: the others remove nothing. `strata_api` has no `update` on the
+/// table, so `for update skip locked` is not available.
+const REMOVE_OLD_SLOTS: &str = "with one as (select pg_try_advisory_xact_lock(hashtext('strata.upload_slots')) as ok) \
+     delete from upload_slots where (select ok from one) and slot_id in (select slot_id \
      from upload_slots where created_at < now() - interval '2 hours' order by created_at limit $1)";
 
 /// One batch of the cleanup of `Done` jobs, on a connection of `strata_worker`. Returns the count

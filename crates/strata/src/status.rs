@@ -175,34 +175,10 @@ pub fn parse_batch(v: &Value) -> Option<Vec<(Uuid, i32)>> {
     (!ids.is_empty()).then_some(ids)
 }
 
-/// Why a batch request stops before its read.
-enum BatchStop {
-    Refused(crate::query::Refused),
-    Reject(Reject),
-}
-
-impl IntoResponse for BatchStop {
-    fn into_response(self) -> Response {
-        match self {
-            BatchStop::Refused(r) => r.into_response(),
-            BatchStop::Reject(r) => r.into_response(),
-        }
-    }
-}
-
-impl From<Reject> for BatchStop {
-    fn from(r: Reject) -> Self {
-        BatchStop::Reject(r)
-    }
-}
-
 /// `QUERY /v1/revisions`: the status of up to 100 revisions. Each response of the route has
 /// `Accept-Query: application/json` (0047).
 pub async fn batch(State(s): State<AppState>, req: Request) -> Response {
-    let mut r = no_store(match read_batch(&s, req).await {
-        Ok(r) => r,
-        Err(stop) => stop.into_response(),
-    });
+    let mut r = no_store(read_batch(&s, req).await.into_response());
     r.headers_mut().insert(
         header::HeaderName::from_static("accept-query"),
         HeaderValue::from_static("application/json"),
@@ -210,8 +186,8 @@ pub async fn batch(State(s): State<AppState>, req: Request) -> Response {
     r
 }
 
-async fn read_batch(s: &AppState, req: Request) -> Result<Response, BatchStop> {
-    let (mut parts, v) = crate::query::read(req).await.map_err(BatchStop::Refused)?;
+async fn read_batch(s: &AppState, req: Request) -> Result<Response, crate::query::Refused> {
+    let (mut parts, v) = crate::query::read(req).await?;
     let Some(ids) = parse_batch(&v) else {
         return Ok(StatusCode::BAD_REQUEST.into_response());
     };

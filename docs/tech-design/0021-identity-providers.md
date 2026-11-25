@@ -153,7 +153,7 @@ Each API instance keeps a key cache for each issuer in memory:
 - The API fetches the JWKS from `jwks_url` with HTTPS. The URL can use HTTP only for a loopback address. The development issuer uses that case.
 - A fetch has a 5-second timeout and a 64 KiB size limit. It follows no redirect.
 - The API keeps only the keys whose type agrees with the algorithm of the issuer. If a key has `alg`, it must be equal to that algorithm. If a key has `use`, it must be `sig`.
-- The API fetches the keys of each issuer again every 10 minutes.
+- The API fetches the keys of each issuer again every 10 minutes. Amended on 2026-11-26 ([#154](https://github.com/sravioli/strata/issues/154)): this fetch runs in the background. A request whose `kid` is in the cache does not wait for a fetch. Only a request whose `kid` is not in the cache waits, and one fetch runs at a time for each issuer.
 - If a token names a `kid` that the cache does not have, the API fetches the keys again. It does this at most one time per minute for each issuer. When that limit applies, the API rejects the token.
 - If a fetch fails, the API keeps the last keys that it fetched.
 - If the API never fetched keys for an issuer, it rejects all tokens of that issuer.

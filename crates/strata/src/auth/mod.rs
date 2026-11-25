@@ -110,7 +110,9 @@ fn bearer(parts: &Parts) -> Option<&str> {
     if value.len() > MAX_TOKEN_BYTES + "Bearer ".len() {
         return None;
     }
-    std::str::from_utf8(value).ok()?.strip_prefix("Bearer ")
+    // The scheme is case-insensitive (RFC 9110, 11.1).
+    let (scheme, token) = std::str::from_utf8(value).ok()?.split_once(' ')?;
+    scheme.eq_ignore_ascii_case("Bearer").then_some(token)
 }
 
 struct IssuerRow {
@@ -223,4 +225,27 @@ fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parts(value: &str) -> Parts {
+        let req = axum::http::Request::builder()
+            .header(header::AUTHORIZATION, value)
+            .body(())
+            .unwrap();
+        req.into_parts().0
+    }
+
+    #[test]
+    fn the_scheme_has_no_case() {
+        for v in ["Bearer t", "bearer t", "BEARER t"] {
+            assert_eq!(bearer(&parts(v)), Some("t"), "{v}");
+        }
+        for v in ["Basic t", "Bearert", "Bearer"] {
+            assert_eq!(bearer(&parts(v)), None, "{v}");
+        }
+    }
 }
