@@ -1,0 +1,87 @@
+{
+  "realm": "strata",
+  "displayName": "Strata (development)",
+  "enabled": true,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "strata-web",
+      "name": "Strata web (development)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4321/*"],
+      "webOrigins": ["http://localhost:4321"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4321/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant",
+            "claim.name": "tenant",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience strata",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "strata",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "6a0c1e4e-0000-4000-8000-00000000a1ce",
+      "username": "alice@acme",
+      "email": "alice@acme.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Acme",
+      "enabled": true,
+      "attributes": { "tenant": ["acme"] },
+      "credentials": [{ "type": "password", "value": "alice-acme-dev", "temporary": false }]
+    },
+    {
+      "id": "6a0c1e4e-0000-4000-8000-000000000b0b",
+      "username": "bob@acme",
+      "email": "bob@acme.test",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Acme",
+      "enabled": true,
+      "attributes": { "tenant": ["acme"] },
+      "credentials": [{ "type": "password", "value": "bob-acme-dev", "temporary": false }]
+    },
+    {
+      "id": "6a0c1e4e-0000-4000-8000-0000000a1ce9",
+      "username": "alice@globex",
+      "email": "alice@globex.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Globex",
+      "enabled": true,
+      "attributes": { "tenant": ["globex"] },
+      "credentials": [{ "type": "password", "value": "alice-globex-dev", "temporary": false }]
+    }
+  ]
+}
