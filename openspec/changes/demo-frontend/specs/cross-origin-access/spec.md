@@ -12,7 +12,6 @@ Lets a browser client of an allowed origin call the API across origins, through 
 
 #### Scenario: TC-65-01 No setting, no CORS headers
 
-- **PENDING** L1 test in `crates/strata-tests/tests/cors.rs`, task 2.3.
 - **GIVEN** `STRATA_CORS_ORIGINS` is not set
 - **WHEN** a client sends a preflight `OPTIONS /v1/search` with an `Origin`, and a `GET` of a status with an `Origin`
 - **THEN** no response has an `Access-Control-` header
@@ -24,7 +23,6 @@ When `STRATA_CORS_ORIGINS` has items, the API SHALL answer a preflight from an o
 
 #### Scenario: TC-65-02 A preflight of the allowed origin
 
-- **PENDING** L1 test in `crates/strata-tests/tests/cors.rs`, task 2.3.
 - **GIVEN** `STRATA_CORS_ORIGINS=http://localhost:4321`
 - **WHEN** a client sends a preflight for `QUERY /v1/search` from that origin, with the headers `authorization` and `content-type`
 - **THEN** the answer has `Access-Control-Allow-Origin: http://localhost:4321`
@@ -38,7 +36,6 @@ The API SHALL send `Access-Control-Allow-Origin` only with an origin that is equ
 
 #### Scenario: TC-65-03 Origins not on the list
 
-- **PENDING** L1 test in `crates/strata-tests/tests/cors.rs`, task 2.3.
 - **GIVEN** `STRATA_CORS_ORIGINS=http://localhost:4321`
 - **WHEN** a client sends a preflight and a `GET` of a status from `http://localhost:4322`, and from the origin `null`
 - **THEN** no answer has `Access-Control-Allow-Origin`
@@ -49,7 +46,6 @@ For a request from an allowed origin, the API SHALL send `Access-Control-Allow-O
 
 #### Scenario: TC-65-04 The API exposes Retry-After
 
-- **PENDING** L1 test in `crates/strata-tests/tests/cors.rs`, task 2.3.
 - **GIVEN** `STRATA_CORS_ORIGINS=http://localhost:4321`
 - **WHEN** an account sends a request from the allowed origin for the status of a revision that is not final
 - **THEN** the answer has `Retry-After`
@@ -61,7 +57,6 @@ Each item of `STRATA_CORS_ORIGINS` SHALL be an exact origin: the scheme `http` o
 
 #### Scenario: TC-65-05 Bad origins
 
-- **PENDING** L1 test in `crates/strata-tests/tests/cors.rs`, task 2.3.
 - **GIVEN** `STRATA_CORS_ORIGINS` holds `*`, `http://localhost:4321/`, `http://localhost:4321/app`, `localhost:4321` or `ftp://localhost`
 - **WHEN** `strata api` starts
 - **THEN** it stops with a message that names `STRATA_CORS_ORIGINS`

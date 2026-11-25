@@ -2,15 +2,15 @@
 
 ## 1. Facts to find first
 
-- [ ] 1.1 Find the newest Keycloak 26.6.x image and its digest. Start it in `start-dev` with a realm that has a user with the attribute `tenant` and no user profile entry for it. Find out whether the import keeps the attribute, and whether a mapper puts it in the access token. If it does not, find the smallest user profile entry that keeps the attribute. Write the result in the pull request. Verify: an access token of the test user has the string claim `tenant`.
-- [ ] 1.2 Send `PutBucketCors` with `curl --aws-sigv4` to the Garage of `compose.yaml` (v2.5), with and without `Content-MD5`. Then send a preflight `OPTIONS` for a PUT from `http://localhost:4321` to a signed URL. Write the result in the pull request. Verify: the preflight gets `Access-Control-Allow-Origin: http://localhost:4321`.
+- [x] 1.1 Find the newest Keycloak 26.6.x image and its digest. Start it in `start-dev` with a realm that has a user with the attribute `tenant` and no user profile entry for it. Find out whether the import keeps the attribute, and whether a mapper puts it in the access token. If it does not, find the smallest user profile entry that keeps the attribute. Write the result in the pull request. Verify: an access token of the test user has the string claim `tenant`.
+- [x] 1.2 Send `PutBucketCors` with `curl --aws-sigv4` to the Garage of `compose.yaml` (v2.5), with and without `Content-MD5`. Then send a preflight `OPTIONS` for a PUT from `http://localhost:4321` to a signed URL. Write the result in the pull request. Verify: the preflight gets `Access-Control-Allow-Origin: http://localhost:4321`.
 
 ## 2. CORS on the API
 
-- [ ] 2.1 Add `tower-http` with only the feature `cors` to `crates/strata`, pinned with `=` like the other dependencies. Verify: `make deny` passes.
-- [ ] 2.2 Add `crates/strata/src/cors.rs`: the parse of `STRATA_CORS_ORIGINS` into a list of exact origins, with L0 tests. Test each kind of bad item of the spec `cross-origin-access`, an empty value, and spaces around the commas. Verify: the L0 tests pass.
-- [ ] 2.3 In `api.rs`, read the setting in `state`, so a bad item stops `strata api` before it serves a request. With items, add the `CorsLayer` as the outermost layer of the router. Give it the methods, the headers, the exposed header and the max age of the spec. With no items, add no layer. Verify: the L1 tests TC-65-01 to TC-65-05 in `crates/strata-tests/tests/cors.rs` pass. Remove their pending markers.
-- [ ] 2.4 In `scripts/dev.sh`, in the branch where `CI` is not set, set `STRATA_CORS_ORIGINS=http://localhost:4321` for `strata api` when the variable is not in the environment. In the branch where `CI` is in the environment, set no value. Verify: the scenarios "A local run allows the site" and "A run in CI has no CORS" of `dev-services` pass, the second one as `CI=1 make l2` locally.
+- [x] 2.1 Add `tower-http` with only the feature `cors` to `crates/strata`, pinned with `=` like the other dependencies. Verify: `make deny` passes.
+- [x] 2.2 Add `crates/strata/src/cors.rs`: the parse of `STRATA_CORS_ORIGINS` into a list of exact origins, with L0 tests. Test each kind of bad item of the spec `cross-origin-access`, an empty value, and spaces around the commas. Verify: the L0 tests pass.
+- [x] 2.3 In `api.rs`, read the setting in `state`, so a bad item stops `strata api` before it serves a request. With items, add the `CorsLayer` as the outermost layer of the router. Give it the methods, the headers, the exposed header and the max age of the spec. With no items, add no layer. Verify: the L1 tests TC-65-01 to TC-65-05 in `crates/strata-tests/tests/cors.rs` pass. Remove their pending markers.
+- [x] 2.4 In `scripts/dev.sh`, in the branch where `CI` is not set, set `STRATA_CORS_ORIGINS=http://localhost:4321` for `strata api` when the variable is not in the environment. In the branch where `CI` is in the environment, set no value. Verify: the scenarios "A local run allows the site" and "A run in CI has no CORS" of `dev-services` pass, the second one as `CI=1 make l2` locally.
 
 ## 3. Keycloak, the Garage rule and make web
 

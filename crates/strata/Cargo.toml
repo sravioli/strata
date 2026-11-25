@@ -54,6 +54,10 @@ tokio = { version = "=1.54.1", features = [
   "process",
   "io-util",
 ] }
+# The CORS layer of STRATA_CORS_ORIGINS only (tech design 0065).
+tower-http = { version = "=0.7.1", default-features = false, features = [
+  "cors",
+] }
 tokio-postgres = { version = "=0.7.18", features = ["with-uuid-1"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }

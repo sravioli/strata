@@ -35,6 +35,8 @@ pub struct AppState {
     pub search_timeout: std::time::Duration,
     /// The instruments of 0133.
     pub metrics: Arc<crate::telemetry::Metrics>,
+    /// The origins of `STRATA_CORS_ORIGINS` (0065). Empty: the router has no CORS layer.
+    pub cors_origins: Vec<axum::http::HeaderValue>,
 }
 
 impl FromRef<AppState> for Auth {
@@ -46,6 +48,8 @@ impl FromRef<AppState> for Auth {
 /// The state of `strata api` on `pool`. The storage settings come from the environment, so a
 /// missing variable stops the process before it serves a request.
 pub fn state(pool: db::Pool) -> Result<AppState, String> {
+    let cors_origins =
+        crate::cors::origins(std::env::var(crate::cors::ORIGINS_VAR).ok().as_deref())?;
     let retry_after = std::env::var(crate::status::RETRY_AFTER_VAR).ok();
     let status_retry_after = crate::status::retry_after(retry_after.as_deref())?;
     Ok(AppState {
@@ -61,13 +65,15 @@ pub fn state(pool: db::Pool) -> Result<AppState, String> {
         in_flight: Arc::new(tokio::sync::Semaphore::new(MAX_REQUESTS)),
         search_timeout: crate::search::TIMEOUT,
         metrics: crate::telemetry::Metrics::global(),
+        cors_origins,
     })
 }
 
 /// The router of the public API. A check reads each `.route(` call of this function
 /// (TC-3-18), so each route has a test with the identifiers of a different tenant.
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    let cors_origins = state.cors_origins.clone();
+    let app = Router::new()
         .route("/v1/documents", post(upload::start_document))
         .route(
             "/v1/documents/{document_id}/revisions",
@@ -88,7 +94,13 @@ pub fn router(state: AppState) -> Router {
             crate::limits::bound,
         ))
         .layer(axum::middleware::from_fn_with_state(state.clone(), trace))
-        .with_state(state)
+        .with_state(state);
+    // The outermost layer: a preflight gets its answer before the bound and the authentication.
+    if cors_origins.is_empty() {
+        app
+    } else {
+        app.layer(crate::cors::layer(cors_origins))
+    }
 }
 
 /// One span for each request, and its duration (0133). The span starts a new trace: the API
