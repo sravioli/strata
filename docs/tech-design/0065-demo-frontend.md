@@ -1,7 +1,7 @@
 - Issue: [#65](https://github.com/sravioli/strata/issues/65)
-- Status: draft
+- Status: accepted
 - Start date: 2026-11-25
-- Decided by: (filled in on the decision)
+- Decided by: sravioli, 2026-11-25
 
 # Frontend for demonstrations: Astro, Keycloak and CORS, local
 
@@ -180,13 +180,13 @@ L0 tests cover the parse of `STRATA_CORS_ORIGINS`: each kind of bad item, and a 
 
 | ID | Level | Given, when, then | Decided by | Automated test |
 |---|---|---|---|---|
-| TC-65-01 | L1 | Given `STRATA_CORS_ORIGINS` is not set. When a client sends a preflight `OPTIONS /v1/search` with an `Origin`, and a `GET` of a status with an `Origin`. Then no response has an `Access-Control-` header, and the `GET` gets the same answer as with no `Origin`. | | pending |
-| TC-65-02 | L1 | Given `STRATA_CORS_ORIGINS=http://localhost:4321`. When a client sends a preflight for `QUERY /v1/search` from that origin, with the headers `authorization` and `content-type`. Then the answer has `Access-Control-Allow-Origin: http://localhost:4321`, allows `GET`, `POST` and `QUERY` and the two headers, has `Access-Control-Max-Age: 600` and has no `Access-Control-Allow-Credentials`. | | pending |
-| TC-65-03 | L1 | Given the same setting. When a client sends a preflight and a `GET` of a status from `http://localhost:4322`, and from the origin `null`. Then no answer has `Access-Control-Allow-Origin`. | | pending |
-| TC-65-04 | L1 | Given the same setting. When an account of the allowed origin reads the status of a revision that is not final. Then the answer has `Retry-After` and `Access-Control-Expose-Headers` that names `retry-after`. | | pending |
-| TC-65-05 | L1 | Given `STRATA_CORS_ORIGINS` holds `*`, `http://localhost:4321/`, `http://localhost:4321/app`, `localhost:4321` or `ftp://localhost`. When `strata api` starts. Then it stops with a message that names `STRATA_CORS_ORIGINS`. | | pending |
-| TC-65-06 | L0 | Given `dev/keycloak/strata-realm.json`. When the test reads it. Then the client `strata-web` is public, has only the standard flow, requires PKCE `S256` and has only redirect URIs and web origins on `http://localhost:4321`. Each user has a fixed `id` and a `tenant` attribute, and the access token lifetime is not more than 300 s. | | pending |
-| TC-65-07 | L2 | Given `make dev` and `make web`, run locally. When `alice@acme` signs in, uploads `two-pages.pdf`, waits on `/documents` until its status is final, and searches for a word of it. Then the status is `Done` and the search has a hit of the document. When `alice@globex` signs in in a new browser context and searches for the same word. Then the search has no hit. | | pending |
+| TC-65-01 | L1 | Given `STRATA_CORS_ORIGINS` is not set. When a client sends a preflight `OPTIONS /v1/search` with an `Origin`, and a `GET` of a status with an `Origin`. Then no response has an `Access-Control-` header, and the `GET` gets the same answer as with no `Origin`. | sravioli, 2026-11-25 | pending |
+| TC-65-02 | L1 | Given `STRATA_CORS_ORIGINS=http://localhost:4321`. When a client sends a preflight for `QUERY /v1/search` from that origin, with the headers `authorization` and `content-type`. Then the answer has `Access-Control-Allow-Origin: http://localhost:4321`, allows `GET`, `POST` and `QUERY` and the two headers, has `Access-Control-Max-Age: 600` and has no `Access-Control-Allow-Credentials`. | sravioli, 2026-11-25 | pending |
+| TC-65-03 | L1 | Given the same setting. When a client sends a preflight and a `GET` of a status from `http://localhost:4322`, and from the origin `null`. Then no answer has `Access-Control-Allow-Origin`. | sravioli, 2026-11-25 | pending |
+| TC-65-04 | L1 | Given the same setting. When an account of the allowed origin reads the status of a revision that is not final. Then the answer has `Retry-After` and `Access-Control-Expose-Headers` that names `retry-after`. | sravioli, 2026-11-25 | pending |
+| TC-65-05 | L1 | Given `STRATA_CORS_ORIGINS` holds `*`, `http://localhost:4321/`, `http://localhost:4321/app`, `localhost:4321` or `ftp://localhost`. When `strata api` starts. Then it stops with a message that names `STRATA_CORS_ORIGINS`. | sravioli, 2026-11-25 | pending |
+| TC-65-06 | L0 | Given `dev/keycloak/strata-realm.json`. When the test reads it. Then the client `strata-web` is public, has only the standard flow, requires PKCE `S256` and has only redirect URIs and web origins on `http://localhost:4321`. Each user has a fixed `id` and a `tenant` attribute, and the access token lifetime is not more than 300 s. | sravioli, 2026-11-25 | pending |
+| TC-65-07 | L2 | Given `make dev` and `make web`, run locally. When `alice@acme` signs in, uploads `two-pages.pdf`, waits on `/documents` until its status is final, and searches for a word of it. Then the status is `Done` and the search has a hit of the document. When `alice@globex` signs in in a new browser context and searches for the same word. Then the search has no hit. | sravioli, 2026-11-25 | pending |
 
 TC-65-07 runs locally with Playwright. It has a pending marker in CI until CI can start Keycloak (see "Unresolved questions").
 
