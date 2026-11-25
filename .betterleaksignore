@@ -12,3 +12,5 @@ f51863c4dd9d0305eecd18ce30c7a819ce499906:dev/otel-collector.yaml:generic-passwor
 57148db6f6613b076bbb503ee5094218aba18021:crates/strata-tests/tests/cors.rs:generic-credential-uri:180
 # Development admin password of Keycloak in compose.yaml (profile frontend, 127.0.0.1 only). Not a real secret.
 60d901fc6483f32c19e56cdf370815013dc5dbc1:compose.yaml:generic-password:100
+# Development URL of strata_operator in make web: the password of dev/roles.sql, as in scripts/dev.sh. Not a real secret.
+3637f05b89e3497db1f83ba2ef9a61929e4a4554:scripts/web.sh:generic-credential-uri:37
