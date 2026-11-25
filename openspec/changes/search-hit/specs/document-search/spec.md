@@ -23,7 +23,6 @@ The search SHALL parse `q` with `websearch_to_tsquery('simple', q)`. It SHALL ra
 
 #### Scenario: TC-145-01 Three pages of one document
 
-- **PENDING** The L1 test comes with this change.
 - **GIVEN** a document of tenant A with the word `quartz` three times on page 2, one time on page 1 and two times on page 3
 - **WHEN** A searches for `quartz`
 - **THEN** the response has three hits of the document, in the order page 2, page 3, page 1
@@ -31,14 +30,12 @@ The search SHALL parse `q` with `websearch_to_tsquery('simple', q)`. It SHALL ra
 
 #### Scenario: TC-145-02 One hit for a page of four parts
 
-- **PENDING** The L1 test comes with this change.
 - **GIVEN** a page of 200 KB in four parts, with the word `obsidian` in parts 2 and 4
 - **WHEN** an account searches for `obsidian`
 - **THEN** the response has one hit for that page
 
 #### Scenario: TC-145-03 The limit counts hits
 
-- **PENDING** The L1 test comes with this change.
 - **GIVEN** a document with the word `basalt` on five pages, and a second document with the word on one page
 - **WHEN** an account searches for `basalt` with `limit` 3
 - **THEN** the response has the three hits with the best scores, of the two documents
@@ -51,14 +48,12 @@ The field `text` of a hit SHALL be a list of segments, from one fragment of 15 t
 
 #### Scenario: TC-145-04 The segments of a short page
 
-- **PENDING** The L1 test comes with this change.
 - **GIVEN** a page with the text `alpha bravo charlie`
 - **WHEN** an account searches for `bravo`
 - **THEN** the hit has three segments: `"alpha "`, then `"bravo"` with `match` set to `true`, then `" charlie"`
 
 #### Scenario: TC-145-06 The snippet of a long page
 
-- **PENDING** The L1 test comes with this change.
 - **GIVEN** a page of 1,000 words with the word `granite` in the middle
 - **WHEN** an account searches for `granite`
 - **THEN** the snippet has at most 35 words
@@ -70,7 +65,6 @@ The API SHALL remove the characters U+0002 and U+0003 from the text of a part be
 
 #### Scenario: TC-145-05 Tags and control characters in the text
 
-- **PENDING** The L1 test comes with this change.
 - **GIVEN** a page with the text `<b>alpha</b> bravo`, and the characters U+0002 and U+0003 around the word `charlie`
 - **WHEN** an account searches for `bravo`
 - **THEN** the only segment with `match` is `bravo`

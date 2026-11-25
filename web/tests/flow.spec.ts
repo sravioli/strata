@@ -42,6 +42,9 @@ test("TC-65-07 from sign-in to search in the browser", async ({ browser }) => {
   });
   await expect(row.locator("td[data-state]")).toHaveAttribute("data-state", "ready");
   expect((await search(acme)).some((h) => h.includes(document_id))).toBe(true);
+  // The hit of the document shows the searched word in bold, in its snippet.
+  const hit = acme.locator("#hits li", { hasText: document_id });
+  await expect(hit.locator("blockquote strong").first()).toHaveText(WORD);
 
   const globex = await (await browser.newContext()).newPage();
   await signIn(globex, "alice@globex", "alice-globex-dev");

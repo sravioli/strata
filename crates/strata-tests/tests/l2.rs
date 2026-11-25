@@ -186,16 +186,23 @@ async fn final_status(token: &str, location: &str) -> Value {
     }
 }
 
-/// The documents of a search for `q`.
+/// The documents of the hits of a search for `q`.
 async fn search(token: &str, q: &str) -> BTreeSet<String> {
     let a = api(token, "QUERY", "/v1/search", Some(&json!({"q": q}))).await;
     assert_eq!(a.status, 200, "{}", a.body);
     // Only the list of results: no count or other field can show data of a different tenant.
     assert_eq!(a.body.as_object().unwrap().len(), 1, "{}", a.body);
-    a.body["results"]
-        .as_array()
-        .unwrap()
-        .iter()
+    let hits = a.body["results"].as_array().unwrap();
+    // Each hit of the unique word shows the word as a matched segment (0145).
+    for h in hits {
+        let matched = h["text"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g["match"] == true && g["t"] == q);
+        assert!(matched, "{h}");
+    }
+    hits.iter()
         .map(|r| r["document_id"].as_str().unwrap().to_owned())
         .collect()
 }

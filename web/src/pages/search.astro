@@ -49,6 +49,18 @@ import Base from "../layouts/Base.astro";
         const c = document.createElement("code");
         c.textContent = h.document_id;
         li.append(c);
+        // The snippet as text: a matched word goes in <strong>, never through innerHTML (0145).
+        const q = document.createElement("blockquote");
+        for (const g of h.text as { t: string; match?: boolean }[]) {
+          if (g.match) {
+            const b = document.createElement("strong");
+            b.textContent = g.t;
+            q.append(b);
+          } else {
+            q.append(document.createTextNode(g.t));
+          }
+        }
+        li.append(q);
         hits.append(li);
       }
     } catch (err) {
