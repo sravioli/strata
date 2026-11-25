@@ -180,7 +180,7 @@ TC-49-02, TC-49-05, TC-49-06, TC-3-10, TC-4-01 and TC-4-09 keep their meaning. T
 - A long document with the word on many pages can fill an answer, so other documents do not show. The owner chose the order by score only (2026-11-25).
 - `ts_headline` adds time to each search, at most 100 times the time for one part.
 - The snippet of a location comes from its best part only. A match in a different part of the same location does not show in the snippet.
-- A snippet lacks the text that has the form of an HTML or XML tag, because `ts_headline` leaves tags out.
+- A snippet lacks the text that has the form of an HTML or XML tag, because `ts_headline` leaves tags out ([#148](https://github.com/sravioli/strata/issues/148)).
 
 ## Rationale and alternatives
 
@@ -218,9 +218,7 @@ The owner answered the questions of #145 on 2026-11-25:
 8. No limit of hits for each document, for now.
 9. This design amends 0049 and ADR 0011 (walking skeleton). The pull request of this design changes their text at each place, with an amendment note. At acceptance, `GLOSSARY.md` gets the terms hit and snippet.
 
-For the owner, at the review of this design:
-
-- A snippet lacks the text of each HTML or XML tag (see "The snippet"). The alternative is a snippet that Rust makes from the text of the part, with the positions of the matches. That needs its own split of words, the same as the parser of PostgreSQL. This design takes `ts_headline` as it is.
+The owner accepted on 2026-11-25 that a snippet lacks the text of each HTML or XML tag (see "The snippet"). A snippet with the exact text is a later design: [#148](https://github.com/sravioli/strata/issues/148).
 
 During implementation:
 
@@ -232,3 +230,4 @@ During implementation:
 - More than one fragment for each hit (`MaxFragments`).
 - A limit of hits for each document, and pages of results (#73).
 - The hit of a sheet or a slide, when the worker extracts more formats (#102).
+- A snippet that keeps the text in the form of a tag (#148).
