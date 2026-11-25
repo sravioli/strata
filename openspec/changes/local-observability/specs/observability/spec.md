@@ -84,7 +84,7 @@ No span attribute, log record or metric attribute SHALL hold document text or th
 
 ### Requirement: Local Grafana shows the three signals
 
-The local services SHALL include a collector that receives OTLP/HTTP on `127.0.0.1:4318`, and Grafana with Tempo, Loki and Prometheus on `127.0.0.1:3000`. The collector SHALL also read the metrics of PostgreSQL, PgBouncer and Garage. Grafana SHALL have one provisioned dashboard: the request rate, the errors and the latency for each route, the rejections, the queue and the extractions. `scripts/observability-check.sh` SHALL query Tempo, Loki and Prometheus and print what it finds.
+The local services SHALL include a collector that receives OTLP/HTTP on `127.0.0.1:4318`, and Grafana with Tempo, Loki and Prometheus on `127.0.0.1:3000`. The collector SHALL also read the metrics of PostgreSQL, PgBouncer and Garage. Grafana SHALL have one provisioned dashboard: the request rate, the errors and the latency for each route, the rejections, the queue, the extractions, and the connections and transactions of PostgreSQL and PgBouncer. `scripts/observability-check.sh` SHALL query Tempo, Loki and Prometheus and print what it finds.
 
 #### Scenario: TC-133-07 The signals of a run reach Grafana
 

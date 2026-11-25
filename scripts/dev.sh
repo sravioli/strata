@@ -46,8 +46,10 @@ profile=()
 if [ -z "${CI:-}" ]; then
   profile=(--profile observability)
   export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+  # Each 10 s, not the 60 s of the SDK, so the dashboard shows a run soon after it ends.
+  export OTEL_METRIC_EXPORT_INTERVAL=10000
 else
-  unset OTEL_EXPORTER_OTLP_ENDPOINT
+  unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_METRIC_EXPORT_INTERVAL
 fi
 # podman-compose stays attached on a first start without -d.
 ${COMPOSE:-docker compose} "${profile[@]}" up -d --wait
