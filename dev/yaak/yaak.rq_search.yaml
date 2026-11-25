@@ -4,7 +4,7 @@ id: rq_search
 workspaceId: wk_strata
 folderId: fl_read
 name: Search
-description: 200 with the best part of each document of the tenant, best first. q has 1 to 1,000 characters, limit is 1 to 100 (20 when absent). 503 at the time limit of 2 seconds.
+description: 200 with one hit for each matching location of the tenant, best first, each with a snippet as segments in `text`. q has 1 to 1,000 characters, limit is 1 to 100 (20 when absent). 503 at the time limit of 2 seconds.
 sortPriority: 1
 method: QUERY
 url: ${[ base_url ]}/v1/search

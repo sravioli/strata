@@ -240,11 +240,173 @@ async fn the_page_of_the_best_match() {
         json!({"kind": "page", "number": 2})
     );
     assert!(a.body["results"][0]["score"].as_f64().unwrap() > 0.0);
+    assert_eq!(pages(&a), [2, 1], "one hit for each page");
+}
+
+/// The page numbers of the hits, in the order of the response.
+fn pages(a: &Answer) -> Vec<i64> {
+    a.body["results"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{} {}", a.status, a.body))
+        .iter()
+        .map(|r| r["location"]["number"].as_i64().unwrap())
+        .collect()
+}
+
+/// The segments of the first hit, as (text, match).
+fn segments(a: &Answer) -> Vec<(String, bool)> {
+    a.body["results"][0]["text"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{} {}", a.status, a.body))
+        .iter()
+        .map(|g| {
+            (
+                g["t"].as_str().unwrap().to_owned(),
+                g["match"].as_bool().unwrap_or(false),
+            )
+        })
+        .collect()
+}
+
+/// TC-145-01
+#[tokio::test]
+async fn tc_145_01_three_pages_of_one_document() {
+    let s = s().await;
+    let (doc, _) = s
+        .ready(
+            s.w.a.id,
+            None,
+            vec![
+                page(1, "quartz and mica"),
+                page(2, "quartz quartz and more quartz"),
+                page(3, "quartz and quartz"),
+            ],
+        )
+        .await;
+    let a = s.search(&s.w.a, json!({"q": "quartz"})).await;
+    assert_eq!(results(&a), vec![(doc.to_string(), 1); 3]);
+    assert_eq!(pages(&a), [2, 3, 1]);
+    let scores: Vec<f64> = a.body["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["score"].as_f64().unwrap())
+        .collect();
+    assert!(scores.windows(2).all(|w| w[1] <= w[0]), "{scores:?}");
+}
+
+/// TC-145-02
+#[tokio::test]
+async fn tc_145_02_one_hit_for_a_page_of_four_parts() {
+    let s = s().await;
+    let filler = "word ".repeat(70 * 1024 / 5);
+    let page_text = format!("{filler}obsidian {filler}{filler}obsidian");
+    let output = json!({"format": "pdf", "pages": 1,
+        "blocks": [{"kind": "page", "index": 1, "text": page_text}]});
+    let parts = strata::extraction::check(output.to_string().as_bytes()).unwrap();
+    assert_eq!(parts.len(), 4);
+    let has: Vec<bool> = parts.iter().map(|p| p.text.contains("obsidian")).collect();
+    assert_eq!(has, [false, true, false, true]);
+    let (doc, _) = s.ready(s.w.a.id, None, parts).await;
+    let a = s.search(&s.w.a, json!({"q": "obsidian"})).await;
+    assert_eq!(results(&a), [(doc.to_string(), 1)]);
+    assert!(segments(&a).contains(&("obsidian".into(), true)));
+}
+
+/// TC-145-03
+#[tokio::test]
+async fn tc_145_03_the_limit_counts_hits() {
+    let s = s().await;
+    let (five, _) = s
+        .ready(
+            s.w.a.id,
+            None,
+            vec![
+                page(1, "basalt basalt"),
+                page(2, "basalt"),
+                page(3, "basalt"),
+                page(4, "basalt"),
+                page(5, "basalt"),
+            ],
+        )
+        .await;
+    let (one, _) = s
+        .ready(s.w.a.id, None, vec![page(1, "basalt basalt basalt")])
+        .await;
+    let a = s.search(&s.w.a, json!({"q": "basalt", "limit": 3})).await;
+    let hits: Vec<(String, i64)> = a.body["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["document_id"].as_str().unwrap().to_owned(),
+                r["location"]["number"].as_i64().unwrap(),
+            )
+        })
+        .collect();
     assert_eq!(
-        a.body["results"].as_array().unwrap().len(),
-        1,
-        "one result for each document"
+        hits,
+        [
+            (one.to_string(), 1),
+            (five.to_string(), 1),
+            (five.to_string(), 2)
+        ]
     );
+}
+
+/// TC-145-04
+#[tokio::test]
+async fn tc_145_04_the_segments_of_a_short_page() {
+    let s = s().await;
+    s.ready(s.w.a.id, None, vec![page(1, "alpha bravo charlie")])
+        .await;
+    let a = s.search(&s.w.a, json!({"q": "bravo"})).await;
+    assert_eq!(
+        segments(&a),
+        [
+            ("alpha ".into(), false),
+            ("bravo".into(), true),
+            (" charlie".into(), false)
+        ]
+    );
+}
+
+/// TC-145-05
+#[tokio::test]
+async fn tc_145_05_tags_and_control_characters_in_the_text() {
+    let s = s().await;
+    s.ready(
+        s.w.a.id,
+        None,
+        vec![page(1, "<b>alpha</b> bravo \u{2}charlie\u{3} delta")],
+    )
+    .await;
+    let a = s.search(&s.w.a, json!({"q": "bravo"})).await;
+    let g = segments(&a);
+    let matched: Vec<&str> = g.iter().filter(|g| g.1).map(|g| g.0.as_str()).collect();
+    assert_eq!(matched, ["bravo"], "{g:?}");
+    let alpha = g.iter().find(|g| g.0.contains("alpha")).expect("alpha");
+    assert!(!alpha.0.contains('<') && !alpha.0.contains('>'), "{g:?}");
+    assert!(g.iter().all(|g| !g.0.contains(['\u{2}', '\u{3}'])), "{g:?}");
+}
+
+/// TC-145-06
+#[tokio::test]
+async fn tc_145_06_the_snippet_of_a_long_page() {
+    let s = s().await;
+    let half = "stone ".repeat(500);
+    s.ready(
+        s.w.a.id,
+        None,
+        vec![page(1, &format!("{half}granite {half}"))],
+    )
+    .await;
+    let a = s.search(&s.w.a, json!({"q": "granite"})).await;
+    let g = segments(&a);
+    let text: String = g.iter().map(|g| g.0.as_str()).collect();
+    assert!(text.split_whitespace().count() <= 35, "{text}");
+    assert!(g.contains(&("granite".into(), true)), "{g:?}");
 }
 
 /// Scenario "A query that PostgreSQL cannot parse as tsquery syntax".

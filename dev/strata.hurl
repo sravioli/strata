@@ -68,6 +68,7 @@ Authorization: Bearer {{acme}}
 HTTP 200
 [Asserts]
 jsonpath "$.results[*].document_id" contains "{{document_id}}"
+jsonpath "$.results[0].text[?(@.match == true)].t" contains "alpha"
 
 # 7. The same search as globex does not find it.
 QUERY {{base_url}}/v1/search
